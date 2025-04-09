@@ -43,6 +43,7 @@ contract GoalFund is ReentrancyGuard, Ownable {
     event GoalAchieved(uint totalAmount, uint timestamp);
     event FundsWithdrawn(address indexed beneficiary, uint amount);
     event RefundIssued(address indexed contributor, uint amount);
+    event DescriptionUpdated(string newDescription);
 
     constructor(
         string memory _name,
@@ -100,6 +101,12 @@ contract GoalFund is ReentrancyGuard, Ownable {
         _;
     }
 
+    // Update description (e.g., to clarify goal details)
+    function updateDescription(string memory _newDescription) external onlyOwner {
+        goal.description = _newDescription;
+        emit DescriptionUpdated(_newDescription);
+    }
+
     // Contribute to the goal
     function contribute() external payable nonReentrant onlyBeforeDeadline {
         uint amount;
@@ -109,6 +116,17 @@ contract GoalFund is ReentrancyGuard, Ownable {
         } else {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
             amount = getTokenContribution();
+        }
+
+        // Prevent over-contribution beyond target
+        uint remaining = goal.targetAmount.sub(goal.currentAmount);
+        if (amount > remaining) {
+            amount = remaining;
+            if (paymentMethod == PaymentMethod.Ether) {
+                // Refund excess Ether
+                (bool success, ) = msg.sender.call{value: msg.value.sub(amount)}("");
+                require(success, "Ether refund failed");
+            } // For ERC20, only transfer the needed amount
         }
 
         if (contributions[msg.sender] == 0) {
@@ -152,7 +170,7 @@ contract GoalFund is ReentrancyGuard, Ownable {
 
         // Pay host fee
         if (hostFee > 0) {
-            transferFunds(owner(), hostFee);
+            transferFunds(payable(owner()), hostFee);
         }
 
         // Pay beneficiary (group) or owner (personal)
@@ -167,9 +185,6 @@ contract GoalFund is ReentrancyGuard, Ownable {
     function refundContributors() external onlyOwner nonReentrant onlyAfterDeadline onlyWhenNotWithdrawn {
         require(fundType == FundType.Group, "Refunds only for group funding");
         require(!goal.achieved, "Goal was achieved, no refunds");
-
-        uint totalAmount = getBalance();
-        require(totalAmount > 0, "No funds to refund");
 
         for (uint i = 0; i < contributors.length; i++) {
             address contributor = contributors[i];
@@ -213,6 +228,11 @@ contract GoalFund is ReentrancyGuard, Ownable {
     // View contributor count
     function getContributorCount() external view returns (uint) {
         return contributors.length;
+    }
+
+    // View individual contribution
+    function getContribution(address _contributor) external view returns (uint) {
+        return contributions[_contributor];
     }
 
     // Receive Ether (only for Ether-based goals)

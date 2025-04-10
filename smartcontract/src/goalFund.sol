@@ -36,14 +36,15 @@ contract GoalFund is ReentrancyGuard, Ownable {
     Goal public goal;
     mapping(address => uint) public contributions; // Tracks individual contributions
     address[] public contributors; // List of contributors
-    uint public hostFeePercentage; // Fee for the host (e.g., 200 = 2%)
+    uint public platformFeePercentage; // Fee for the platform owner (set by factory)
+    address public platformOwner;      // Address of the platform owner (factory deployer)
     uint public constant PERCENTAGE_BASE = 10000;
 
     event Contribution(address indexed contributor, uint amount);
     event GoalAchieved(uint totalAmount, uint timestamp);
     event FundsWithdrawn(address indexed beneficiary, uint amount);
     event RefundIssued(address indexed contributor, uint amount);
-    event DescriptionUpdated(string newDescription);
+    event PlatformFeeTransferred(address indexed platformOwner, uint amount);
 
     constructor(
         string memory _name,
@@ -54,16 +55,20 @@ contract GoalFund is ReentrancyGuard, Ownable {
         PaymentMethod _paymentMethod,
         address _tokenAddress,
         FundType _fundType,
-        uint _hostFeePercentage
+        uint _platformFeePercentage,
+        address _platformOwner,
+        address _host
     ) {
         require(_targetAmount > 0, "Target amount must be greater than zero");
         require(_deadline > block.timestamp, "Deadline must be in the future");
         require(_beneficiary != address(0), "Invalid beneficiary address");
-        require(_hostFeePercentage <= 500, "Host fee cannot exceed 5%"); // Max 5%
+        require(_platformFeePercentage <= 500, "Platform fee cannot exceed 5%"); // Max 5%
+        require(_platformOwner != address(0), "Invalid platform owner address");
 
         paymentMethod = _paymentMethod;
         fundType = _fundType;
-        hostFeePercentage = _hostFeePercentage;
+        platformFeePercentage = _platformFeePercentage;
+        platformOwner = _platformOwner;
         goal = Goal({
             name: _name,
             description: _description,
@@ -83,7 +88,7 @@ contract GoalFund is ReentrancyGuard, Ownable {
             revert("Invalid payment method configuration");
         }
 
-        _transferOwnership(msg.sender); // Host is the owner
+        _transferOwnership(_host); // Host manages the contract
     }
 
     modifier onlyBeforeDeadline() {
@@ -101,13 +106,21 @@ contract GoalFund is ReentrancyGuard, Ownable {
         _;
     }
 
-    // Update description (e.g., to clarify goal details)
-    function updateDescription(string memory _newDescription) external onlyOwner {
-        goal.description = _newDescription;
-        emit DescriptionUpdated(_newDescription);
+    function _contribute(address contributor, uint amount) internal {
+        if (contributions[contributor] == 0) {
+            contributors.push(contributor);
+        }
+        contributions[contributor] = contributions[contributor].add(amount);
+        goal.currentAmount = goal.currentAmount.add(amount);
+
+        emit Contribution(contributor, amount);
+
+        if (goal.currentAmount >= goal.targetAmount && !goal.achieved) {
+            goal.achieved = true;
+            emit GoalAchieved(goal.currentAmount, block.timestamp);
+        }
     }
 
-    // Contribute to the goal
     function contribute() external payable nonReentrant onlyBeforeDeadline {
         uint amount;
         if (paymentMethod == PaymentMethod.Ether) {
@@ -117,33 +130,9 @@ contract GoalFund is ReentrancyGuard, Ownable {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
             amount = getTokenContribution();
         }
-
-        // Prevent over-contribution beyond target
-        uint remaining = goal.targetAmount.sub(goal.currentAmount);
-        if (amount > remaining) {
-            amount = remaining;
-            if (paymentMethod == PaymentMethod.Ether) {
-                // Refund excess Ether
-                (bool success, ) = msg.sender.call{value: msg.value.sub(amount)}("");
-                require(success, "Ether refund failed");
-            } // For ERC20, only transfer the needed amount
-        }
-
-        if (contributions[msg.sender] == 0) {
-            contributors.push(msg.sender);
-        }
-        contributions[msg.sender] = contributions[msg.sender].add(amount);
-        goal.currentAmount = goal.currentAmount.add(amount);
-
-        emit Contribution(msg.sender, amount);
-
-        if (goal.currentAmount >= goal.targetAmount && !goal.achieved) {
-            goal.achieved = true;
-            emit GoalAchieved(goal.currentAmount, block.timestamp);
-        }
+        _contribute(msg.sender, amount);
     }
 
-    // Helper function for ERC20 contributions
     function getTokenContribution() internal returns (uint) {
         uint allowance = token.allowance(msg.sender, address(this));
         uint balance = token.balanceOf(msg.sender);
@@ -154,26 +143,24 @@ contract GoalFund is ReentrancyGuard, Ownable {
         return amount;
     }
 
-    // Withdraw funds (group goal: to beneficiary; personal: to owner)
     function withdrawFunds() external onlyOwner nonReentrant onlyWhenNotWithdrawn {
         if (fundType == FundType.Group) {
             require(goal.achieved, "Goal not achieved yet");
-        } else { // Personal
+        } else {
             require(block.timestamp > goal.deadline || goal.achieved, "Cannot withdraw before deadline unless goal met");
         }
 
         uint totalAmount = getBalance();
         require(totalAmount > 0, "No funds to withdraw");
 
-        uint hostFee = totalAmount.mul(hostFeePercentage).div(PERCENTAGE_BASE);
-        uint beneficiaryAmount = totalAmount.sub(hostFee);
+        uint platformFee = totalAmount.mul(platformFeePercentage).div(PERCENTAGE_BASE);
+        uint beneficiaryAmount = totalAmount.sub(platformFee);
 
-        // Pay host fee
-        if (hostFee > 0) {
-            transferFunds(payable(owner()), hostFee);
+        if (platformFee > 0) {
+            transferFunds(payable(platformOwner), platformFee);
+            emit PlatformFeeTransferred(platformOwner, platformFee);
         }
 
-        // Pay beneficiary (group) or owner (personal)
         address payable recipient = fundType == FundType.Group ? goal.beneficiary : payable(owner());
         transferFunds(recipient, beneficiaryAmount);
 
@@ -181,7 +168,6 @@ contract GoalFund is ReentrancyGuard, Ownable {
         emit FundsWithdrawn(recipient, beneficiaryAmount);
     }
 
-    // Refund contributors if goal not met (group funding only)
     function refundContributors() external onlyOwner nonReentrant onlyAfterDeadline onlyWhenNotWithdrawn {
         require(fundType == FundType.Group, "Refunds only for group funding");
         require(!goal.achieved, "Goal was achieved, no refunds");
@@ -190,7 +176,7 @@ contract GoalFund is ReentrancyGuard, Ownable {
             address contributor = contributors[i];
             uint contribution = contributions[contributor];
             if (contribution > 0) {
-                contributions[contributor] = 0; // Prevent reentrancy
+                contributions[contributor] = 0;
                 transferFunds(payable(contributor), contribution);
                 emit RefundIssued(contributor, contribution);
             }
@@ -199,7 +185,6 @@ contract GoalFund is ReentrancyGuard, Ownable {
         goal.fundsWithdrawn = true;
     }
 
-    // Internal function to transfer funds (Ether or ERC20)
     function transferFunds(address payable recipient, uint amount) internal {
         if (paymentMethod == PaymentMethod.Ether) {
             (bool success, ) = recipient.call{value: amount}("");
@@ -210,14 +195,12 @@ contract GoalFund is ReentrancyGuard, Ownable {
         }
     }
 
-    // Get contract balance
     function getBalance() public view returns (uint) {
         return paymentMethod == PaymentMethod.Ether
             ? address(this).balance
             : token.balanceOf(address(this));
     }
 
-    // Emergency withdrawal by owner
     function emergencyWithdraw() external onlyOwner nonReentrant onlyWhenNotWithdrawn {
         uint totalAmount = getBalance();
         require(totalAmount > 0, "No funds to withdraw");
@@ -225,21 +208,13 @@ contract GoalFund is ReentrancyGuard, Ownable {
         goal.fundsWithdrawn = true;
     }
 
-    // View contributor count
     function getContributorCount() external view returns (uint) {
         return contributors.length;
     }
 
-    // View individual contribution
-    function getContribution(address _contributor) external view returns (uint) {
-        return contributions[_contributor];
-    }
-
-    // Receive Ether (only for Ether-based goals)
-    receive() external payable {
+    receive() external payable nonReentrant onlyBeforeDeadline {
         require(paymentMethod == PaymentMethod.Ether, "Ether not accepted for this contract");
-        if (block.timestamp <= goal.deadline) {
-            contribute();
-        }
+        require(msg.value > 0, "Must send Ether");
+        _contribute(msg.sender, msg.value);
     }
 }

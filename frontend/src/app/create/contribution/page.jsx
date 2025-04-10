@@ -1,24 +1,25 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { ethers } from "ethers"
-import { useWeb3 } from "@/components/providers/web3-provider"
-import { ContriboostFactoryAbi } from "@/lib/contractabi"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { Loader2, Info } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ethers } from "ethers";
+import { useWeb3 } from "@/components/providers/web3-provider";
+import { ContriboostFactoryAbi } from "@/lib/contractabi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { AlertCircle, Loader2, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Define contract factory address - should come from environment or config
-const FACTORY_ADDRESS = "0xYourContractAddressHere"
+// Contract address
+const FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -28,30 +29,34 @@ const formSchema = z.object({
   contributionAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n
+        return ethers.parseEther(value) > 0n;
       } catch {
-        return false
+        return false;
       }
     },
-    { message: "Must be a valid amount greater than 0" },
+    { message: "Must be a valid amount greater than 0" }
   ),
   paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for ERC20
-  tokenAddress: z.string().optional(),
+  tokenAddress: z.string().refine(
+    (value) => !value || ethers.isAddress(value),
+    { message: "Must be a valid Ethereum address if provided" }
+  ).optional(),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
     (value) => {
-      const date = new Date(value)
-      return !isNaN(date.getTime()) && date > new Date()
+      const date = new Date(value);
+      return !isNaN(date.getTime()) && date > new Date();
     },
-    { message: "Start date must be in the future" },
+    { message: "Start date must be in the future" }
   ),
-})
+});
 
 export default function CreateContriboostPage() {
-  const router = useRouter()
-  const { signer, account } = useWeb3()
-  const [isCreating, setIsCreating] = useState(false)
+  const router = useRouter();
+  const { signer, account } = useWeb3();
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState(null);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -61,53 +66,85 @@ export default function CreateContriboostPage() {
       dayRange: 7,
       expectedNumber: 10,
       contributionAmount: "0.1",
-      paymentMethod: "0", // Default to ETH
+      paymentMethod: "0",
       tokenAddress: "",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
       startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0], // Tomorrow
     },
-  })
+  });
 
-  const paymentMethod = form.watch("paymentMethod")
+  const paymentMethod = form.watch("paymentMethod");
 
   async function onSubmit(values) {
     if (!signer || !account) {
-      alert("Please connect your wallet first")
-      return
+      setError("Please connect your wallet first");
+      return;
     }
 
-    setIsCreating(true)
+    // Clear any previous errors
+    setError(null);
+    setIsCreating(true);
+    
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer)
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
 
-      // Convert form values to the expected format for the contract
       const config = {
         dayRange: values.dayRange,
         expectedNumber: values.expectedNumber,
         contributionAmount: ethers.parseEther(values.contributionAmount),
-        hostFeePercentage: values.hostFeePercentage * 100, // Convert to basis points (e.g., 2% becomes 200)
-        platformFeePercentage: 50, // 0.5% as basis points, could be configurable
+        hostFeePercentage: values.hostFeePercentage * 100, // Convert to basis points
+        platformFeePercentage: 50, // Hardcoded 0.5%, could be fetched from contract
         maxMissedDeposits: values.maxMissedDeposits,
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
         paymentMethod: Number(values.paymentMethod),
-      }
+      };
 
-      const tokenAddress =
-        values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress
+      const tokenAddress = values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress;
 
-      // Call the createContriboost function on the factory
-      const tx = await factoryContract.createContriboost(config, values.name, values.description, tokenAddress)
+      console.log("Creating Contriboost with config:", config);
+      console.log("Token address:", tokenAddress);
 
-      await tx.wait()
+      const estimatedGas = await factoryContract.createContriboost.estimateGas(
+        config, 
+        values.name, 
+        values.description, 
+        tokenAddress
+      );
+      
+      // Add 20% buffer to gas estimate
+      const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
+      
+      const tx = await factoryContract.createContriboost(
+        config, 
+        values.name, 
+        values.description, 
+        tokenAddress,
+        { gasLimit }
+      );
+      
+      console.log("Transaction sent:", tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
 
-      alert("Contriboost pool created successfully!")
-      router.push("/pools")
+      alert("Contriboost pool created successfully!");
+      router.push(`/pools/${receipt.logs[0].address}`); // Redirect to new pool address
     } catch (error) {
-      console.error("Error creating Contriboost:", error)
-      alert(`Error creating Contriboost: ${error.message || "Unknown error"}`)
+      console.error("Error creating Contriboost:", error);
+      
+      // Handle specific error cases
+      if (error.code === 4001) {
+        setError("Transaction rejected: Please confirm the transaction in your wallet");
+      } else if (error.code === 4100) {
+        setError("Authorization needed: Please unlock your wallet and approve the transaction");
+      } else if (error.code === -32603) {
+        setError("Transaction failed: You may have insufficient funds for gas or the contract call failed");
+      } else {
+        setError(`Error: ${error.reason || error.message || "Transaction failed. Please try again."}`);
+      }
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
   }
 
@@ -120,13 +157,20 @@ export default function CreateContriboostPage() {
           <a href="/">Go Home</a>
         </Button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
       <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -150,7 +194,6 @@ export default function CreateContriboostPage() {
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="description"
@@ -165,7 +208,6 @@ export default function CreateContriboostPage() {
                   </FormItem>
                 )}
               />
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -181,7 +223,6 @@ export default function CreateContriboostPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="expectedNumber"
@@ -197,7 +238,6 @@ export default function CreateContriboostPage() {
                   )}
                 />
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -215,7 +255,6 @@ export default function CreateContriboostPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="paymentMethod"
@@ -247,7 +286,6 @@ export default function CreateContriboostPage() {
                   )}
                 />
               </div>
-
               {paymentMethod === "1" && (
                 <FormField
                   control={form.control}
@@ -264,7 +302,6 @@ export default function CreateContriboostPage() {
                   )}
                 />
               )}
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -294,7 +331,6 @@ export default function CreateContriboostPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="maxMissedDeposits"
@@ -312,7 +348,6 @@ export default function CreateContriboostPage() {
                   )}
                 />
               </div>
-
               <FormField
                 control={form.control}
                 name="startTimestamp"
@@ -327,7 +362,6 @@ export default function CreateContriboostPage() {
                   </FormItem>
                 )}
               />
-
               <CardFooter className="flex justify-end px-0">
                 <Button type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -339,5 +373,5 @@ export default function CreateContriboostPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

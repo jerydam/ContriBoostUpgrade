@@ -1,90 +1,104 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { ethers } from "ethers"
-import { useWeb3 } from "@/components/providers/web3-provider"
-import { ContriboostFactoryAbi } from "@/lib/contractabi"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, PlusCircle, AlertCircle } from "lucide-react"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ethers } from "ethers";
+import { useWeb3 } from "@/components/providers/web3-provider";
+import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
 
-// Define contract factory address - should come from environment or config
-const FACTORY_ADDRESS = "0xYourContractAddressHere" // Replace with actual address
+// Contract addresses
+const CONTRIBOOST_FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
+const GOALFUND_FACTORY_ADDRESS = "0x139814961a3D4D834E20101ECDd84e9e882D2bd9";
 
 export default function AccountPage() {
-  const { provider, account } = useWeb3()
-  const [balance, setBalance] = useState("0")
-  const [userPools, setUserPools] = useState([])
-  const [userFunds, setUserFunds] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { provider, account } = useWeb3();
+  const [balance, setBalance] = useState("0");
+  const [userPools, setUserPools] = useState([]);
+  const [userFunds, setUserFunds] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   useEffect(() => {
     if (provider && account) {
-      fetchUserData()
+      fetchUserData();
     } else {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [provider, account])
+  }, [provider, account]);
 
   async function fetchUserData() {
-    if (!provider || !account) return
+    if (!provider || !account) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
+    setError(null);
     try {
       // Fetch account balance
-      const accountBalance = await provider.getBalance(account)
-      setBalance(ethers.formatEther(accountBalance))
-
-      // Fetch user's pools and funds
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, provider)
+      const accountBalance = await provider.getBalance(account);
+      setBalance(ethers.formatEther(accountBalance));
 
       // Fetch user's Contriboost pools
-      const userContriboostAddresses = await factoryContract.getUserContriboosts(account)
+      const contriboostFactory = new ethers.Contract(
+        CONTRIBOOST_FACTORY_ADDRESS,
+        ContriboostFactoryAbi,
+        provider
+      );
+      const userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
       const contriboostDetails = await Promise.all(
         userContriboostAddresses.map(async (address) => {
-          const details = await factoryContract.getContriboostDetails(address)
+          const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
+          const details = detailsArray[0]; // Returns an array, take first element
           return {
             contractAddress: details.contractAddress,
             name: details.name,
             dayRange: Number(details.dayRange),
             expectedNumber: Number(details.expectedNumber),
-            contributionAmount: details.contributionAmount,
+            contributionAmount: ethers.formatEther(details.contributionAmount),
             hostFeePercentage: Number(details.hostFeePercentage),
-            currentParticipants: 0, // This would typically come from querying the contract
-          }
+            currentParticipants: 0, // TODO: Query Contriboost contract for active participants
+          };
         })
-      )
-      setUserPools(contriboostDetails)
+      );
+      setUserPools(contriboostDetails);
 
       // Fetch user's GoalFunds
-      const userGoalFundAddresses = await factoryContract.getUserGoalFunds(account)
+      const goalFundFactory = new ethers.Contract(
+        GOALFUND_FACTORY_ADDRESS,
+        GoalFundFactoryAbi,
+        provider
+      );
+      const userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
       const goalFundDetails = await Promise.all(
         userGoalFundAddresses.map(async (address) => {
-          const details = await factoryContract.getGoalFundDetails(address)
+          const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
+          const details = detailsArray[0]; // Returns an array, take first element
           return {
             contractAddress: details.contractAddress,
             name: details.name,
-            targetAmount: details.targetAmount,
-            currentAmount: details.currentAmount,
+            targetAmount: ethers.formatEther(details.targetAmount),
+            currentAmount: ethers.formatEther(details.currentAmount),
             deadline: Number(details.deadline),
             beneficiary: details.beneficiary,
             tokenAddress: details.tokenAddress,
             fundType: Number(details.fundType),
             platformFeePercentage: Number(details.platformFeePercentage),
-          }
+          };
         })
-      )
-      setUserFunds(goalFundDetails)
+      );
+      setUserFunds(goalFundDetails);
     } catch (error) {
-      console.error("Error fetching user data:", error)
+      console.error("Error fetching user data:", error);
+      setError("Failed to load your data. Please try again later.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   function formatDate(timestamp) {
-    return new Date(timestamp * 1000).toLocaleDateString()
+    return new Date(timestamp * 1000).toLocaleDateString();
   }
 
   if (!account) {
@@ -101,7 +115,7 @@ export default function AccountPage() {
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   if (isLoading) {
@@ -110,7 +124,20 @@ export default function AccountPage() {
         <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
         <span>Loading your account data...</span>
       </div>
-    )
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center max-w-md mx-auto">
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold mb-4">Error</h1>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={fetchUserData}>Retry</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -170,7 +197,7 @@ export default function AccountPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Contribution</span>
-                        <span className="font-medium">{ethers.formatEther(pool.contributionAmount)} ETH</span>
+                        <span className="font-medium">{pool.contributionAmount} ETH</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Participants</span>
@@ -195,7 +222,7 @@ export default function AccountPage() {
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-lg mb-2">No Contriboost pools found</p>
-              <p className="text-muted-foreground mb-4">You haven't created or joined any Contriboost pools yet</p>
+              <p className="text-muted-foreground mb-4">You haven’t created or joined any Contriboost pools yet</p>
               <Button asChild>
                 <Link href="/pools">Browse Pools</Link>
               </Button>
@@ -216,11 +243,11 @@ export default function AccountPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Target</span>
-                        <span className="font-medium">{ethers.formatEther(fund.targetAmount)} ETH</span>
+                        <span className="font-medium">{fund.targetAmount} ETH</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">{ethers.formatEther(fund.currentAmount)} ETH</span>
+                        <span className="font-medium">{fund.currentAmount} ETH</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Type</span>
@@ -247,7 +274,7 @@ export default function AccountPage() {
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-lg mb-2">No GoalFunds found</p>
-              <p className="text-muted-foreground mb-4">You haven't created or contributed to any GoalFunds yet</p>
+              <p className="text-muted-foreground mb-4">You haven’t created or contributed to any GoalFunds yet</p>
               <Button asChild>
                 <Link href="/create/goalfund">Create GoalFund</Link>
               </Button>
@@ -256,5 +283,5 @@ export default function AccountPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

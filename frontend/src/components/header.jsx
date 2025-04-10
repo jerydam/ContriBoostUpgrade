@@ -1,34 +1,45 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { useWeb3 } from "./providers/web3-provider"
-import { Loader2 } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation"; // Fixed import
+import { Button } from "@/components/ui/button";
+import { useWeb3 } from "./providers/web3-provider";
+import { Loader2 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Header() {
-  const { connect, disconnect, account, isConnecting } = useWeb3()
-  const pathname = usePathname()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { connect, disconnect, account, chainId, isConnecting } = useWeb3();
+  const pathname = usePathname(); // Fixed typo: leaguesusePathname → usePathname
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: "Home", href: "/" },
+   
     { name: "Contriboost Pools", href: "/pools" },
     { name: "My Account", href: "/account" },
-  ]
+  ];
 
-  const isActive = (path) => path === pathname
+  const isActive = (path) => path === pathname;
 
   const formatAccount = (account) => {
-    if (!account) return ""
-    return `${account.slice(0, 6)}...${account.slice(-4)}`
-  }
+    if (!account) return "";
+    return `${account.slice(0, 6)}...${account.slice(-4)}`;
+  };
+
+  const getChainName = (chainId) => {
+    switch (chainId) {
+      case 4202:
+        return "Lisk Sepolia";
+      case 44787:
+        return "Celo Alfajores";
+      default:
+        return `Unknown Chain (${chainId})`;
+    }
+  };
 
   const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
@@ -57,10 +68,11 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-
           {account ? (
             <div className="flex items-center gap-2">
-              <span className="hidden text-sm md:inline-block">{formatAccount(account)}</span>
+              <span className="hidden text-sm md:inline-block">
+                {formatAccount(account)} ({getChainName(chainId)})
+              </span>
               <Button variant="outline" size="sm" onClick={disconnect}>
                 Disconnect
               </Button>
@@ -77,7 +89,6 @@ export default function Header() {
               )}
             </Button>
           )}
-
           <button
             onClick={toggleMobileMenu}
             className="ml-2 rounded-md p-2 text-muted-foreground hover:bg-accent md:hidden"
@@ -93,13 +104,16 @@ export default function Header() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              {isMobileMenuOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M3 12h18M3 6h18M3 18h18" />}
+              {isMobileMenuOpen ? (
+                <path d="M18 6 6 18M6 6l12 12" />
+              ) : (
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              )}
             </svg>
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className="container border-t py-4 md:hidden">
           <nav>
@@ -117,10 +131,15 @@ export default function Header() {
                   </Link>
                 </li>
               ))}
+              {account && (
+                <li className="block p-2 text-sm text-muted-foreground">
+                  {formatAccount(account)} ({getChainName(chainId)})
+                </li>
+              )}
             </ul>
           </nav>
         </div>
       )}
     </header>
-  )
+  );
 }

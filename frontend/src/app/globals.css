@@ -1,9 +1,8 @@
-    @import "tailwindcss";
+@import "tailwindcss";
 
-   
 :root {
   /* Basic colors */
-  --background: #ffffff;
+  --background: #b1d3f1;
   --foreground: #171717;
 
   /* Essential shadcn variables with default values */
@@ -28,27 +27,28 @@
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Background with a gradient to mimic Contriboost */
+  --background: linear-gradient(135deg, #0a1121 0%, #1a2b4b 100%);
+  --foreground: #ffffff; /* White for primary text like headings */
 
   /* Dark mode shadcn variables */
-  --card: #0a0a0a;
-  --card-foreground: #ededed;
-  --popover: #0a0a0a;
-  --popover-foreground: #ededed;
-  --primary: #60a5fa;
-  --primary-foreground: #0f172a;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  --destructive: #7f1d1d;
-  --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #60a5fa;
+  --card: #1e2a44; /* Darker shade for cards */
+  --card-foreground: #b0b8c4; /* Lighter gray for text on cards */
+  --popover: #1e2a44; /* Same as card for consistency */
+  --popover-foreground: #b0b8c4; /* Lighter gray for popover text */
+  --primary: #3b82f6; /* Vibrant blue for buttons and accents */
+  --primary-foreground: #ffffff; /* White text on primary buttons */
+  --secondary: #2a3b5b; /* Slightly lighter than card for secondary elements */
+  --secondary-foreground: #ffffff; /* White for contrast on secondary */
+  --muted: #2a3b5b; /* Muted backgrounds for less emphasis */
+  --muted-foreground: #94a3b8; /* Slightly darker gray for muted text */
+  --accent: #3b82f6; /* Same as primary for consistency in accents */
+  --accent-foreground: #ffffff; /* White text on accents */
+  --destructive: #7f1d1d; /* Muted red for destructive actions */
+  --destructive-foreground: #ffffff; /* White text on destructive */
+  --border: #2a3b5b; /* Subtle dark border */
+  --input: #2a3b5b; /* Dark input background */
+  --ring: #60a5fa; /* Lighter blue for focus rings */
 }
 
 /* Apply base styles */
@@ -109,4 +109,4 @@ html,
 body {
   overflow-x: hidden;
   width: 100%;
-}
+} 

@@ -1,133 +1,143 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { ethers } from "ethers"
-import { useWeb3 } from "@/components/providers/web3-provider"
-import { ContriboostFactoryAbi, ContriboostAbi } from "../../lib/contractabi"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Search, Users } from "lucide-react"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ethers } from "ethers";
+import { useWeb3 } from "@/components/providers/web3-provider";
+import { ContriboostFactoryAbi, ContriboostAbi } from "@/lib/contractabi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight } from "lucide-react";
 
-// Define contract factory address - should come from environment or config
-const FACTORY_ADDRESS = "0xYourContractAddressHere"
+const FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
 
 export default function PoolsPage() {
-  const { provider, signer, account } = useWeb3()
-  const [pools, setPools] = useState([])
-  const [filteredPools, setFilteredPools] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
+  const [pools, setPools] = useState([]);
+  const [filteredPools, setFilteredPools] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    if (provider) {
-      fetchPools()
+    if (provider && chainId) {
+      fetchPools();
+      const interval = setInterval(fetchPools, 30000); // Poll every 30s for updates
+      return () => clearInterval(interval);
     }
-  }, [provider, account])
+  }, [provider, account, chainId]);
 
   useEffect(() => {
-    filterPools()
-  }, [pools, searchQuery, statusFilter])
+    filterPools();
+  }, [pools, searchQuery, statusFilter]);
 
   async function fetchPools() {
-    if (!provider) return
+    if (!provider) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, provider)
+      console.log("Fetching pools from factory at:", FACTORY_ADDRESS, "on chain:", chainId);
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, provider);
+      const poolAddresses = await factoryContract.getContriboosts();
+      console.log("Pool addresses:", poolAddresses);
 
-      // Fetch all pool details from the factory
-      const poolDetails = await factoryContract.getAllContriboostDetails()
+      if (!poolAddresses || poolAddresses.length === 0) {
+        console.log("No pools found.");
+        setPools([]);
+        setIsLoading(false);
+        return;
+      }
 
-      // Fetch additional data for each pool (like current participants)
       const poolsWithStatus = await Promise.all(
-        poolDetails.map(async (pool) => {
-          const contriboostContract = new ethers.Contract(pool.contractAddress, ContriboostAbi, provider)
+        poolAddresses.map(async (addr) => {
+          const pool = (await factoryContract.getContriboostDetails(addr, true))[0];
+          const contriboostContract = new ethers.Contract(addr, ContriboostAbi, provider);
+          const participants = await contriboostContract.getActiveParticipants();
+          const currentSegment = await contriboostContract.currentSegment();
+          const startTimestamp = await contriboostContract.startTimestamp();
+          const now = Math.floor(Date.now() / 1000);
 
-          let currentParticipants = 0
-          let status = "not-started"
-
-          try {
-            const participants = await contriboostContract.getActiveParticipants()
-            currentParticipants = participants.length
-
-            // Determine pool status
-            const now = Math.floor(Date.now() / 1000)
-            if (currentParticipants >= Number(pool.expectedNumber)) {
-              status = "full"
-            } else if (currentParticipants > 0) {
-              status = "active"
-            } else {
-              status = "not-started"
-            }
-          } catch (error) {
-            console.error("Error fetching pool participants:", error)
+          let status = "not-started";
+          if (now < startTimestamp) {
+            status = "not-started";
+          } else if (participants.length >= Number(pool.expectedNumber)) {
+            status = "full";
+          } else if (currentSegment > 0) {
+            status = "active";
           }
 
           return {
-            contractAddress: pool.contractAddress,
+            contractAddress: addr,
             name: pool.name,
             dayRange: Number(pool.dayRange),
             expectedNumber: Number(pool.expectedNumber),
-            contributionAmount: pool.contributionAmount,
+            contributionAmount: ethers.formatEther(pool.contributionAmount),
             tokenAddress: pool.tokenAddress,
             hostFeePercentage: Number(pool.hostFeePercentage),
             platformFeePercentage: Number(pool.platformFeePercentage),
             maxMissedDeposits: Number(pool.maxMissedDeposits),
-            currentParticipants,
+            currentParticipants: participants.length,
             status,
-          }
-        }),
-      )
+          };
+        })
+      );
 
-      setPools(poolsWithStatus)
+      setPools(poolsWithStatus);
     } catch (error) {
-      console.error("Error fetching pools:", error)
+      console.error("Error fetching pools:", error.code, error.message, error.data);
+      if (error.code === "CALL_EXCEPTION") {
+        console.log("Contract call failed - check address or chain.");
+      } else if (error.code === "BAD_DATA") {
+        console.log("ABI mismatch or contract not deployed.");
+      }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   function filterPools() {
-    let filtered = [...pools]
-
-    // Apply search filter
+    let filtered = [...pools];
     if (searchQuery) {
-      filtered = filtered.filter((pool) => pool.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      filtered = filtered.filter((pool) => pool.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }
-
-    // Apply status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((pool) => pool.status === statusFilter)
+      filtered = filtered.filter((pool) => pool.status === statusFilter);
     }
-
-    setFilteredPools(filtered)
+    setFilteredPools(filtered);
   }
 
   async function joinPool(pool) {
     if (!signer || !account) {
-      alert("Please connect your wallet first")
-      return
+      await connect();
+      if (!account) return;
     }
 
     try {
-      const contriboostContract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer)
-
-      const tx = await contriboostContract.join()
-      await tx.wait()
-
-      // Refresh pools after joining
-      await fetchPools()
-
-      alert("Successfully joined the pool!")
+      const contriboostContract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+      const tx = await contriboostContract.join();
+      await tx.wait();
+      await fetchPools();
+      alert("Successfully joined the pool!");
     } catch (error) {
-      console.error("Error joining pool:", error)
-      alert(`Error joining pool: ${error.message || "Unknown error"}`)
+      console.error("Error joining pool:", error);
+      alert(`Error: ${error.reason || error.message || "Failed to join"}`);
     }
   }
+
+  const handleCreateNavigation = async (path) => {
+    setIsCreateDialogOpen(false);
+    if (!account) {
+      await connect();
+      if (!account) return;
+    }
+    router.push(path);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -136,14 +146,63 @@ export default function PoolsPage() {
           <h1 className="text-3xl font-bold mb-2">Contriboost Pools</h1>
           <p className="text-muted-foreground">Browse and join rotating savings pools</p>
         </div>
-        <Button asChild>
-          <Link href="/">
-            <Plus className="mr-2 h-4 w-4" /> Create New
-          </Link>
-        </Button>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button disabled={isConnecting}>
+              {isConnecting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Create New
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Choose what to create</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4"
+                onClick={() => handleCreateNavigation("/create/contriboost")}
+                disabled={isConnecting}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/10 p-2 rounded-full">
+                    <Wallet className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-medium">Create Contriboost Pool</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Start a rotating savings pool with friends or community
+                    </p>
+                  </div>
+                  <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4"
+                onClick={() => handleCreateNavigation("/create/goalfund")}
+                disabled={isConnecting}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/10 p-2 rounded-full">
+                    <Coins className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-medium">Create GoalFund</h3>
+                    <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                  </div>
+                  <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                </div>
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-8">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -176,9 +235,59 @@ export default function PoolsPage() {
         <div className="text-center py-12 border rounded-lg bg-muted/50">
           <p className="text-lg mb-2">No pools found</p>
           <p className="text-muted-foreground mb-4">Try adjusting your filters or create a new pool</p>
-          <Button asChild>
-            <Link href="/">Create New Pool</Link>
-          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={isConnecting}>
+                {isConnecting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Create New Pool
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Choose what to create</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => handleCreateNavigation("/create/contriboost")}
+                  disabled={isConnecting}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <Wallet className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-medium">Create Contriboost Pool</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Start a rotating savings pool with friends or community
+                      </p>
+                    </div>
+                    <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                  </div>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => handleCreateNavigation("/create/goalfund")}
+                  disabled={isConnecting}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <Coins className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-medium">Create GoalFund</h3>
+                      <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                    </div>
+                    <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                  </div>
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -195,8 +304,8 @@ export default function PoolsPage() {
                       pool.status === "active"
                         ? "bg-green-100 text-green-800"
                         : pool.status === "full"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-blue-100 text-blue-800"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-blue-100 text-blue-800"
                     }`}
                   >
                     {pool.status === "active" ? "Active" : pool.status === "full" ? "Full" : "Not Started"}
@@ -207,7 +316,9 @@ export default function PoolsPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Contribution</span>
-                    <span className="font-medium">{ethers.formatEther(pool.contributionAmount)} ETH</span>
+                    <span className="font-medium">
+                      {pool.contributionAmount} {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Participants</span>
@@ -224,7 +335,8 @@ export default function PoolsPage() {
               </CardContent>
               <CardFooter className="flex gap-2 pt-2">
                 {pool.status !== "full" && (
-                  <Button className="flex-1" onClick={() => joinPool(pool)} disabled={!account}>
+                  <Button className="flex-1" onClick={() => joinPool(pool)} disabled={isConnecting}>
+                    {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Join
                   </Button>
                 )}
@@ -237,5 +349,5 @@ export default function PoolsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -1,15 +1,26 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react"
-import { useWeb3 } from "@/components/providers/web3-provider"
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
+import { useWeb3 } from "@/components/providers/web3-provider";
 
 export default function LandingPage() {
-  const { account } = useWeb3()
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const { account, connectWallet } = useWeb3(); // Assuming connectWallet is exposed by Web3Provider
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const router = useRouter();
+
+  const handleCreateNavigation = (path) => {
+    setIsCreateDialogOpen(false);
+    if (!account) {
+      connectWallet(); // Prompt wallet connection if not connected
+    } else {
+      router.push(path);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -23,7 +34,7 @@ export default function LandingPage() {
               </h1>
               <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 Create or join rotating savings pools with Contriboost, or fund your goals with GoalFund. A
-                decentralized ecosystem for community savings
+                decentralized ecosystem for community savings.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -37,36 +48,40 @@ export default function LandingPage() {
                       <DialogTitle>Choose what to create</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <Link href="/create/contribution" onClick={() => setIsCreateDialogOpen(false)}>
-                        <Button variant="outline" className="w-full justify-start h-auto py-4">
-                          <div className="flex items-start gap-4">
-                            <div className="bg-primary/10 p-2 rounded-full">
-                              <Wallet className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="text-left">
-                              <h3 className="font-medium">Create Contribution Pool</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Start a rotating savings pool with friends or community
-                              </p>
-                            </div>
-                            <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-4"
+                        onClick={() => handleCreateNavigation("/create/contribution")}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="bg-primary/10 p-2 rounded-full">
+                            <Wallet className="h-6 w-6 text-primary" />
                           </div>
-                        </Button>
-                      </Link>
-                      <Link href="/create/goalfund" onClick={() => setIsCreateDialogOpen(false)}>
-                        <Button variant="outline" className="w-full justify-start h-auto py-4">
-                          <div className="flex items-start gap-4">
-                            <div className="bg-primary/10 p-2 rounded-full">
-                              <Coins className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="text-left">
-                              <h3 className="font-medium">Create GoalFund</h3>
-                              <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
-                            </div>
-                            <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                          <div className="text-left">
+                            <h3 className="font-medium">Create Contribution Pool</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Start a rotating savings pool with friends or community
+                            </p>
                           </div>
-                        </Button>
-                      </Link>
+                          <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-4"
+                        onClick={() => handleCreateNavigation("/create/goalfund")}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="bg-primary/10 p-2 rounded-full">
+                            <Coins className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-medium">Create GoalFund</h3>
+                            <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                          </div>
+                          <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                        </div>
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -117,13 +132,12 @@ export default function LandingPage() {
                         <p className="text-sm">Earn trust and build community through transparent, secure savings</p>
                       </li>
                     </ul>
-                    <Button className="w-full" asChild>
-                      <Link
-                        href={account ? "/pools" : "#"}
-                        onClick={!account ? () => alert("Please connect your wallet first") : undefined}
-                      >
-                        Get Started
-                      </Link>
+                    <Button
+                      className="w-full"
+                      onClick={() => (!account ? connectWallet() : router.push("/pools"))}
+                      aria-label="Get started with Contriboost"
+                    >
+                      Get Started
                     </Button>
                   </div>
                 </div>
@@ -173,21 +187,19 @@ export default function LandingPage() {
             <div className="grid gap-1">
               <h3 className="text-lg font-bold">Smart Contract Powered</h3>
               <p className="text-sm text-muted-foreground">
-                Automated distributions and contributions through secure smart contracts, eliminating the need for
-                intermediaries.
+                Automated distributions and contributions through secure smart contracts, eliminating intermediaries.
               </p>
             </div>
             <div className="grid gap-1">
               <h3 className="text-lg font-bold">Multiple Payment Options</h3>
               <p className="text-sm text-muted-foreground">
-                Use ETH or ERC20 tokens for your contributions, providing flexibility for all participants.
+                Use ETH or ERC20 tokens for contributions, offering flexibility for all participants.
               </p>
             </div>
             <div className="grid gap-1">
               <h3 className="text-lg font-bold">Low Fees</h3>
               <p className="text-sm text-muted-foreground">
-                Minimal platform fees with transparent host commissions, ensuring more value stays within your
-                community.
+                Minimal platform fees with transparent host commissions, keeping more value in your community.
               </p>
             </div>
           </div>
@@ -225,11 +237,18 @@ export default function LandingPage() {
                 <h3 className="text-xl font-bold">Subscribe to updates</h3>
                 <p className="text-sm text-muted-foreground">Stay informed about new features and community events.</p>
               </div>
-              <form className="flex flex-col sm:flex-row gap-2">
+              <form
+                className="flex flex-col sm:flex-row gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  alert("Subscription coming soon!");
+                }}
+              >
                 <input
                   type="email"
                   placeholder="Enter your email"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  required
                 />
                 <Button type="submit" className="w-full sm:w-auto">
                   Subscribe
@@ -243,5 +262,5 @@ export default function LandingPage() {
         </div>
       </section>
     </div>
-  )
+  );
 }

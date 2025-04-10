@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useEffect, useState } from "react"
-import { ethers } from "ethers"
+import { createContext, useContext, useEffect, useState } from "react";
+import { ethers } from "ethers";
 
 const Web3Context = createContext({
   provider: null,
@@ -11,92 +11,134 @@ const Web3Context = createContext({
   connect: async () => {},
   disconnect: () => {},
   isConnecting: false,
-})
+});
 
 export function Web3Provider({ children }) {
-  const [provider, setProvider] = useState(null)
-  const [signer, setSigner] = useState(null)
-  const [account, setAccount] = useState(null)
-  const [chainId, setChainId] = useState(null)
-  const [isConnecting, setIsConnecting] = useState(false)
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [chainId, setChainId] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Supported chain IDs
+  const SUPPORTED_CHAINS = {
+    4202: {
+      chainName: "Lisk Sepolia Testnet",
+      nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
+      rpcUrls: ["https://rpc.sepolia-api.lisk.com"],
+      blockExplorerUrls: ["https://sepolia-blockscout.lisk.com"],
+    },
+    44787: {
+      chainName: "Celo Alfajores Testnet",
+      nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+      rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
+      blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
+    },
+  };
 
   useEffect(() => {
-    // Check if we're in browser environment
-    if (typeof window === "undefined") return
+    if (typeof window === "undefined") return;
 
-    // Check for existing connection
     const checkConnection = async () => {
       if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" })
+        const accounts = await window.ethereum.request({ method: "eth_accounts" });
         if (accounts.length > 0) {
-          await connect()
+          await connect();
         }
       }
-    }
+    };
 
-    checkConnection()
-  }, [])
+    checkConnection();
+  }, []);
 
-  // Set up event listeners for wallet events
   useEffect(() => {
-    if (!window.ethereum) return
+    if (!window.ethereum) return;
 
     const handleAccountsChanged = async (accounts) => {
       if (accounts.length === 0) {
-        // User disconnected their wallet
-        disconnect()
+        disconnect();
       } else if (account !== accounts[0]) {
-        // Set up new account connection
-        await connect()
+        await connect();
       }
-    }
+    };
 
     const handleChainChanged = () => {
-      window.location.reload()
-    }
+      window.location.reload();
+    };
 
-    window.ethereum.on("accountsChanged", handleAccountsChanged)
-    window.ethereum.on("chainChanged", handleChainChanged)
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
 
     return () => {
       if (window.ethereum.removeListener) {
-        window.ethereum.removeListener("accountsChanged", handleAccountsChanged)
-        window.ethereum.removeListener("chainChanged", handleChainChanged)
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+        window.ethereum.removeListener("chainChanged", handleChainChanged);
       }
-    }
-  }, [account])
+    };
+  }, [account]);
 
   const connect = async () => {
     if (!window.ethereum) {
-      alert("Please install MetaMask to use this app")
-      return
+      alert("Please install MetaMask to use this app");
+      return;
     }
 
-    setIsConnecting(true)
-
+    setIsConnecting(true);
     try {
-      const browserProvider = new ethers.BrowserProvider(window.ethereum)
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" })
-      const userSigner = await browserProvider.getSigner()
-      const network = await browserProvider.getNetwork()
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const network = await browserProvider.getNetwork();
+      const currentChainId = Number(network.chainId);
 
-      setProvider(browserProvider)
-      setSigner(userSigner)
-      setAccount(accounts[0])
-      setChainId(Number(network.chainId))
+      // Check if the current chain is supported
+      if (!SUPPORTED_CHAINS[currentChainId]) {
+        // Default to Lisk Sepolia if unsupported chain
+        const defaultChainId = 4202;
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${defaultChainId.toString(16)}` }],
+          });
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: `0x${defaultChainId.toString(16)}`,
+                  ...SUPPORTED_CHAINS[defaultChainId],
+                },
+              ],
+            });
+          } else {
+            throw switchError;
+          }
+        }
+        const updatedNetwork = await browserProvider.getNetwork();
+        setChainId(Number(updatedNetwork.chainId));
+      } else {
+        setChainId(currentChainId);
+      }
+
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const userSigner = await browserProvider.getSigner();
+
+      setProvider(browserProvider);
+      setSigner(userSigner);
+      setAccount(accounts[0]);
     } catch (error) {
-      console.error("Error connecting to wallet:", error)
+      console.error("Error connecting to wallet:", error);
+      alert(`Failed to connect wallet: ${error.message}`);
     } finally {
-      setIsConnecting(false)
+      setIsConnecting(false);
     }
-  }
+  };
 
   const disconnect = () => {
-    setProvider(null)
-    setSigner(null)
-    setAccount(null)
-    setChainId(null)
-  }
+    setProvider(null);
+    setSigner(null);
+    setAccount(null);
+    setChainId(null);
+  };
 
   return (
     <Web3Context.Provider
@@ -112,9 +154,9 @@ export function Web3Provider({ children }) {
     >
       {children}
     </Web3Context.Provider>
-  )
+  );
 }
 
 export function useWeb3() {
-  return useContext(Web3Context)
+  return useContext(Web3Context);
 }

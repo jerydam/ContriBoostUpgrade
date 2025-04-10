@@ -1,24 +1,25 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { ethers } from "ethers"
-import { useWeb3 } from "@/components/providers/web3-provider"
-import { ContriboostFactoryAbi } from "@/lib/contractabi"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { Loader2, Info } from "lucide-react"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ethers } from "ethers";
+import { useWeb3 } from "@/components/providers/web3-provider";
+import { GoalFundFactoryAbi } from "@/lib/contractabi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { AlertCircle, Loader2, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Define contract factory address - should come from environment or config
-const FACTORY_ADDRESS = "0xYourContractAddressHere"
+// Contract address
+const FACTORY_ADDRESS = "0x139814961a3D4D834E20101ECDd84e9e882D2bd9";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -26,40 +27,34 @@ const formSchema = z.object({
   targetAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n
+        return ethers.parseEther(value) > 0n;
       } catch {
-        return false
+        return false;
       }
     },
-    { message: "Must be a valid amount greater than 0" },
+    { message: "Must be a valid amount greater than 0" }
   ),
   deadline: z.string().refine(
     (value) => {
-      const date = new Date(value)
-      return !isNaN(date.getTime()) && date > new Date()
+      const date = new Date(value);
+      return !isNaN(date.getTime()) && date > new Date();
     },
-    { message: "Deadline must be in the future" },
+    { message: "Deadline must be in the future" }
   ),
-  beneficiary: z.string().refine(
-    (value) => {
-      try {
-        return ethers.isAddress(value)
-      } catch {
-        return false
-      }
-    },
-    { message: "Must be a valid Ethereum address" },
-  ),
+  beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]), // 0 for Group, 1 for Personal
   paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for ERC20
-  tokenAddress: z.string().optional(),
-  hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
-})
+  tokenAddress: z.string().refine(
+    (value) => !value || ethers.isAddress(value),
+    { message: "Must be a valid Ethereum address if provided" }
+  ).optional(),
+});
 
 export default function CreateGoalFundPage() {
-  const router = useRouter()
-  const { signer, account } = useWeb3()
-  const [isCreating, setIsCreating] = useState(false)
+  const router = useRouter();
+  const { signer, account } = useWeb3();
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState(null);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -69,38 +64,62 @@ export default function CreateGoalFundPage() {
       targetAmount: "1",
       deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0], // 30 days from now
       beneficiary: account || "",
-      fundType: "0", // Default to Group
-      paymentMethod: "0", // Default to ETH
+      fundType: "0",
+      paymentMethod: "0",
       tokenAddress: "",
-      hostFeePercentage: 2,
     },
-  })
+  });
 
-  const paymentMethod = form.watch("paymentMethod")
-  const fundType = form.watch("fundType")
+  const paymentMethod = form.watch("paymentMethod");
+  const fundType = form.watch("fundType");
 
-  // Update beneficiary field when account changes (if Personal fund type)
-  useState(() => {
+  useEffect(() => {
     if (account && fundType === "1") {
-      form.setValue("beneficiary", account)
+      form.setValue("beneficiary", account);
     }
-  })
+  }, [account, fundType, form]);
 
   async function onSubmit(values) {
     if (!signer || !account) {
-      alert("Please connect your wallet first")
-      return
+      setError("Please connect your wallet first");
+      return;
     }
 
-    setIsCreating(true)
+    // Clear any previous errors
+    setError(null);
+    setIsCreating(true);
+    
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer)
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
 
-      // Convert form values to the expected format for the contract
-      const tokenAddress =
-        values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress
+      const tokenAddress = values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress;
 
-      // Call the createGoalFund function on the factory
+      console.log("Creating GoalFund with values:", {
+        name: values.name,
+        description: values.description,
+        targetAmount: ethers.parseEther(values.targetAmount).toString(),
+        deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
+        beneficiary: values.beneficiary,
+        paymentMethod: Number(values.paymentMethod),
+        tokenAddress,
+        fundType: Number(values.fundType)
+      });
+
+      // Estimate gas to catch potential errors before sending transaction
+      const estimatedGas = await factoryContract.createGoalFund.estimateGas(
+        values.name,
+        values.description,
+        ethers.parseEther(values.targetAmount),
+        Math.floor(new Date(values.deadline).getTime() / 1000),
+        values.beneficiary,
+        Number(values.paymentMethod),
+        tokenAddress,
+        Number(values.fundType)
+      );
+      
+      // Add 20% buffer to gas estimate
+      const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
+
       const tx = await factoryContract.createGoalFund(
         values.name,
         values.description,
@@ -110,17 +129,31 @@ export default function CreateGoalFundPage() {
         Number(values.paymentMethod),
         tokenAddress,
         Number(values.fundType),
-      )
+        { gasLimit }
+      );
+      
+      console.log("Transaction sent:", tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
 
-      await tx.wait()
-
-      alert("GoalFund created successfully!")
-      router.push("/account")
+      alert("GoalFund created successfully!");
+      router.push(`/funds/${receipt.logs[0].address}`); // Redirect to new fund address
     } catch (error) {
-      console.error("Error creating GoalFund:", error)
-      alert(`Error creating GoalFund: ${error.message || "Unknown error"}`)
+      console.error("Error creating GoalFund:", error);
+      
+      // Handle specific error cases
+      if (error.code === 4001) {
+        setError("Transaction rejected: Please confirm the transaction in your wallet");
+      } else if (error.code === 4100) {
+        setError("Authorization needed: Please unlock your wallet and approve the transaction");
+      } else if (error.code === -32603) {
+        setError("Transaction failed: You may have insufficient funds for gas or the contract call failed");
+      } else {
+        setError(`Error: ${error.reason || error.message || "Transaction failed. Please try again."}`);
+      }
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
   }
 
@@ -133,13 +166,20 @@ export default function CreateGoalFundPage() {
           <a href="/">Go Home</a>
         </Button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <h1 className="text-3xl font-bold mb-2">Create GoalFund</h1>
       <p className="text-muted-foreground mb-8">Deploy a new goal-based funding campaign</p>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -163,7 +203,6 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="description"
@@ -178,7 +217,6 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -194,7 +232,6 @@ export default function CreateGoalFundPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="deadline"
@@ -210,7 +247,6 @@ export default function CreateGoalFundPage() {
                   )}
                 />
               </div>
-
               <FormField
                 control={form.control}
                 name="fundType"
@@ -220,10 +256,9 @@ export default function CreateGoalFundPage() {
                     <FormControl>
                       <RadioGroup
                         onValueChange={(value) => {
-                          field.onChange(value)
-                          // Auto-set beneficiary to current account for Personal funds
+                          field.onChange(value);
                           if (value === "1" && account) {
-                            form.setValue("beneficiary", account)
+                            form.setValue("beneficiary", account);
                           }
                         }}
                         defaultValue={field.value}
@@ -248,7 +283,6 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="beneficiary"
@@ -259,7 +293,7 @@ export default function CreateGoalFundPage() {
                       <Input
                         placeholder="0x..."
                         {...field}
-                        disabled={fundType === "1"} // Disable for Personal funds
+                        disabled={fundType === "1"}
                       />
                     </FormControl>
                     <FormDescription>
@@ -271,7 +305,6 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -303,37 +336,7 @@ export default function CreateGoalFundPage() {
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="hostFeePercentage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-2">
-                        <FormLabel>Host Fee Percentage</FormLabel>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="w-[200px] text-xs">
-                                The percentage fee you receive as the host of this fund. Max 5%.
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <FormControl>
-                        <Input type="number" min="0" max="5" step="0.1" {...field} />
-                      </FormControl>
-                      <FormDescription>Your fee for hosting (0-5%)</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
-
               {paymentMethod === "1" && (
                 <FormField
                   control={form.control}
@@ -350,7 +353,6 @@ export default function CreateGoalFundPage() {
                   )}
                 />
               )}
-
               <CardFooter className="flex justify-end px-0">
                 <Button type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -362,5 +364,5 @@ export default function CreateGoalFundPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

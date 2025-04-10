@@ -1,162 +1,192 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
-import { ethers } from "ethers"
-import { useWeb3 } from "@/components/providers/web3-provider"
-import { ContriboostAbi } from "@/lib/contractabi"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2, User, Calendar, DollarSign } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { ethers } from "ethers";
+import { useWeb3 } from "@/components/providers/web3-provider";
+import { ContriboostAbi } from "@/lib/contractabi";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Loader2, User, Calendar, DollarSign } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 export default function PoolDashboardPage() {
-  const { address } = useParams()
-  const { provider, signer, account } = useWeb3()
-  const [poolDetails, setPoolDetails] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isDepositing, setIsDepositing] = useState(false)
-  const [isDistributing, setIsDistributing] = useState(false)
+  const { address } = useParams();
+  const { provider, signer, account } = useWeb3();
+  const [poolDetails, setPoolDetails] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
+    console.log("Dashboard address from URL:", address);
     if (provider && address) {
-      fetchPoolDetails()
+      fetchPoolDetails();
     }
-  }, [provider, address, account])
+  }, [provider, address, account]);
 
   async function fetchPoolDetails() {
-    if (!provider) return
+    if (!provider) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
+    for (let i = 0; i < 3; i++) {
+      try {
+        const contract = new ethers.Contract(address, ContriboostAbi, provider);
+
+        const [
+          name,
+          description,
+          dayRange,
+          expectedNumber,
+          contributionAmount,
+          hostFeePercentage,
+          platformFeePercentage,
+          maxMissedDeposits,
+          currentSegment,
+          startTimestamp,
+          host,
+          tokenAddress,
+        ] = await Promise.all([
+          contract.name(),
+          contract.description(),
+          contract.dayRange(),
+          contract.expectedNumber(),
+          contract.contributionAmount(),
+          contract.hostFeePercentage(),
+          contract.platformFeePercentage(),
+          contract.maxMissedDeposits(),
+          contract.currentSegment(),
+          contract.startTimestamp(),
+          contract.host(),
+          contract.tokenAddress(),
+        ]);
+
+        const participantAddresses = await contract.getActiveParticipants();
+        const participants = await Promise.all(
+          participantAddresses.map(async (participantAddress) => {
+            const [id, depositAmount, lastDepositTime, exists, receivedFunds, active, missedDeposits] =
+              await contract.getParticipantStatus(participantAddress);
+            return {
+              address: participantAddress,
+              id: Number(id),
+              depositAmount: ethers.formatEther(depositAmount),
+              lastDepositTime: Number(lastDepositTime),
+              exists,
+              receivedFunds: ethers.formatEther(receivedFunds),
+              active,
+              missedDeposits: Number(missedDeposits),
+            };
+          })
+        );
+
+        const filter = contract.filters.Deposit(null, null);
+        const depositEvents = await contract.queryFilter(filter, -1000, "latest");
+        const events = await Promise.all(
+          depositEvents.map(async (event) => ({
+            name: "Deposit",
+            details: `${formatAddress(event.args.participant)} deposited ${ethers.formatEther(event.args.amount)}`,
+            date: formatDate((await provider.getBlock(event.blockNumber)).timestamp),
+          }))
+        );
+
+        setPoolDetails({
+          name,
+          description,
+          dayRange: Number(dayRange),
+          expectedNumber: Number(expectedNumber),
+          contributionAmount,
+          hostFeePercentage: Number(hostFeePercentage),
+          platformFeePercentage: Number(platformFeePercentage),
+          maxMissedDeposits: Number(maxMissedDeposits),
+          currentSegment: Number(currentSegment),
+          startTimestamp: Number(startTimestamp),
+          host,
+          tokenAddress,
+          participants,
+          events,
+        });
+        return; // Exit loop on success
+      } catch (error) {
+        console.error(`Fetch attempt ${i + 1}/3 failed:`, error.code, error.message, error.data);
+        if (i === 2) {
+          console.error("All attempts failed. Pool not found or inaccessible.");
+          setPoolDetails(null);
+        } else {
+          console.log("Retrying in 2 seconds...");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  async function joinPool() {
+    if (!signer || !poolDetails) return;
+
+    setIsJoining(true);
     try {
-      const contract = new ethers.Contract(address, ContriboostAbi, provider)
-
-      // Fetch basic pool information
-      const [
-        name,
-        description,
-        dayRange,
-        expectedNumber,
-        contributionAmount,
-        hostFeePercentage,
-        currentSegment,
-        startTimestamp,
-        host,
-      ] = await Promise.all([
-        contract.name(),
-        contract.description(),
-        contract.dayRange(),
-        contract.expectedNumber(),
-        contract.contributionAmount(),
-        contract.hostFeePercentage(),
-        contract.currentSegment(),
-        contract.startTimestamp(),
-        contract.host(),
-      ])
-
-      // Fetch all participants
-      const participantAddresses = await contract.getActiveParticipants()
-
-      // Fetch details for each participant
-      const participants = await Promise.all(
-        participantAddresses.map(async (participantAddress) => {
-          const [id, depositAmount, lastDepositTime, exists, receivedFunds, active, missedDeposits] =
-            await contract.getParticipantStatus(participantAddress)
-
-          return {
-            address: participantAddress,
-            id: Number(id),
-            depositAmount,
-            lastDepositTime: Number(lastDepositTime),
-            exists,
-            receivedFunds,
-            active,
-            missedDeposits: Number(missedDeposits),
-          }
-        }),
-      )
-
-      // Fetch recent events (simplified for this example)
-      // In a real implementation, you would use ethers.js filters to get events
-      const events = [] // Placeholder for actual event fetching
-
-      setPoolDetails({
-        name,
-        description,
-        dayRange: Number(dayRange),
-        expectedNumber: Number(expectedNumber),
-        contributionAmount,
-        hostFeePercentage: Number(hostFeePercentage),
-        currentSegment: Number(currentSegment),
-        startTimestamp: Number(startTimestamp),
-        host,
-        participants,
-        events,
-      })
+      const contract = new ethers.Contract(address, ContriboostAbi, signer);
+      const tx = await contract.join();
+      await tx.wait();
+      await fetchPoolDetails();
+      alert("Successfully joined the pool!");
     } catch (error) {
-      console.error("Error fetching pool details:", error)
+      console.error("Error joining pool:", error);
+      alert(`Error: ${error.reason || error.message || "Failed to join"}`);
     } finally {
-      setIsLoading(false)
+      setIsJoining(false);
     }
   }
 
   async function depositFunds() {
-    if (!signer || !poolDetails) return
+    if (!signer || !poolDetails) return;
 
-    setIsDepositing(true)
+    setIsDepositing(true);
     try {
-      const contract = new ethers.Contract(address, ContriboostAbi, signer)
-
-      // Call the deposit function with the contribution amount
-      const tx = await contract.deposit({
-        value: poolDetails.contributionAmount,
-      })
-
-      await tx.wait()
-
-      // Refresh pool details
-      await fetchPoolDetails()
-
-      alert("Deposit successful!")
+      const contract = new ethers.Contract(address, ContriboostAbi, signer);
+      const isETH = poolDetails.tokenAddress === ethers.ZeroAddress;
+      const tx = isETH
+        ? await contract.deposit({ value: poolDetails.contributionAmount })
+        : await contract.deposit();
+      await tx.wait();
+      await fetchPoolDetails();
+      alert("Deposit successful!");
     } catch (error) {
-      console.error("Error depositing funds:", error)
-      alert(`Error depositing funds: ${error.message || "Unknown error"}`)
+      console.error("Error depositing funds:", error);
+      alert(`Error: ${error.reason || error.message || "Failed to deposit"}`);
     } finally {
-      setIsDepositing(false)
+      setIsDepositing(false);
     }
   }
 
   async function distributeFunds() {
-    if (!signer || !poolDetails) return
+    if (!signer || !poolDetails) return;
 
-    setIsDistributing(true)
+    setIsDistributing(true);
     try {
-      const contract = new ethers.Contract(address, ContriboostAbi, signer)
-
-      // Only the host can distribute funds
-      const tx = await contract.distributeFunds()
-      await tx.wait()
-
-      // Refresh pool details
-      await fetchPoolDetails()
-
-      alert("Funds distributed successfully!")
+      const contract = new ethers.Contract(address, ContriboostAbi, signer);
+      const tx = await contract.distributeFunds();
+      await tx.wait();
+      await fetchPoolDetails();
+      alert("Funds distributed successfully!");
     } catch (error) {
-      console.error("Error distributing funds:", error)
-      alert(`Error distributing funds: ${error.message || "Unknown error"}`)
+      console.error("Error distributing funds:", error);
+      alert(`Error: ${error.reason || error.message || "Failed to distribute"}`);
     } finally {
-      setIsDistributing(false)
+      setIsDistributing(false);
     }
   }
 
   function formatAddress(address) {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }
 
   function formatDate(timestamp) {
-    return new Date(timestamp * 1000).toLocaleDateString()
+    return new Date(timestamp * 1000).toLocaleDateString();
   }
 
   if (isLoading) {
@@ -165,7 +195,7 @@ export default function PoolDashboardPage() {
         <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
         <span>Loading pool details...</span>
       </div>
-    )
+    );
   }
 
   if (!poolDetails) {
@@ -177,13 +207,14 @@ export default function PoolDashboardPage() {
           <a href="/pools">Back to Pools</a>
         </Button>
       </div>
-    )
+    );
   }
 
-  const isHost = account && account.toLowerCase() === poolDetails.host.toLowerCase()
+  const isHost = account && account.toLowerCase() === poolDetails.host.toLowerCase();
   const currentParticipant = poolDetails.participants.find(
-    (p) => account && p.address.toLowerCase() === account.toLowerCase(),
-  )
+    (p) => account && p.address.toLowerCase() === account.toLowerCase()
+  );
+  const isETH = poolDetails.tokenAddress === ethers.ZeroAddress;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -210,7 +241,6 @@ export default function PoolDashboardPage() {
             />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Current Cycle</CardTitle>
@@ -223,7 +253,6 @@ export default function PoolDashboardPage() {
             <p className="text-xs text-muted-foreground mt-1">Started on {formatDate(poolDetails.startTimestamp)}</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Contribution Amount</CardTitle>
@@ -231,9 +260,13 @@ export default function PoolDashboardPage() {
           <CardContent>
             <div className="flex items-center">
               <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">{ethers.formatEther(poolDetails.contributionAmount)} ETH</span>
+              <span className="text-2xl font-bold">
+                {ethers.formatEther(poolDetails.contributionAmount)} {isETH ? "ETH" : "Tokens"}
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Host fee: {poolDetails.hostFeePercentage / 100}%</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Host fee: {poolDetails.hostFeePercentage / 100}% | Platform fee: {poolDetails.platformFeePercentage / 100}%
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -254,18 +287,23 @@ export default function PoolDashboardPage() {
                     {isHost
                       ? "Manage your Contriboost pool"
                       : currentParticipant
-                        ? "Participate in the pool"
-                        : "Join this pool to participate"}
+                      ? "Participate in the pool"
+                      : "Join this pool to participate"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-3">
+                  {!currentParticipant && (
+                    <Button onClick={joinPool} disabled={isJoining || poolDetails.participants.length >= poolDetails.expectedNumber}>
+                      {isJoining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Join Pool
+                    </Button>
+                  )}
                   {currentParticipant && (
                     <Button onClick={depositFunds} disabled={isDepositing}>
                       {isDepositing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Deposit Funds
                     </Button>
                   )}
-
                   {isHost && (
                     <>
                       <Button onClick={distributeFunds} disabled={isDistributing} variant="secondary">
@@ -278,7 +316,6 @@ export default function PoolDashboardPage() {
                 </CardContent>
               </Card>
             )}
-
             <Card>
               <CardHeader>
                 <CardTitle>Participants</CardTitle>
@@ -313,7 +350,7 @@ export default function PoolDashboardPage() {
                             )}
                           </TableCell>
                           <TableCell>{participant.id}</TableCell>
-                          <TableCell>{ethers.formatEther(participant.depositAmount)} ETH</TableCell>
+                          <TableCell>{participant.depositAmount} {isETH ? "ETH" : "Tokens"}</TableCell>
                           <TableCell>
                             {participant.lastDepositTime > 0
                               ? formatDate(participant.lastDepositTime)
@@ -376,5 +413,5 @@ export default function PoolDashboardPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

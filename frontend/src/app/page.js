@@ -238,7 +238,7 @@ export default function LandingPage() {
             <div className="grid gap-1">
               <h3 className="text-lg font-bold">Multiple Payment Options</h3>
               <p className="text-sm text-muted-foreground">
-                Use ETH or ERC20 tokens for contributions, offering flexibility for all participants.
+                Use ETH or USDT for contributions, offering flexibility for all participants.
               </p>
             </div>
             <div className="grid gap-1">

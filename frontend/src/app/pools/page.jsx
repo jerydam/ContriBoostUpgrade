@@ -5,15 +5,41 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi, ContriboostAbi } from "@/lib/contractabi";
+import {
+  ContriboostFactoryAbi,
+  ContriboostAbi,
+  GoalFundFactoryAbi,
+  GoalFundAbi,
+} from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
+import { toast } from "react-toastify";
 
-const FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
+const GOALFUND_FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
 
 export default function PoolsPage() {
   const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
@@ -28,7 +54,7 @@ export default function PoolsPage() {
   useEffect(() => {
     if (provider && chainId) {
       fetchPools();
-      const interval = setInterval(fetchPools, 30000); // Poll every 30s for updates
+      const interval = setInterval(fetchPools, 30000); // Poll every 30s
       return () => clearInterval(interval);
     }
   }, [provider, account, chainId]);
@@ -42,25 +68,23 @@ export default function PoolsPage() {
 
     setIsLoading(true);
     try {
-      console.log("Fetching pools from factory at:", FACTORY_ADDRESS, "on chain:", chainId);
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, provider);
-      const poolAddresses = await factoryContract.getContriboosts();
-      console.log("Pool addresses:", poolAddresses);
+      console.log("Fetching pools on chain:", chainId);
 
-      if (!poolAddresses || poolAddresses.length === 0) {
-        console.log("No pools found.");
-        setPools([]);
-        setIsLoading(false);
-        return;
-      }
+      // Fetch Contriboost pools
+      const contriboostFactory = new ethers.Contract(
+        CONTRIBOOST_FACTORY_ADDRESS,
+        ContriboostFactoryAbi,
+        provider
+      );
+      const contriboostAddresses = await contriboostFactory.getContriboosts();
 
-      const poolsWithStatus = await Promise.all(
-        poolAddresses.map(async (addr) => {
-          const pool = (await factoryContract.getContriboostDetails(addr, true))[0];
-          const contriboostContract = new ethers.Contract(addr, ContriboostAbi, provider);
-          const participants = await contriboostContract.getActiveParticipants();
-          const currentSegment = await contriboostContract.currentSegment();
-          const startTimestamp = await contriboostContract.startTimestamp();
+      const contriboostPools = await Promise.all(
+        contriboostAddresses.map(async (addr) => {
+          const pool = (await contriboostFactory.getContriboostDetails(addr, true))[0];
+          const contract = new ethers.Contract(addr, ContriboostAbi, provider);
+          const participants = await contract.getActiveParticipants();
+          const currentSegment = await contract.currentSegment();
+          const startTimestamp = await contract.startTimestamp();
           const now = Math.floor(Date.now() / 1000);
 
           let status = "not-started";
@@ -72,7 +96,18 @@ export default function PoolsPage() {
             status = "active";
           }
 
+          // Check if user is a participant
+          let userStatus = { isParticipant: false, hasReceivedFunds: false };
+          if (account) {
+            const participantStatus = await contract.getParticipantStatus(account);
+            userStatus = {
+              isParticipant: participantStatus.exists,
+              hasReceivedFunds: participantStatus.receivedFunds,
+            };
+          }
+
           return {
+            type: "Contriboost",
             contractAddress: addr,
             name: pool.name,
             dayRange: Number(pool.dayRange),
@@ -84,18 +119,63 @@ export default function PoolsPage() {
             maxMissedDeposits: Number(pool.maxMissedDeposits),
             currentParticipants: participants.length,
             status,
+            userStatus,
           };
         })
       );
 
-      setPools(poolsWithStatus);
+      // Fetch GoalFund pools
+      const goalFundFactory = new ethers.Contract(
+        GOALFUND_FACTORY_ADDRESS,
+        GoalFundFactoryAbi,
+        provider
+      );
+      const goalFundAddresses = await goalFundFactory.getGoalFunds();
+
+      const goalFundPools = await Promise.all(
+        goalFundAddresses.map(async (addr) => {
+          const pool = (await goalFundFactory.getGoalFundDetails(addr, true))[0];
+          const contract = new ethers.Contract(addr, GoalFundAbi, provider);
+          const goal = await contract.goal();
+          const now = Math.floor(Date.now() / 1000);
+
+          let status = "active";
+          if (now > Number(goal.deadline)) {
+            status = goal.achieved ? "achieved" : "expired";
+          } else if (goal.achieved) {
+            status = "achieved";
+          }
+
+          // Check if user has contributed
+          let userStatus = { isParticipant: false, contributionAmount: "0" };
+          if (account) {
+            const contribution = await contract.contributions(account);
+            userStatus = {
+              isParticipant: contribution > 0,
+              contributionAmount: ethers.formatEther(contribution),
+            };
+          }
+
+          return {
+            type: "GoalFund",
+            contractAddress: addr,
+            name: pool.name,
+            targetAmount: ethers.formatEther(pool.targetAmount),
+            currentAmount: ethers.formatEther(pool.currentAmount),
+            deadline: Number(pool.deadline),
+            beneficiary: pool.beneficiary,
+            tokenAddress: pool.tokenAddress,
+            fundType: pool.fundType,
+            platformFeePercentage: Number(pool.platformFeePercentage),
+            status,
+            userStatus,
+          };
+        })
+      );
+
+      setPools([...contriboostPools, ...goalFundPools]);
     } catch (error) {
-      console.error("Error fetching pools:", error.code, error.message, error.data);
-      if (error.code === "CALL_EXCEPTION") {
-        console.log("Contract call failed - check address or chain.");
-      } else if (error.code === "BAD_DATA") {
-        console.log("ABI mismatch or contract not deployed.");
-      }
+      console.error("Error fetching pools:", error);
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +184,9 @@ export default function PoolsPage() {
   function filterPools() {
     let filtered = [...pools];
     if (searchQuery) {
-      filtered = filtered.filter((pool) => pool.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      filtered = filtered.filter((pool) =>
+        pool.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
     if (statusFilter !== "all") {
       filtered = filtered.filter((pool) => pool.status === statusFilter);
@@ -112,22 +194,47 @@ export default function PoolsPage() {
     setFilteredPools(filtered);
   }
 
-  async function joinPool(pool) {
+  async function joinContriboost(pool) {
     if (!signer || !account) {
       await connect();
       if (!account) return;
     }
 
     try {
-      const contriboostContract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
-      const tx = await contriboostContract.join();
+      const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+      const tx = await contract.join();
       await tx.wait();
       await fetchPools();
-      alert("Successfully joined the pool!");
+      toast.success("Successfully joined the Contriboost pool!");
     } catch (error) {
-      console.error("Error joining pool:", error);
-      alert(`Error: ${error.reason || error.message || "Failed to join"}`);
+      console.error("Error joining Contriboost:", error);
+      toast.error(`Error: ${error.reason || error.message || "Failed to join"}`);
     }
+  }
+
+  async function contributeGoalFund(pool, amount = ethers.parseEther("0.01")) {
+    if (!signer || !account) {
+      await connect();
+      if (!account) return;
+    }
+
+    try {
+      const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
+      const isETH = pool.tokenAddress === ethers.ZeroAddress;
+      const tx = isETH
+        ? await contract.contribute({ value: amount })
+        : await contract.contribute(amount);
+      await tx.wait();
+      await fetchPools();
+      toast.success("Contribution successful!");
+    } catch (error) {
+      console.error("Error contributing to GoalFund:", error);
+      toast.error(`Error: ${error.reason || error.message || "Failed to contribute"}`);
+    }
+  }
+
+  async function exitContriboost(pool) {
+    toast.error("Exit functionality not implemented in Contriboost contract.");
   }
 
   const handleCreateNavigation = async (path) => {
@@ -139,16 +246,24 @@ export default function PoolsPage() {
     router.push(path);
   };
 
+  function formatAddress(address) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  function formatDate(timestamp) {
+    return new Date(timestamp * 1000).toLocaleDateString();
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Contriboost Pools</h1>
-          <p className="text-muted-foreground">Browse and join rotating savings pools</p>
+          <h1 className="text-3xl font-bold mb-2">All Pools</h1>
+          <p className="text-muted-foreground">Browse Contriboost and GoalFund pools</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={isConnecting}>
+            <Button variant="outline" disabled={isConnecting}>
               {isConnecting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -220,8 +335,10 @@ export default function PoolsPage() {
           <SelectContent>
             <SelectItem value="all">All Pools</SelectItem>
             <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="full">Full</SelectItem>
-            <SelectItem value="not-started">Not Started</SelectItem>
+            <SelectItem value="full">Full (Contriboost)</SelectItem>
+            <SelectItem value="not-started">Not Started (Contriboost)</SelectItem>
+            <SelectItem value="achieved">Achieved (GoalFund)</SelectItem>
+            <SelectItem value="expired">Expired (GoalFund)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -237,7 +354,7 @@ export default function PoolsPage() {
           <p className="text-muted-foreground mb-4">Try adjusting your filters or create a new pool</p>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button disabled={isConnecting}>
+              <Button variant="outline" disabled={isConnecting}>
                 {isConnecting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
@@ -252,7 +369,7 @@ export default function PoolsPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => handleCreateNavigation("/create/contriboost")}
+                  onClick={() => handleCreateNavigation("/create/contribution")}
                   disabled={isConnecting}
                 >
                   <div className="flex items-start gap-4">
@@ -291,61 +408,158 @@ export default function PoolsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPools.map((pool) => (
-            <Card key={pool.contractAddress} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>{pool.name}</CardTitle>
-                    <CardDescription>{pool.dayRange} days per cycle</CardDescription>
-                  </div>
-                  <div
-                    className={`text-xs font-medium py-1 px-2 rounded-full ${
-                      pool.status === "active"
-                        ? "bg-green-100 text-green-800"
+          {filteredPools.map((pool) => {
+            const isContriboost = pool.type === "Contriboost";
+            const isJoined = pool.userStatus.isParticipant;
+            const canJoin =
+              isContriboost &&
+              !isJoined &&
+              pool.status !== "full" &&
+              pool.currentParticipants < pool.expectedNumber;
+            const canContribute = !isContriboost && pool.status === "active";
+            const canExit = isContriboost && isJoined && pool.status === "not-started";
+
+            return (
+              <Card key={pool.contractAddress} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        {pool.name}
+                        {!isContriboost && (
+                          <span className="text-xs bg-purple-100 text-purple-800 py-0.5 px-1.5 rounded-full flex items-center">
+                            <Tag className="h-3 w-3 mr-1" />
+                            GoalFund
+                          </span>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {isContriboost
+                          ? `${pool.dayRange} days per cycle`
+                          : `Due ${formatDate(pool.deadline)}`}
+                      </CardDescription>
+                    </div>
+                    <div
+                      className={`text-xs font-medium py-1 px-2 rounded-full ${
+                        pool.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : pool.status === "full"
+                          ? "bg-amber-100 text-amber-800"
+                          : pool.status === "not-started"
+                          ? "bg-blue-100 text-blue-800"
+                          : pool.status === "achieved"
+                          ? "bg-teal-100 text-teal-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {pool.status === "active"
+                        ? "Active"
                         : pool.status === "full"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}
-                  >
-                    {pool.status === "active" ? "Active" : pool.status === "full" ? "Full" : "Not Started"}
+                        ? "Full"
+                        : pool.status === "not-started"
+                        ? "Not Started"
+                        : pool.status === "achieved"
+                        ? "Achieved"
+                        : "Expired"}
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Contribution</span>
-                    <span className="font-medium">
-                      {pool.contributionAmount} {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
-                    </span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {isContriboost ? (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Contribution</span>
+                          <span className="font-medium">
+                            {pool.contributionAmount}{" "}
+                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Participants</span>
+                          <span className="font-medium flex items-center">
+                            <Users className="h-3.5 w-3.5 mr-1" />
+                            {pool.currentParticipants}/{pool.expectedNumber}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Host Fee</span>
+                          <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Target</span>
+                          <span className="font-medium">
+                            {pool.targetAmount}{" "}
+                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Raised</span>
+                          <span className="font-medium">
+                            {pool.currentAmount}{" "}
+                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Beneficiary</span>
+                          <span className="font-medium">{formatAddress(pool.beneficiary)}</span>
+                        </div>
+                      </>
+                    )}
+                    {isJoined && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {isContriboost ? "Your Status" : "Your Contribution"}
+                        </span>
+                        <span className="font-medium">
+                          {isContriboost
+                            ? pool.userStatus.hasReceivedFunds
+                              ? "Received Funds"
+                              : "Active"
+                            : `${pool.userStatus.contributionAmount} ${
+                                pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"
+                              }`}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Participants</span>
-                    <span className="font-medium flex items-center">
-                      <Users className="h-3.5 w-3.5 mr-1" />
-                      {pool.currentParticipants}/{pool.expectedNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Host Fee</span>
-                    <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex gap-2 pt-2">
-                {pool.status !== "full" && (
-                  <Button className="flex-1" onClick={() => joinPool(pool)} disabled={isConnecting}>
-                    {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Join
+                </CardContent>
+                <CardFooter className="flex gap-2 pt-2">
+                  {(canJoin || canContribute || canExit) && (
+                    <Button
+                      className="flex-1"
+                      onClick={() =>
+                        canJoin
+                          ? joinContriboost(pool)
+                          : canContribute
+                          ? contributeGoalFund(pool)
+                          : exitContriboost(pool)
+                      }
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : canJoin ? (
+                        "Join"
+                      ) : canContribute ? (
+                        "Contribute"
+                      ) : (
+                        "Exit"
+                      )}
+                    </Button>
+                  )}
+                  <Button variant="outline" className="flex-1" asChild>
+                    <Link href={`/pools/details/${pool.contractAddress}`}>
+                      View Details
+                    </Link>
                   </Button>
-                )}
-                <Button variant="outline" className="flex-1" asChild>
-                  <Link href={`/pools/${pool.contractAddress}`}>View Dashboard</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

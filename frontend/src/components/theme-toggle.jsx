@@ -16,7 +16,8 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled>
+      <Button 
+ variant="outline"variant="ghost" size="icon" disabled>
         <Moon className="h-5 w-5 opacity-50" />
       </Button>
     )
@@ -31,7 +32,8 @@ export function ThemeToggle() {
   }
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+    <Button 
+ variant="outline"variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
       {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </Button>
   )

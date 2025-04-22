@@ -15,11 +15,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { AlertCircle, Loader2, Info } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Info } from "lucide-react";
+import { toast } from "react-toastify";
 
-// Contract address
-const FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
+const FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
+const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -36,11 +36,7 @@ const formSchema = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for ERC20
-  tokenAddress: z.string().refine(
-    (value) => !value || ethers.isAddress(value),
-    { message: "Must be a valid Ethereum address if provided" }
-  ).optional(),
+  paymentMethod: z.enum(["0", "1"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -54,9 +50,8 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account } = useWeb3();
+  const { signer, account, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState(null);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -67,82 +62,95 @@ export default function CreateContriboostPage() {
       expectedNumber: 10,
       contributionAmount: "0.1",
       paymentMethod: "0",
-      tokenAddress: "",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0], // Tomorrow
+      startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     },
   });
 
-  const paymentMethod = form.watch("paymentMethod");
-
   async function onSubmit(values) {
     if (!signer || !account) {
-      setError("Please connect your wallet first");
-      return;
+      await connect();
+      if (!account) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
     }
 
-    // Clear any previous errors
-    setError(null);
     setIsCreating(true);
-    
+
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
-
       const config = {
         dayRange: values.dayRange,
         expectedNumber: values.expectedNumber,
         contributionAmount: ethers.parseEther(values.contributionAmount),
-        hostFeePercentage: values.hostFeePercentage * 100, // Convert to basis points
-        platformFeePercentage: 50, // Hardcoded 0.5%, could be fetched from contract
+        hostFeePercentage: values.hostFeePercentage * 100,
+        platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
         paymentMethod: Number(values.paymentMethod),
       };
 
-      const tokenAddress = values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress;
+      const tokenAddress = values.paymentMethod === "1" ? USDT_ADDRESS : ethers.ZeroAddress;
 
-      console.log("Creating Contriboost with config:", config);
-      console.log("Token address:", tokenAddress);
+      console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
 
       const estimatedGas = await factoryContract.createContriboost.estimateGas(
-        config, 
-        values.name, 
-        values.description, 
+        config,
+        values.name,
+        values.description,
         tokenAddress
       );
-      
-      // Add 20% buffer to gas estimate
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-      
+
       const tx = await factoryContract.createContriboost(
-        config, 
-        values.name, 
-        values.description, 
+        config,
+        values.name,
+        values.description,
         tokenAddress,
         { gasLimit }
       );
-      
+
       console.log("Transaction sent:", tx.hash);
-      
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      alert("Contriboost pool created successfully!");
-      router.push(`/pools/${receipt.logs[0].address}`); // Redirect to new pool address
+      const contriboostCreatedEvent = receipt.logs.find(
+        (log) => {
+          try {
+            const parsedLog = factoryContract.interface.parseLog(log);
+            return parsedLog?.name === "ContriboostCreated";
+          } catch {
+            return false;
+          }
+        }
+      );
+
+      if (!contriboostCreatedEvent) {
+        throw new Error("Could not find ContriboostCreated event in transaction receipt");
+      }
+
+      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
+      const newContractAddress = parsedLog.args.contractAddress;
+
+      toast.success("Contriboost pool created successfully!");
+      router.push(`/pools/details/${newContractAddress}`);
     } catch (error) {
       console.error("Error creating Contriboost:", error);
-      
-      // Handle specific error cases
+      let message = "Transaction failed. Please try again.";
       if (error.code === 4001) {
-        setError("Transaction rejected: Please confirm the transaction in your wallet");
+        message = "Transaction rejected by wallet";
       } else if (error.code === 4100) {
-        setError("Authorization needed: Please unlock your wallet and approve the transaction");
+        message = "Wallet authorization needed";
       } else if (error.code === -32603) {
-        setError("Transaction failed: You may have insufficient funds for gas or the contract call failed");
-      } else {
-        setError(`Error: ${error.reason || error.message || "Transaction failed. Please try again."}`);
+        message = "Insufficient funds for gas or contract error";
+      } else if (error.reason) {
+        message = error.reason;
+      } else if (error.message.includes("ContriboostCreated event")) {
+        message = "Failed to parse contract creation event";
       }
+      toast.error(`Error: ${message}`);
     } finally {
       setIsCreating(false);
     }
@@ -153,7 +161,7 @@ export default function CreateContriboostPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
-        <Button asChild>
+        <Button variant="outline" asChild>
           <a href="/">Go Home</a>
         </Button>
       </div>
@@ -249,7 +257,7 @@ export default function CreateContriboostPage() {
                         <Input placeholder="0.1" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Amount each participant contributes per cycle (in ETH or tokens)
+                        Amount each participant contributes per cycle (in ETH or USDT)
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -277,7 +285,7 @@ export default function CreateContriboostPage() {
                             <FormControl>
                               <RadioGroupItem value="1" />
                             </FormControl>
-                            <FormLabel className="font-normal">ERC20 Token</FormLabel>
+                            <FormLabel className="font-normal">USDT</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
@@ -286,22 +294,6 @@ export default function CreateContriboostPage() {
                   )}
                 />
               </div>
-              {paymentMethod === "1" && (
-                <FormField
-                  control={form.control}
-                  name="tokenAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="0x..." {...field} />
-                      </FormControl>
-                      <FormDescription>Address of the ERC20 token contract to use for this pool</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -363,7 +355,7 @@ export default function CreateContriboostPage() {
                 )}
               />
               <CardFooter className="flex justify-end px-0">
-                <Button type="submit" disabled={isCreating}>
+                <Button variant="outline" type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Pool
                 </Button>

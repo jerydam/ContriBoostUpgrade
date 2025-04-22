@@ -5,12 +5,17 @@ import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { Web3Provider } from "@/components/providers/web3-provider";
 import { ThemeScript } from "./theme-script";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: "Contriboost | Save Together, Achieve Together",
   description: "Create or join rotating savings pools with Contriboost, or fund your goals with GoalFund.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -26,6 +31,26 @@ export default function RootLayout({ children }) {
               <Header />
               <main className="flex-1">{children}</main>
               <Footer />
+              <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light"
+                toastStyle={{
+                  backgroundColor: "#101b31",
+                  color: "#ffffff",
+                  border: "1px solid #6264c7",
+                }}
+                progressStyle={{
+                  background: "#6264c7",
+                }}
+              />
             </div>
           </Web3Provider>
         </ThemeProvider>

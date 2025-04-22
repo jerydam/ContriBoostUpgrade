@@ -11,15 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { AlertCircle, Loader2, Info } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "react-toastify";
 
-// Contract address
-const FACTORY_ADDRESS = "0x139814961a3D4D834E20101ECDd84e9e882D2bd9";
+const FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
+const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -43,16 +43,12 @@ const formSchema = z.object({
   ),
   beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]), // 0 for Group, 1 for Personal
-  paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for ERC20
-  tokenAddress: z.string().refine(
-    (value) => !value || ethers.isAddress(value),
-    { message: "Must be a valid Ethereum address if provided" }
-  ).optional(),
+  paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for USDT
 });
 
 export default function CreateGoalFundPage() {
   const router = useRouter();
-  const { signer, account } = useWeb3();
+  const { signer, account, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -62,15 +58,13 @@ export default function CreateGoalFundPage() {
       name: "",
       description: "",
       targetAmount: "1",
-      deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0], // 30 days from now
+      deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
       beneficiary: account || "",
       fundType: "0",
       paymentMethod: "0",
-      tokenAddress: "",
     },
   });
 
-  const paymentMethod = form.watch("paymentMethod");
   const fundType = form.watch("fundType");
 
   useEffect(() => {
@@ -81,18 +75,21 @@ export default function CreateGoalFundPage() {
 
   async function onSubmit(values) {
     if (!signer || !account) {
-      setError("Please connect your wallet first");
-      return;
+      await connect();
+      if (!account) {
+        setError("Please connect your wallet first");
+        toast.warning("Please connect your wallet first");
+        return;
+      }
     }
 
-    // Clear any previous errors
     setError(null);
     setIsCreating(true);
-    
+
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
 
-      const tokenAddress = values.paymentMethod === "1" && values.tokenAddress ? values.tokenAddress : ethers.ZeroAddress;
+      const tokenAddress = values.paymentMethod === "1" ? USDT_ADDRESS : ethers.ZeroAddress;
 
       console.log("Creating GoalFund with values:", {
         name: values.name,
@@ -102,10 +99,9 @@ export default function CreateGoalFundPage() {
         beneficiary: values.beneficiary,
         paymentMethod: Number(values.paymentMethod),
         tokenAddress,
-        fundType: Number(values.fundType)
+        fundType: Number(values.fundType),
       });
 
-      // Estimate gas to catch potential errors before sending transaction
       const estimatedGas = await factoryContract.createGoalFund.estimateGas(
         values.name,
         values.description,
@@ -116,8 +112,6 @@ export default function CreateGoalFundPage() {
         tokenAddress,
         Number(values.fundType)
       );
-      
-      // Add 20% buffer to gas estimate
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
       const tx = await factoryContract.createGoalFund(
@@ -131,27 +125,48 @@ export default function CreateGoalFundPage() {
         Number(values.fundType),
         { gasLimit }
       );
-      
+
       console.log("Transaction sent:", tx.hash);
-      
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      alert("GoalFund created successfully!");
-      router.push(`/funds/${receipt.logs[0].address}`); // Redirect to new fund address
+      // Extract the new contract address from the GoalFundCreated event
+      const goalFundCreatedEvent = receipt.logs.find(
+        (log) => {
+          try {
+            const parsedLog = factoryContract.interface.parseLog(log);
+            return parsedLog?.name === "GoalFundCreated";
+          } catch {
+            return false;
+          }
+        }
+      );
+
+      if (!goalFundCreatedEvent) {
+        throw new Error("Could not find GoalFundCreated event in transaction receipt");
+      }
+
+      const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
+      const newContractAddress = parsedLog.args.contractAddress;
+
+      toast.success("GoalFund created successfully!");
+      router.push(`/pools/details/${newContractAddress}`);
     } catch (error) {
       console.error("Error creating GoalFund:", error);
-      
-      // Handle specific error cases
+      let message = "Transaction failed. Please try again.";
       if (error.code === 4001) {
-        setError("Transaction rejected: Please confirm the transaction in your wallet");
+        message = "Transaction rejected by wallet";
       } else if (error.code === 4100) {
-        setError("Authorization needed: Please unlock your wallet and approve the transaction");
+        message = "Wallet authorization needed";
       } else if (error.code === -32603) {
-        setError("Transaction failed: You may have insufficient funds for gas or the contract call failed");
-      } else {
-        setError(`Error: ${error.reason || error.message || "Transaction failed. Please try again."}`);
+        message = "Insufficient funds for gas or contract error";
+      } else if (error.reason) {
+        message = error.reason;
+      } else if (error.message.includes("GoalFundCreated event")) {
+        message = "Failed to parse contract creation event";
       }
+      setError(`Error: ${message}`);
+      toast.error(`Error: ${message}`);
     } finally {
       setIsCreating(false);
     }
@@ -162,7 +177,7 @@ export default function CreateGoalFundPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a GoalFund</p>
-        <Button asChild>
+        <Button variant="outline" asChild>
           <a href="/">Go Home</a>
         </Button>
       </div>
@@ -227,7 +242,7 @@ export default function CreateGoalFundPage() {
                       <FormControl>
                         <Input placeholder="1" {...field} />
                       </FormControl>
-                      <FormDescription>Amount you aim to raise (in ETH or tokens)</FormDescription>
+                      <FormDescription>Amount you aim to raise (in ETH or USDT)</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -305,56 +320,38 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="paymentMethod"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Payment Method</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="flex flex-col space-y-1"
-                        >
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="0" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Ether (ETH)</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="1" />
-                            </FormControl>
-                            <FormLabel className="font-normal">ERC20 Token</FormLabel>
-                          </FormItem>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              {paymentMethod === "1" && (
-                <FormField
-                  control={form.control}
-                  name="tokenAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Token Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="0x..." {...field} />
-                      </FormControl>
-                      <FormDescription>Address of the ERC20 token contract to use for this fund</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Method</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="0" />
+                          </FormControl>
+                          <FormLabel className="font-normal">Ether (ETH)</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="1" />
+                          </FormControl>
+                          <FormLabel className="font-normal">USDT</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <CardFooter className="flex justify-end px-0">
-                <Button type="submit" disabled={isCreating}>
+                <Button variant="outline" type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Fund
                 </Button>

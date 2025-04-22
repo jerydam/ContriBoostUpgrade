@@ -254,6 +254,72 @@ export const ContriboostFactoryAbi =[
 		"inputs": [
 			{
 				"internalType": "address",
+				"name": "_contriboost",
+				"type": "address"
+			}
+		],
+		"name": "getSingleContriboostDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "dayRange",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "expectedNumber",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "contributionAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "hostFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "maxMissedDeposits",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct ContriboostFactory.ContriboostDetails",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
 				"name": "_user",
 				"type": "address"
 			}
@@ -1825,6 +1891,72 @@ export const GoalFundFactoryAbi =[
 				"internalType": "address[]",
 				"name": "",
 				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_goalFund",
+				"type": "address"
+			}
+		],
+		"name": "getSingleGoalFundDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "targetAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "currentAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "deadline",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "beneficiary",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "enum GoalFund.FundType",
+						"name": "fundType",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct GoalFundFactory.GoalFundDetails",
+				"name": "",
+				"type": "tuple"
 			}
 		],
 		"stateMutability": "view",

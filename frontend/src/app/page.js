@@ -9,18 +9,62 @@ import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
 
 export default function LandingPage() {
-  const { account, connectWallet } = useWeb3(); // Assuming connectWallet is exposed by Web3Provider
+  const { account, connectWallet } = useWeb3();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null, "success", "error"
+  const [subscriptionMessage, setSubscriptionMessage] = useState("");
   const router = useRouter();
 
   const handleCreateNavigation = (path) => {
     setIsCreateDialogOpen(false);
     if (!account) {
-      connectWallet(); // Prompt wallet connection if not connected
+      connectWallet();
     } else {
       router.push(path);
     }
   };
+
+  
+  
+  const handleSubscription = async (e) => {
+    e.preventDefault();
+    setSubscriptionStatus(null);
+    try {
+      const response = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) throw new Error("Failed to subscribe");
+      const data = await response.json();
+      setSubscriptionStatus("success");
+      setSubscriptionMessage("Thank you for subscribing!");
+      setEmail("");
+    } catch (error) {
+      setSubscriptionStatus("error");
+      setSubscriptionMessage("Failed to subscribe. Please try again.");
+    }
+  };
+  
+  // In the JSX:
+  <form className="flex flex-col sm:flex-row gap-2" onSubmit={handleSubscription}>
+    <input
+      type="email"
+      placeholder="Enter your email"
+      value={email}
+      onChange={(e) => setEmail(e.target.value)}
+      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      required
+    />
+    <Button 
+ variant="outline"type="submit">Subscribe</Button>
+  </form>
+  {subscriptionStatus && (
+    <p className={`text-sm ${subscriptionStatus === "success" ? "text-green-600" : "text-red-600"}`}>
+      {subscriptionMessage}
+    </p>
+  )}
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -39,11 +83,12 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button size="lg" className="w-full sm:w-auto">
+                    <Button 
+ variant="outline"size="lg" className="w-full sm:w-auto hover:bg-[#6264c7]">
                       Create New <span className="ml-1">+</span>
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-[#101b31]">
                     <DialogHeader>
                       <DialogTitle>Choose what to create</DialogTitle>
                     </DialogHeader>
@@ -68,7 +113,7 @@ export default function LandingPage() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="w-full justify-start h-auto py-4"
+                        className="w-full justify-start h-auto py-4 "
                         onClick={() => handleCreateNavigation("/create/goalfund")}
                       >
                         <div className="flex items-start gap-4">
@@ -86,7 +131,7 @@ export default function LandingPage() {
                   </DialogContent>
                 </Dialog>
                 <Link href="/pools">
-                  <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                  <Button variant="outline" size="lg" className="w-full sm:w-auto hover:bg-[#6264c7]">
                     Explore Contribution Pools <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
@@ -132,8 +177,8 @@ export default function LandingPage() {
                         <p className="text-sm">Earn trust and build community through transparent, secure savings</p>
                       </li>
                     </ul>
-                    <Button
-                      className="w-full"
+                    <Button variant="outline"
+                      className="w-full hover:bg-[#6264c7]  "
                       onClick={() => (!account ? connectWallet() : router.push("/pools"))}
                       aria-label="Get started with Contriboost"
                     >
@@ -222,11 +267,11 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-2 min-[400px]:gap-4">
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full sm:w-auto">Get Started</Button>
+                    <Button variant="outline" className="w-full sm:w-auto hover:bg-[#6264c7]  ">Get Started</Button>
                   </DialogTrigger>
                 </Dialog>
                 <Link href="/pools">
-                  <Button variant="outline" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto hover:bg-[#6264c7]">
                     Explore Pools
                   </Button>
                 </Link>
@@ -237,23 +282,25 @@ export default function LandingPage() {
                 <h3 className="text-xl font-bold">Subscribe to updates</h3>
                 <p className="text-sm text-muted-foreground">Stay informed about new features and community events.</p>
               </div>
-              <form
-                className="flex flex-col sm:flex-row gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert("Subscription coming soon!");
-                }}
-              >
+              <form className="flex flex-col sm:flex-row gap-2" onSubmit={handleSubscription}>
                 <input
                   type="email"
                   placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
-                <Button type="submit" className="w-full sm:w-auto">
+                <Button 
+ variant="outline"type="submit" className="w-full sm:w-auto hover:bg-[#6264c7]">
                   Subscribe
                 </Button>
               </form>
+              {subscriptionStatus && (
+                <p className={`text-sm ${subscriptionStatus === "success" ? "text-green-600" : "text-red-600"}`}>
+                  {subscriptionMessage}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 By subscribing, you agree to our terms and privacy policy.
               </p>

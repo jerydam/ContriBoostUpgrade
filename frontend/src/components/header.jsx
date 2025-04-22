@@ -73,12 +73,14 @@ export default function Header() {
               <span className="hidden text-sm md:inline-block">
                 {formatAccount(account)} ({getChainName(chainId)})
               </span>
-              <Button variant="outline" size="sm" onClick={disconnect}>
+              <Button 
+ variant="outline"size="sm" onClick={disconnect}>
                 Disconnect
               </Button>
             </div>
           ) : (
-            <Button onClick={connect} disabled={isConnecting}>
+            <Button 
+ variant="outline"onClick={connect} disabled={isConnecting}>
               {isConnecting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

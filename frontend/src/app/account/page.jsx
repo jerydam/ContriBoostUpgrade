@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
+import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
 
 // Contract addresses
-const CONTRIBOOST_FACTORY_ADDRESS = "0xe435787A41Ba01D631F914dFD69190CCdfD358Bd";
-const GOALFUND_FACTORY_ADDRESS = "0x139814961a3D4D834E20101ECDd84e9e882D2bd9";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
+const GOALFUND_FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
 
 export default function AccountPage() {
   const { provider, account } = useWeb3();
@@ -49,20 +49,40 @@ export default function AccountPage() {
       const userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
       const contriboostDetails = await Promise.all(
         userContriboostAddresses.map(async (address) => {
-          const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
-          const details = detailsArray[0]; // Returns an array, take first element
-          return {
-            contractAddress: details.contractAddress,
-            name: details.name,
-            dayRange: Number(details.dayRange),
-            expectedNumber: Number(details.expectedNumber),
-            contributionAmount: ethers.formatEther(details.contributionAmount),
-            hostFeePercentage: Number(details.hostFeePercentage),
-            currentParticipants: 0, // TODO: Query Contriboost contract for active participants
-          };
+          try {
+            const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
+            if (!detailsArray || !detailsArray[0]) {
+              console.warn(`No details returned for Contriboost at ${address}`);
+              return null;
+            }
+            const details = detailsArray[0];
+
+            // Fetch current participants from the Contriboost contract
+            const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
+            let currentParticipants = 0;
+            try {
+              const activeParticipants = await contriboostContract.getActiveParticipants();
+              currentParticipants = activeParticipants.length;
+            } catch (err) {
+              console.warn(`Failed to fetch active participants for ${address}:`, err);
+            }
+
+            return {
+              contractAddress: details.contractAddress,
+              name: details.name || "Unnamed Pool",
+              dayRange: Number(details.dayRange || 0),
+              expectedNumber: Number(details.expectedNumber || 0),
+              contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
+              hostFeePercentage: Number(details.hostFeePercentage || 0),
+              currentParticipants,
+            };
+          } catch (err) {
+            console.error(`Error processing Contriboost at ${address}:`, err);
+            return null;
+          }
         })
       );
-      setUserPools(contriboostDetails);
+      setUserPools(contriboostDetails.filter((pool) => pool !== null));
 
       // Fetch user's GoalFunds
       const goalFundFactory = new ethers.Contract(
@@ -73,22 +93,31 @@ export default function AccountPage() {
       const userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
       const goalFundDetails = await Promise.all(
         userGoalFundAddresses.map(async (address) => {
-          const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
-          const details = detailsArray[0]; // Returns an array, take first element
-          return {
-            contractAddress: details.contractAddress,
-            name: details.name,
-            targetAmount: ethers.formatEther(details.targetAmount),
-            currentAmount: ethers.formatEther(details.currentAmount),
-            deadline: Number(details.deadline),
-            beneficiary: details.beneficiary,
-            tokenAddress: details.tokenAddress,
-            fundType: Number(details.fundType),
-            platformFeePercentage: Number(details.platformFeePercentage),
-          };
+          try {
+            const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
+            if (!detailsArray || !detailsArray[0]) {
+              console.warn(`No details returned for GoalFund at ${address}`);
+              return null;
+            }
+            const details = detailsArray[0];
+            return {
+              contractAddress: details.contractAddress,
+              name: details.name || "Unnamed Fund",
+              targetAmount: ethers.formatEther(details.targetAmount || 0n),
+              currentAmount: ethers.formatEther(details.currentAmount || 0n),
+              deadline: Number(details.deadline || 0),
+              beneficiary: details.beneficiary || ethers.ZeroAddress,
+              tokenAddress: details.tokenAddress || ethers.ZeroAddress,
+              fundType: Number(details.fundType || 0),
+              platformFeePercentage: Number(details.platformFeePercentage || 0),
+            };
+          } catch (err) {
+            console.error(`Error processing GoalFund at ${address}:`, err);
+            return null;
+          }
         })
       );
-      setUserFunds(goalFundDetails);
+      setUserFunds(goalFundDetails.filter((fund) => fund !== null));
     } catch (error) {
       console.error("Error fetching user data:", error);
       setError("Failed to load your data. Please try again later.");
@@ -110,7 +139,7 @@ export default function AccountPage() {
           <p className="text-muted-foreground mb-6">
             Please connect your wallet to view your account details, pools, and funds.
           </p>
-          <Button asChild>
+          <Button variant="outline" asChild>
             <Link href="/">Go to Home</Link>
           </Button>
         </div>
@@ -134,7 +163,9 @@ export default function AccountPage() {
           <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
           <h1 className="text-2xl font-bold mb-4">Error</h1>
           <p className="text-muted-foreground mb-6">{error}</p>
-          <Button onClick={fetchUserData}>Retry</Button>
+          <Button variant="outline" onClick={fetchUserData}>
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -168,9 +199,15 @@ export default function AccountPage() {
         <CardFooter>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link href="/">
+              <Link href="/create/contriboost">
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Create New
+                Create Contriboost Pool
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/create/goalfund">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create GoalFund
               </Link>
             </Button>
           </div>
@@ -187,43 +224,53 @@ export default function AccountPage() {
         <TabsContent value="pools">
           {userPools.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {userPools.map((pool) => (
-                <Card key={pool.contractAddress}>
-                  <CardHeader className="pb-2">
-                    <CardTitle>{pool.name}</CardTitle>
-                    <CardDescription>{pool.dayRange} days per cycle</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Contribution</span>
-                        <span className="font-medium">{pool.contributionAmount} ETH</span>
+              {userPools.map((pool) => {
+                if (!ethers.isAddress(pool.contractAddress)) {
+                  console.warn(`Invalid contract address for pool: ${pool.name}`);
+                  return null;
+                }
+                return (
+                  <Card key={pool.contractAddress}>
+                    <CardHeader className="pb-2">
+                      <CardTitle>{pool.name}</CardTitle>
+                      <CardDescription>{pool.dayRange} days per cycle</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Contribution</span>
+                          <span className="font-medium">{pool.contributionAmount} ETH</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Participants</span>
+                          <span className="font-medium">
+                            {pool.currentParticipants}/{pool.expectedNumber}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Host Fee</span>
+                          <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Participants</span>
-                        <span className="font-medium">
-                          {pool.currentParticipants}/{pool.expectedNumber}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Host Fee</span>
-                        <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" asChild>
-                      <Link href={`/pools/${pool.contractAddress}`}>View Dashboard</Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" className="w-full" asChild>
+                        <Link href={`/pools/details/${pool.contractAddress}`}>
+                          View Details
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-lg mb-2">No Contriboost pools found</p>
-              <p className="text-muted-foreground mb-4">You haven’t created or joined any Contriboost pools yet</p>
-              <Button asChild>
+              <p className="text-muted-foreground mb-4">
+                You haven’t created or joined any Contriboost pools yet
+              </p>
+              <Button variant="outline" asChild>
                 <Link href="/pools">Browse Pools</Link>
               </Button>
             </div>
@@ -251,21 +298,28 @@ export default function AccountPage() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Type</span>
-                        <span className="font-medium">{fund.fundType === 0 ? "Group" : "Personal"}</span>
+                        <span className="font-medium">
+                          {fund.fundType === 0 ? "Grouped" : "personal"}
+                        </span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2.5 mt-2">
                         <div
                           className="bg-primary h-2.5 rounded-full"
                           style={{
-                            width: `${Math.min((Number(fund.currentAmount) / Number(fund.targetAmount)) * 100, 100)}%`,
+                            width: `${Math.min(
+                              (Number(fund.currentAmount) / Number(fund.targetAmount)) * 100,
+                              100
+                            )}%`,
                           }}
                         />
                       </div>
                     </div>
                   </CardContent>
                   <CardFooter>
-                    <Button className="w-full" asChild>
-                      <Link href={`/funds/${fund.contractAddress}`}>View Fund</Link>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link href={`/pools/details/${fund.contractAddress}`}>
+                        View Details
+                      </Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -274,8 +328,10 @@ export default function AccountPage() {
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-lg mb-2">No GoalFunds found</p>
-              <p className="text-muted-foreground mb-4">You haven’t created or contributed to any GoalFunds yet</p>
-              <Button asChild>
+              <p className="text-muted-foreground mb-4">
+                You haven’t created or contributed to any GoalFunds yet
+              </p>
+              <Button variant="outline" asChild>
                 <Link href="/create/goalfund">Create GoalFund</Link>
               </Button>
             </div>

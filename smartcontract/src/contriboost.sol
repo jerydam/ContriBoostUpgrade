@@ -23,6 +23,17 @@ contract Contriboost is ReentrancyGuard, Ownable {
         bool active;
         uint missedDeposits;
     }
+   
+    struct Config {
+        uint dayRange;
+        uint expectedNumber;
+        uint contributionAmount;
+        uint hostFeePercentage;
+        uint platformFeePercentage;
+        uint maxMissedDeposits;
+        uint startTimestamp;
+        PaymentMethod paymentMethod;
+    }
     
     string public name;
     string public description;
@@ -31,9 +42,9 @@ contract Contriboost is ReentrancyGuard, Ownable {
     uint public expectedNumber;
     uint public currentSegment;
     uint public contributionAmount;
-    uint public hostFeePercentage;     // e.g., 2% = 200
-    uint public platformFeePercentage; // e.g., 2% = 200
-    address public platformOwner;      // Factory deployer
+    uint public hostFeePercentage;
+    uint public platformFeePercentage;
+    address public platformOwner;
     uint public constant PERCENTAGE_BASE = 10000;
     uint public maxMissedDeposits;
     uint public startTimestamp;
@@ -55,50 +66,41 @@ contract Contriboost is ReentrancyGuard, Ownable {
     event PlatformFeeTransferred(address indexed platformOwner, uint amount);
 
     constructor(
-        uint _dayRange,
-        uint _expectedNumber,
-        uint _contributionAmount,
+        Config memory _config,
         string memory _name,
         string memory _description,
         address _tokenAddress,
-        uint _hostFeePercentage,
-        uint _platformFeePercentage,
-        address _platformOwner,
-        uint _maxMissedDeposits,
-        uint _startTimestamp,
-        PaymentMethod _paymentMethod
-    ) {
-        require(_dayRange > 0, "Day range must be greater than zero");
-        require(_expectedNumber > 0, "Expected number must be greater than zero");
-        require(_contributionAmount > 0, "Contribution amount must be greater than zero");
-        require(_startTimestamp > block.timestamp, "Start timestamp must be in future");
-        require(_hostFeePercentage <= 500, "Host fee cannot exceed 5%");
-        require(_platformFeePercentage <= 500, "Platform fee cannot exceed 5%");
+        address _platformOwner
+    ) Ownable() {
+        require(_config.dayRange > 0, "Day range must be greater than zero");
+        require(_config.expectedNumber > 0, "Expected number must be greater than zero");
+        require(_config.contributionAmount > 0, "Contribution amount must be greater than zero");
+        require(_config.startTimestamp > block.timestamp, "Start timestamp must be in future");
+        require(_config.hostFeePercentage <= 500, "Host fee cannot exceed 5%");
+        require(_config.platformFeePercentage <= 500, "Platform fee cannot exceed 5%");
         require(_platformOwner != address(0), "Invalid platform owner address");
 
         host = msg.sender;
-        dayRange = _dayRange;
-        expectedNumber = _expectedNumber;
-        contributionAmount = _contributionAmount;
+        dayRange = _config.dayRange;
+        expectedNumber = _config.expectedNumber;
+        contributionAmount = _config.contributionAmount;
         currentSegment = 1;
         name = _name;
         description = _description;
-        startTimestamp = _startTimestamp;
-        paymentMethod = _paymentMethod;
-        hostFeePercentage = _hostFeePercentage;
-        platformFeePercentage = _platformFeePercentage;
+        startTimestamp = _config.startTimestamp;
+        paymentMethod = _config.paymentMethod;
+        hostFeePercentage = _config.hostFeePercentage;
+        platformFeePercentage = _config.platformFeePercentage;
         platformOwner = _platformOwner;
-        maxMissedDeposits = _maxMissedDeposits;
+        maxMissedDeposits = _config.maxMissedDeposits;
 
-        if (_paymentMethod == PaymentMethod.ERC20 && _tokenAddress != address(0)) {
+        if (_config.paymentMethod == PaymentMethod.ERC20 && _tokenAddress != address(0)) {
             token = IERC20(_tokenAddress);
-        } else if (_paymentMethod == PaymentMethod.Ether) {
+        } else if (_config.paymentMethod == PaymentMethod.Ether) {
             require(_tokenAddress == address(0), "Token address must be zero for Ether payment");
         } else {
             revert("Invalid payment method configuration");
         }
-
-        _transferOwnership(host);
     }
 
     modifier onlyHost() {
@@ -236,12 +238,10 @@ contract Contriboost is ReentrancyGuard, Ownable {
         uint totalAmount = paymentMethod == PaymentMethod.Ether ? address(this).balance : token.balanceOf(address(this));
         require(totalAmount > 0, "No funds to distribute");
 
-        // Calculate fees
         uint hostFee = totalAmount.mul(hostFeePercentage).div(PERCENTAGE_BASE);
         uint platformFee = totalAmount.mul(platformFeePercentage).div(PERCENTAGE_BASE);
         uint recipientAmount = totalAmount.sub(hostFee).sub(platformFee);
 
-        // Transfer host fee
         if (hostFee > 0) {
             if (paymentMethod == PaymentMethod.Ether) {
                 (bool success, ) = host.call{value: hostFee}("");
@@ -252,7 +252,6 @@ contract Contriboost is ReentrancyGuard, Ownable {
             }
         }
 
-        // Transfer platform fee
         if (platformFee > 0) {
             if (paymentMethod == PaymentMethod.Ether) {
                 (bool success, ) = platformOwner.call{value: platformFee}("");
@@ -264,7 +263,6 @@ contract Contriboost is ReentrancyGuard, Ownable {
             emit PlatformFeeTransferred(platformOwner, platformFee);
         }
 
-        // Transfer to recipient
         address recipient = participantList[currentSegment - 1];
         require(participants[recipient].exists, "Invalid recipient");
 

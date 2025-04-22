@@ -6,7 +6,7 @@ import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract GoalFund is ReentrancyGuard, Ownable {
+contract GoalFund is ReentrancyGuard, Ownable() {
     using SafeMath for uint256;
 
     enum PaymentMethod {

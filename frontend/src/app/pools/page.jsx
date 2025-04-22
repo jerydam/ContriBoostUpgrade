@@ -38,8 +38,8 @@ import {
 import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
 import { toast } from "react-toastify";
 
-const CONTRIBOOST_FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
-const GOALFUND_FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
+const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
+const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
 
 export default function PoolsPage() {
   const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
@@ -76,12 +76,12 @@ export default function PoolsPage() {
         ContriboostFactoryAbi,
         provider
       );
-      const contriboostAddresses = await contriboostFactory.getContriboosts();
+      const contriboostDetailsRaw = await contriboostFactory.getAllContriboostsDetails();
+      console.log("Raw Contriboost details:", contriboostDetailsRaw);
 
       const contriboostPools = await Promise.all(
-        contriboostAddresses.map(async (addr) => {
-          const pool = (await contriboostFactory.getContriboostDetails(addr, true))[0];
-          const contract = new ethers.Contract(addr, ContriboostAbi, provider);
+        contriboostDetailsRaw.map(async (pool) => {
+          const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, provider);
           const participants = await contract.getActiveParticipants();
           const currentSegment = await contract.currentSegment();
           const startTimestamp = await contract.startTimestamp();
@@ -96,7 +96,6 @@ export default function PoolsPage() {
             status = "active";
           }
 
-          // Check if user is a participant
           let userStatus = { isParticipant: false, hasReceivedFunds: false };
           if (account) {
             const participantStatus = await contract.getParticipantStatus(account);
@@ -108,7 +107,7 @@ export default function PoolsPage() {
 
           return {
             type: "Contriboost",
-            contractAddress: addr,
+            contractAddress: pool.contractAddress,
             name: pool.name,
             dayRange: Number(pool.dayRange),
             expectedNumber: Number(pool.expectedNumber),
@@ -130,23 +129,25 @@ export default function PoolsPage() {
         GoalFundFactoryAbi,
         provider
       );
-      const goalFundAddresses = await goalFundFactory.getGoalFunds();
+      const goalFundDetailsRaw = await goalFundFactory.getAllGoalFundsDetails();
+      console.log("Raw GoalFund details:", goalFundDetailsRaw);
 
       const goalFundPools = await Promise.all(
-        goalFundAddresses.map(async (addr) => {
-          const pool = (await goalFundFactory.getGoalFundDetails(addr, true))[0];
-          const contract = new ethers.Contract(addr, GoalFundAbi, provider);
+        goalFundDetailsRaw.map(async (pool) => {
+          // Skip personal GoalFunds
+          if (pool.fundType === 1) return null; // FundType 1 is personal
+
+          const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, provider);
           const goal = await contract.goal();
           const now = Math.floor(Date.now() / 1000);
 
           let status = "active";
-          if (now > Number(goal.deadline)) {
+          if (now > Number(pool.deadline)) {
             status = goal.achieved ? "achieved" : "expired";
           } else if (goal.achieved) {
             status = "achieved";
           }
 
-          // Check if user has contributed
           let userStatus = { isParticipant: false, contributionAmount: "0" };
           if (account) {
             const contribution = await contract.contributions(account);
@@ -158,22 +159,36 @@ export default function PoolsPage() {
 
           return {
             type: "GoalFund",
-            contractAddress: addr,
+            contractAddress: pool.contractAddress,
             name: pool.name,
             targetAmount: ethers.formatEther(pool.targetAmount),
             currentAmount: ethers.formatEther(pool.currentAmount),
             deadline: Number(pool.deadline),
             beneficiary: pool.beneficiary,
             tokenAddress: pool.tokenAddress,
-            fundType: pool.fundType,
+            fundType: pool.fundType === 0 ? "Grouped" : "Personal",
             platformFeePercentage: Number(pool.platformFeePercentage),
             status,
             userStatus,
+            tags: pool.fundType === 0 ? await contract.getTags() : [],
           };
         })
       );
 
-      setPools([...contriboostPools, ...goalFundPools]);
+      // Filter out null entries (personal GoalFunds) and deduplicate by contractAddress
+      const allPoolsRaw = [...contriboostPools, ...goalFundPools.filter(pool => pool !== null)];
+      const seenAddresses = new Set();
+      const allPools = allPoolsRaw.filter(pool => {
+        if (seenAddresses.has(pool.contractAddress)) {
+          console.warn(`Duplicate pool found: ${pool.contractAddress}`);
+          return false;
+        }
+        seenAddresses.add(pool.contractAddress);
+        return true;
+      });
+
+      console.log("All fetched pools:", allPools);
+      setPools(allPools);
     } catch (error) {
       console.error("Error fetching pools:", error);
     } finally {
@@ -185,7 +200,9 @@ export default function PoolsPage() {
     let filtered = [...pools];
     if (searchQuery) {
       filtered = filtered.filter((pool) =>
-        pool.name.toLowerCase().includes(searchQuery.toLowerCase())
+        pool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (pool.type === "GoalFund" && pool.tags.some(tag => 
+          tag.toLowerCase().includes(searchQuery.toLowerCase())))
       );
     }
     if (statusFilter !== "all") {
@@ -272,7 +289,7 @@ export default function PoolsPage() {
               Create New
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-[#101b31]">
             <DialogHeader>
               <DialogTitle>Choose what to create</DialogTitle>
             </DialogHeader>
@@ -280,7 +297,7 @@ export default function PoolsPage() {
               <Button
                 variant="outline"
                 className="w-full justify-start h-auto py-4"
-                onClick={() => handleCreateNavigation("/create/contriboost")}
+                onClick={() => handleCreateNavigation("/create/contribution")}
                 disabled={isConnecting}
               >
                 <div className="flex items-start gap-4">
@@ -322,7 +339,7 @@ export default function PoolsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search pools..."
+            placeholder="Search pools or tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -332,7 +349,7 @@ export default function PoolsPage() {
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-[#101b31]">
             <SelectItem value="all">All Pools</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="full">Full (Contriboost)</SelectItem>
@@ -361,7 +378,7 @@ export default function PoolsPage() {
                 Create New Pool
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-[#101b31]">
               <DialogHeader>
                 <DialogTitle>Choose what to create</DialogTitle>
               </DialogHeader>
@@ -369,7 +386,7 @@ export default function PoolsPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => handleCreateNavigation("/create/contribution")}
+                  onClick={() => handleCreateNavigation("/createos/contribution")}
                   disabled={isConnecting}
                 >
                   <div className="flex items-start gap-4">
@@ -438,6 +455,18 @@ export default function PoolsPage() {
                           ? `${pool.dayRange} days per cycle`
                           : `Due ${formatDate(pool.deadline)}`}
                       </CardDescription>
+                      {!isContriboost && pool.fundType === "grouped" && pool.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {pool.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="text-xs bg-blue-100 text-blue-800 py-0.5 px-2 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div
                       className={`text-xs font-medium py-1 px-2 rounded-full ${

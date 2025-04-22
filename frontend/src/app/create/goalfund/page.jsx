@@ -8,7 +8,7 @@ import { GoalFundFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +18,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-const FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
+const FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
 const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
 
 const formSchema = z.object({
@@ -88,7 +88,6 @@ export default function CreateGoalFundPage() {
 
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
-
       const tokenAddress = values.paymentMethod === "1" ? USDT_ADDRESS : ethers.ZeroAddress;
 
       console.log("Creating GoalFund with values:", {
@@ -129,6 +128,7 @@ export default function CreateGoalFundPage() {
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+      console.log("Receipt logs:", receipt.logs);
 
       // Extract the new contract address from the GoalFundCreated event
       const goalFundCreatedEvent = receipt.logs.find(
@@ -147,10 +147,18 @@ export default function CreateGoalFundPage() {
       }
 
       const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
-      const newContractAddress = parsedLog.args.contractAddress;
+      console.log("Parsed GoalFundCreated event:", parsedLog);
+      const newContractAddress = parsedLog.args.goalFundAddress; // Corrected from contractAddress to goalFundAddress
+
+      if (!ethers.isAddress(newContractAddress)) {
+        throw new Error("Invalid contract address received from GoalFundCreated event");
+      }
 
       toast.success("GoalFund created successfully!");
-      router.push(`/pools/details/${newContractAddress}`);
+      // Add a small delay to ensure state updates before navigation
+      setTimeout(() => {
+        router.push(`/pools/details/${newContractAddress}`);
+      }, 500);
     } catch (error) {
       console.error("Error creating GoalFund:", error);
       let message = "Transaction failed. Please try again.";
@@ -164,6 +172,8 @@ export default function CreateGoalFundPage() {
         message = error.reason;
       } else if (error.message.includes("GoalFundCreated event")) {
         message = "Failed to parse contract creation event";
+      } else if (error.message.includes("Invalid contract address")) {
+        message = "Invalid contract address received from transaction";
       }
       setError(`Error: ${message}`);
       toast.error(`Error: ${message}`);
@@ -175,7 +185,7 @@ export default function CreateGoalFundPage() {
   if (!account) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a GoalFund</p>
         <Button variant="outline" asChild>
           <a href="/">Go Home</a>
@@ -186,8 +196,10 @@ export default function CreateGoalFundPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-2">Create GoalFund</h1>
-      <p className="text-muted-foreground mb-8">Deploy a new goal-based funding campaign</p>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create GoalFund</h1>
+      <p className="text-muted-foreground mb-8 text-sm sm:text-base">
+        Deploy a new goal-based funding campaign
+      </p>
 
       {error && (
         <Alert variant="destructive" className="mb-6">
@@ -196,12 +208,14 @@ export default function CreateGoalFundPage() {
         </Alert>
       )}
 
-      <Card>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle>Fund Details</CardTitle>
-          <CardDescription>Configure your new GoalFund campaign</CardDescription>
+          <CardTitle className="text-xl sm:text-2xl">Fund Details</CardTitle>
+          <CardDescription className="text-sm">
+            Configure your new GoalFund campaign
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pb-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -213,7 +227,9 @@ export default function CreateGoalFundPage() {
                     <FormControl>
                       <Input placeholder="Community Project Fund" {...field} />
                     </FormControl>
-                    <FormDescription>A clear name for your funding campaign</FormDescription>
+                    <FormDescription className="text-xs sm:text-sm">
+                      A clear name for your funding campaign
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -225,14 +241,20 @@ export default function CreateGoalFundPage() {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Raising funds to support our local community garden" {...field} />
+                      <Textarea
+                        placeholder="Raising funds to support our local community garden"
+                        {...field}
+                        className="min-h-[100px]"
+                      />
                     </FormControl>
-                    <FormDescription>Explain the purpose of this fund to potential contributors</FormDescription>
+                    <FormDescription className="text-xs sm:text-sm">
+                      Explain the purpose of this fund to potential contributors
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <FormField
                   control={form.control}
                   name="targetAmount"
@@ -242,7 +264,9 @@ export default function CreateGoalFundPage() {
                       <FormControl>
                         <Input placeholder="1" {...field} />
                       </FormControl>
-                      <FormDescription>Amount you aim to raise (in ETH or USDT)</FormDescription>
+                      <FormDescription className="text-xs sm:text-sm">
+                        Amount you aim to raise (in ETH or USDT)
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -256,7 +280,9 @@ export default function CreateGoalFundPage() {
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
-                      <FormDescription>When the funding campaign will end</FormDescription>
+                      <FormDescription className="text-xs sm:text-sm">
+                        When the funding campaign will end
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -277,7 +303,7 @@ export default function CreateGoalFundPage() {
                           }
                         }}
                         defaultValue={field.value}
-                        className="flex flex-col space-y-1"
+                        className="flex flex-col space-y-2"
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
@@ -293,7 +319,9 @@ export default function CreateGoalFundPage() {
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
-                    <FormDescription>Group funds allow refunding contributors if the goal isn't met</FormDescription>
+                    <FormDescription className="text-xs sm:text-sm">
+                      Group funds allow refunding contributors if the goal isn't met
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -311,7 +339,7 @@ export default function CreateGoalFundPage() {
                         disabled={fundType === "1"}
                       />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className="text-xs sm:text-sm">
                       {fundType === "1"
                         ? "For personal funds, you are automatically the beneficiary"
                         : "Address that will receive the funds when the goal is met"}
@@ -330,7 +358,7 @@ export default function CreateGoalFundPage() {
                       <RadioGroup
                         onValueChange={field.onChange}
                         defaultValue={field.value}
-                        className="flex flex-col space-y-1"
+                        className="flex flex-col space-y-2"
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
@@ -350,12 +378,17 @@ export default function CreateGoalFundPage() {
                   </FormItem>
                 )}
               />
-              <CardFooter className="flex justify-end px-0">
-                <Button variant="outline" type="submit" disabled={isCreating}>
+              <div className="flex justify-end pt-4">
+                <Button
+                  variant="outline"
+                  type="submit"
+                  disabled={isCreating}
+                  className="w-full sm:w-auto"
+                >
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Fund
                 </Button>
-              </CardFooter>
+              </div>
             </form>
           </Form>
         </CardContent>

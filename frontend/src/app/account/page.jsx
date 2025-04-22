@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
@@ -11,16 +12,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
 
 // Contract addresses
-const CONTRIBOOST_FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
-const GOALFUND_FACTORY_ADDRESS = "0x0FCC04f5D3563ABf0A6709427d5165A984C1318F";
+const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
+const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
 
 export default function AccountPage() {
-  const { provider, account } = useWeb3();
+  const { provider, account, connect, isConnecting } = useWeb3();
   const [balance, setBalance] = useState("0");
   const [userPools, setUserPools] = useState([]);
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (provider && account) {
@@ -126,20 +128,32 @@ export default function AccountPage() {
     }
   }
 
+  async function handleCreateNavigation(path) {
+    if (!account) {
+      await connect();
+      if (!account) return;
+    }
+    router.push(path);
+  }
+
   function formatDate(timestamp) {
     return new Date(timestamp * 1000).toLocaleDateString();
   }
 
+  function formatAddress(address) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
   if (!account) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center max-w-md mx-auto">
+      <div className="container mx-auto px-4 py-12 max-w-2xl">
+        <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h1 className="text-2xl font-bold mb-4">Wallet Not Connected</h1>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-muted-foreground mb-6 text-sm md:text-base">
             Please connect your wallet to view your account details, pools, and funds.
           </p>
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild disabled={isConnecting}>
             <Link href="/">Go to Home</Link>
           </Button>
         </div>
@@ -158,11 +172,11 @@ export default function AccountPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center max-w-md mx-auto">
+      <div className="container mx-auto px-4 py-12 max-w-2xl">
+        <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
           <h1 className="text-2xl font-bold mb-4">Error</h1>
-          <p className="text-muted-foreground mb-6">{error}</p>
+          <p className="text-muted-foreground mb-6 text-sm md:text-base">{error}</p>
           <Button variant="outline" onClick={fetchUserData}>
             Retry
           </Button>
@@ -172,58 +186,78 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-2">My Account</h1>
-      <p className="text-muted-foreground mb-8">Manage your pools, funds, and contributions</p>
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <h1 className="text-2xl md:text-3xl font-bold mb-2">My Account</h1>
+      <p className="text-muted-foreground mb-8 text-sm md:text-base">
+        Manage your pools, funds, and contributions
+      </p>
 
       {/* Wallet Overview */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Wallet Overview</CardTitle>
-          <CardDescription>Your account details and balance</CardDescription>
+          <CardTitle className="text-lg md:text-xl">Wallet Overview</CardTitle>
+          <CardDescription className="text-sm">Your account details and balance</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Address</h3>
-                <p className="font-mono text-sm break-all">{account}</p>
+                <p className="font-mono text-xs sm:text-sm break-all">{formatAddress(account)}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
-                <p className="text-xl font-bold">{balance} ETH</p>
+                <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} ETH</p>
               </div>
             </div>
           </div>
         </CardContent>
-        <CardFooter>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/create/contriboost">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create Contriboost Pool
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/create/goalfund">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create GoalFund
-              </Link>
-            </Button>
-          </div>
+        <CardFooter className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => handleCreateNavigation("/create/contribution")}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <PlusCircle className="mr-2 h-4 w-4" />
+            )}
+            Create Contriboost Pool
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => handleCreateNavigation("/create/goalfund")}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <PlusCircle className="mr-2 h-4 w-4" />
+            )}
+            Create GoalFund
+          </Button>
         </CardFooter>
       </Card>
 
       {/* Tabs for different account sections */}
-      <Tabs defaultValue="pools">
-        <TabsList className="mb-6">
-          <TabsTrigger value="pools">My Contriboost Pools</TabsTrigger>
-          <TabsTrigger value="funds">My GoalFunds</TabsTrigger>
+      <Tabs defaultValue="pools" className="w-full">
+        <TabsList className="w-full mb-6 grid grid-cols-2">
+          <TabsTrigger value="pools" className="text-xs sm:text-sm">
+            Contriboost Pools
+          </TabsTrigger>
+          <TabsTrigger value="funds" className="text-xs sm:text-sm">
+            GoalFunds
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pools">
           {userPools.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {userPools.map((pool) => {
                 if (!ethers.isAddress(pool.contractAddress)) {
                   console.warn(`Invalid contract address for pool: ${pool.name}`);
@@ -232,29 +266,31 @@ export default function AccountPage() {
                 return (
                   <Card key={pool.contractAddress}>
                     <CardHeader className="pb-2">
-                      <CardTitle>{pool.name}</CardTitle>
-                      <CardDescription>{pool.dayRange} days per cycle</CardDescription>
+                      <CardTitle className="text-base sm:text-lg">{pool.name}</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {pool.dayRange} days per cycle
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                      <div className="space-y-2 text-xs sm:text-sm">
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">Contribution</span>
-                          <span className="font-medium">{pool.contributionAmount} ETH</span>
+                          <span className="font-medium">{parseFloat(pool.contributionAmount).toFixed(4)} ETH</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">Participants</span>
                           <span className="font-medium">
                             {pool.currentParticipants}/{pool.expectedNumber}
                           </span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">Host Fee</span>
                           <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
                         </div>
                       </div>
                     </CardContent>
                     <CardFooter>
-                      <Button variant="outline" className="w-full" asChild>
+                      <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
                         <Link href={`/pools/details/${pool.contractAddress}`}>
                           View Details
                         </Link>
@@ -266,11 +302,11 @@ export default function AccountPage() {
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
-              <p className="text-lg mb-2">No Contriboost pools found</p>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-base sm:text-lg mb-2">No Contriboost pools found</p>
+              <p className="text-muted-foreground mb-4 text-sm">
                 You haven’t created or joined any Contriboost pools yet
               </p>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="text-xs sm:text-sm">
                 <Link href="/pools">Browse Pools</Link>
               </Button>
             </div>
@@ -279,27 +315,29 @@ export default function AccountPage() {
 
         <TabsContent value="funds">
           {userFunds.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {userFunds.map((fund) => (
                 <Card key={fund.contractAddress}>
                   <CardHeader className="pb-2">
-                    <CardTitle>{fund.name}</CardTitle>
-                    <CardDescription>Deadline: {formatDate(fund.deadline)}</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">{fund.name}</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Deadline: {formatDate(fund.deadline)}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
+                    <div className="space-y-2 text-xs sm:text-sm">
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Target</span>
-                        <span className="font-medium">{fund.targetAmount} ETH</span>
+                        <span className="font-medium">{parseFloat(fund.targetAmount).toFixed(4)} ETH</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">{fund.currentAmount} ETH</span>
+                        <span className="font-medium">{parseFloat(fund.currentAmount).toFixed(4)} ETH</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Type</span>
                         <span className="font-medium">
-                          {fund.fundType === 0 ? "Grouped" : "personal"}
+                          {fund.fundType === 0 ? "Grouped" : "Personal"}
                         </span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2.5 mt-2">
@@ -316,7 +354,7 @@ export default function AccountPage() {
                     </div>
                   </CardContent>
                   <CardFooter>
-                    <Button variant="outline" className="w-full" asChild>
+                    <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
                       <Link href={`/pools/details/${fund.contractAddress}`}>
                         View Details
                       </Link>
@@ -327,12 +365,22 @@ export default function AccountPage() {
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
-              <p className="text-lg mb-2">No GoalFunds found</p>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-base sm:text-lg mb-2">No GoalFunds found</p>
+              <p className="text-muted-foreground mb-4 text-sm">
                 You haven’t created or contributed to any GoalFunds yet
               </p>
-              <Button variant="outline" asChild>
-                <Link href="/create/goalfund">Create GoalFund</Link>
+              <Button
+                variant="outline"
+                className="text-xs sm:text-sm"
+                onClick={() => handleCreateNavigation("/create/goalfund")}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                )}
+                Create GoalFund
               </Button>
             </div>
           )}

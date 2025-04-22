@@ -15,10 +15,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-const FACTORY_ADDRESS = "0x8d91FA63710cF0Ed4D2DB5b2373F4b27dFcC2B90";
+const FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
 const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
 
 const formSchema = z.object({
@@ -52,6 +53,7 @@ export default function CreateContriboostPage() {
   const router = useRouter();
   const { signer, account, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState(null); // Added error state
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -72,11 +74,13 @@ export default function CreateContriboostPage() {
     if (!signer || !account) {
       await connect();
       if (!account) {
+        setError("Please connect your wallet first");
         toast.warning("Please connect your wallet first");
         return;
       }
     }
 
+    setError(null);
     setIsCreating(true);
 
     try {
@@ -115,6 +119,7 @@ export default function CreateContriboostPage() {
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+      console.log("Receipt logs:", receipt.logs);
 
       const contriboostCreatedEvent = receipt.logs.find(
         (log) => {
@@ -132,10 +137,18 @@ export default function CreateContriboostPage() {
       }
 
       const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      const newContractAddress = parsedLog.args.contractAddress;
+      console.log("Parsed ContriboostCreated event:", parsedLog);
+      const newContractAddress = parsedLog.args.contriboostAddress; // Corrected argument name
+
+      if (!ethers.isAddress(newContractAddress)) {
+        throw new Error("Invalid contract address received from ContriboostCreated event");
+      }
 
       toast.success("Contriboost pool created successfully!");
-      router.push(`/pools/details/${newContractAddress}`);
+      // Add a small delay to ensure state updates before navigation
+      setTimeout(() => {
+        router.push(`/pools/details/${newContractAddress}`);
+      }, 500);
     } catch (error) {
       console.error("Error creating Contriboost:", error);
       let message = "Transaction failed. Please try again.";
@@ -149,7 +162,10 @@ export default function CreateContriboostPage() {
         message = error.reason;
       } else if (error.message.includes("ContriboostCreated event")) {
         message = "Failed to parse contract creation event";
+      } else if (error.message.includes("Invalid contract address")) {
+        message = "Invalid contract address received from transaction";
       }
+      setError(`Error: ${message}`);
       toast.error(`Error: ${message}`);
     } finally {
       setIsCreating(false);

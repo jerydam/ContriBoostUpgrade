@@ -97,7 +97,7 @@ export function Web3Provider({ children }) {
     hidePrivateKeyExport: true,
     metadata: {
       image: {
-        src: "https://example.com/logo.png",
+        src: "favicon.png",
         alt: "Contriboost Logo",
         width: 100,
         height: 100,

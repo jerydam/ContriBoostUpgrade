@@ -229,29 +229,3 @@ Whether you’re saving with friends through Circle Payment or raising funds wit
 📢 **Have Feedback?**  
 We’re always looking for ideas to improve Contriboost! Reach out to help shape the future of group saving and fundraising.
 
----
-
-### Summary of Additions
-
-1. **Circle Payment (Contriboost) Section**:
-   - Explained the rotating savings model where participants take turns receiving funds.
-   - Detailed the setup process, payout rotation, and accountability rules.
-   - Added an example of 10 coworkers saving together.
-
-2. **GoalFund (Grouped and Personal) Section**:
-   - Described the two types: **Grouped** for collective goals (publicly discoverable) and **Personal** for individual goals (private).
-   - Explained the setup, contribution, and payout process for each type.
-   - Included examples: a community garden (Grouped) and a medical bill fund (Personal).
-   - Highlighted discoverability with tags for Grouped GoalFunds.
-
-3. **Additional Features and Benefits**:
-   - Added sections on cross-community collaboration, immutable records, real-time tracking, custom rules, and global access.
-   - Emphasized blockchain benefits like transparency, security, and auditability.
-
-4. **Expanded FAQs**:
-   - Added questions about the difference between Circle Payment and GoalFund, contributing to GoalFunds, canceling plans, and more.
-
-5. **Integrated with Existing Content**:
-   - Wove Circle Payment and GoalFund into the “How It Works,” “Why Use Contriboost,” and “Real-Life Examples” sections for a cohesive narrative.
-   - Updated “Things to Keep in Mind” to cover fees, deadlines, and rules specific to both features.
-

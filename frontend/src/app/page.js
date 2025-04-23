@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,19 +12,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
+import { ArrowRight, ChevronRight, Coins, Wallet, LogOut } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
+import { preAuthenticate } from "thirdweb/wallets/in-app";
 
 export default function LandingPage() {
-  const { account, walletType, connect, isConnecting } = useWeb3();
+  const { account, walletType, connect, connectInAppWallet, disconnect, isConnecting } = useWeb3();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
+  const [isEmailVerification, setIsEmailVerification] = useState(false);
   const router = useRouter();
 
-  const handleCreateNavigation = (path) => {
+  const handleCreateNavigation = async (path) => {
     setIsCreateDialogOpen(false);
     if (!account) {
       setIsConnectDialogOpen(true);
@@ -32,10 +36,6 @@ export default function LandingPage() {
     }
   };
 
-  const handleConnect = async (connectorId) => {
-    setIsConnectDialogOpen(false);
-    await connect(connectorId);
-  };
 
   const handleSubscription = async (e) => {
     e.preventDefault();
@@ -57,8 +57,14 @@ export default function LandingPage() {
     }
   };
 
+  const formatAddress = (address) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
+     
+
       {/* Hero Section */}
       <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-gradient-to-b from-background to-muted">
         <div className="container px-4 md:px-6 space-y-10 xl:space-y-16">
@@ -92,6 +98,7 @@ export default function LandingPage() {
                         variant="outline"
                         className="w-full justify-start h-auto py-4"
                         onClick={() => handleCreateNavigation("/create/contribution")}
+                        disabled={isConnecting}
                       >
                         <div className="flex items-start gap-4">
                           <div className="bg-primary/10 p-2 rounded-full">
@@ -110,6 +117,7 @@ export default function LandingPage() {
                         variant="outline"
                         className="w-full justify-start h-auto py-4"
                         onClick={() => handleCreateNavigation("/create/goalfund")}
+                        disabled={isConnecting}
                       >
                         <div className="flex items-start gap-4">
                           <div className="bg-primary/10 p-2 rounded-full">
@@ -138,7 +146,7 @@ export default function LandingPage() {
               </div>
               {account && (
                 <p className="text-sm text-muted-foreground">
-                  Connected with {walletType === "eoa" ? "EOA Wallet" : "Smart Contract Wallet"}: {account.slice(0, 6)}...{account.slice(-4)}
+                  Connected with {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAddress(account)}
                 </p>
               )}
             </div>
@@ -195,63 +203,119 @@ export default function LandingPage() {
                       </DialogTrigger>
                       <DialogContent className="bg-[#101b31]">
                         <DialogHeader>
-                          <DialogTitle>Connect Your Wallet</DialogTitle>
+                          <DialogTitle>{isEmailVerification ? "Verify Email" : "Connect Your Wallet"}</DialogTitle>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start h-auto py-4"
-                            onClick={() => handleConnect("injected")}
-                            disabled={isConnecting}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="bg-primary/10 p-2 rounded-full">
-                                <Wallet className="h-6 w-6 text-primary" />
+                        {isEmailVerification ? (
+                          <div className="grid gap-4 py-4">
+                            <Input
+                              type="email"
+                              placeholder="Enter your email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              disabled
+                            />
+                            <Input
+                              type="text"
+                              placeholder="Enter verification code"
+                              value={verificationCode}
+                              onChange={(e) => setVerificationCode(e.target.value)}
+                            />
+                            <Button
+                              onClick={handleEmailVerification}
+                              disabled={isConnecting || !verificationCode}
+                            >
+                              {isConnecting ? "Verifying..." : "Verify"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 py-4">
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start h-auto py-4"
+                              onClick={() => handleConnect("metamask")}
+                              disabled={isConnecting}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="bg-primary/10 p-2 rounded-full">
+                                  <Wallet className="h-6 w-6 text-primary" />
+                                </div>
+                                <div className="text-left">
+                                  <h3 className="font-medium">MetaMask</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Connect using your MetaMask wallet
+                                  </p>
+                                </div>
                               </div>
-                              <div className="text-left">
-                                <h3 className="font-medium">MetaMask</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Connect using your MetaMask wallet
-                                </p>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start h-auto py-4"
+                              onClick={() => handleConnect("google")}
+                              disabled={isConnecting}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="bg-primary/10 p-2 rounded-full">
+                                  <svg className="h-6 w-6" viewBox="0 0 24 24">
+                                    <path
+                                      fill="#4285F4"
+                                      d="M22.56 12.25c0-.78-.07-1.53-.20-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                                    />
+                                    <path
+                                      fill="#34A853"
+                                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.10-3.71 1.10-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
+                                    />
+                                    <path
+                                      fill="#FBBC05"
+                                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                                    />
+                                    <path
+                                      fill="#EA4335"
+                                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c.87-2.60 3.30-4.53 6.16-4.53z"
+                                    />
+                                  </svg>
+                                </div>
+                                <div className="text-left">
+                                  <h3 className="font-medium">Google</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Sign in with Google (Gasless Experience)
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start h-auto py-4"
-                            onClick={() => handleConnect("social-wallet-connector")} // Updated connector ID
-                            disabled={isConnecting}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="bg-primary/10 p-2 rounded-full">
-                                <svg className="h-6 w-6" viewBox="0 0 24 24">
-                                  <path
-                                    fill="#4285F4"
-                                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                                  />
-                                  <path
-                                    fill="#34A853"
-                                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
-                                  />
-                                  <path
-                                    fill="#FBBC05"
-                                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                                  />
-                                  <path
-                                    fill="#EA4335"
-                                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                                  />
-                                </svg>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start h-auto py-4"
+                              onClick={() => handleConnect("email", { email })}
+                              disabled={isConnecting || !email}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="bg-primary/10 p-2 rounded-full">
+                                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M3 8l9 6 9-6m0 10V8l-9 6-9-6v10z"
+                                    />
+                                  </svg>
+                                </div>
+                                <div className="text-left">
+                                  <h3 className="font-medium">Email</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Sign in with your email (Gasless Experience)
+                                  </p>
+                                </div>
                               </div>
-                              <div className="text-left">
-                                <h3 className="font-medium">Google</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Sign in with Google (Gasless Experience)
-                                </p>
-                              </div>
-                            </div>
-                          </Button>
-                        </div>
+                            </Button>
+                            <Input
+                              type="email"
+                              placeholder="Enter email for email login"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              className="mt-2"
+                            />
+                          </div>
+                        )}
                       </DialogContent>
                     </Dialog>
                   </div>
@@ -345,6 +409,49 @@ export default function LandingPage() {
                       Get Started
                     </Button>
                   </DialogTrigger>
+                  <DialogContent className="bg-[#101b31]">
+                    <DialogHeader>
+                      <DialogTitle>Choose what to create</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-4"
+                        onClick={() => handleCreateNavigation("/create/contribution")}
+                        disabled={isConnecting}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="bg-primary/10 p-2 rounded-full">
+                            <Wallet className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-medium">Create Contribution Pool</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Start a rotating savings pool with friends or community
+                            </p>
+                          </div>
+                          <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-4"
+                        onClick={() => handleCreateNavigation("/create/goalfund")}
+                        disabled={isConnecting}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="bg-primary/10 p-2 rounded-full">
+                            <Coins className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-medium">Create GoalFund</h3>
+                            <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                          </div>
+                          <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
                 </Dialog>
                 <Link href="/pools">
                   <Button
@@ -363,12 +470,11 @@ export default function LandingPage() {
                 <p className="text-sm text-muted-foreground">Stay informed about new features and community events.</p>
               </div>
               <form className="flex flex-col sm:flex-row gap-2" onSubmit={handleSubscription}>
-                <input
+                <Input
                   type="email"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   required
                 />
                 <Button

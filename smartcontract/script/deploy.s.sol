@@ -2,7 +2,8 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Script.sol";
-import "../src/factory.sol";
+import "../src/contriboostFactory.sol";
+import "../src/goalFundFactory.sol";
 import "../src/contriboost.sol";
 import {MockERC20} from "../test/contriboost.t.sol"; // Assuming this is in test directory;
 

@@ -13,17 +13,18 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, Wallet, LogOut, Mail, Phone, Key, User } from "lucide-react";
+import { Loader2, Wallet, LogOut, Mail, Phone, Key, User, Copy } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Header() {
-  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting } = useWeb3();
+  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting, balance } = useWeb3();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
+  const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
   const [authState, setAuthState] = useState(null); // null, "email_verify", "phone_verify"
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -125,6 +126,16 @@ export default function Header() {
     }
   };
 
+  const handleCopyAddress = () => {
+    if (account) {
+      navigator.clipboard.writeText(account).then(() => {
+        toast.success("Address copied to clipboard!");
+      }).catch(() => {
+        toast.error("Failed to copy address.");
+      });
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -154,9 +165,56 @@ export default function Header() {
           <ThemeToggle />
           {account ? (
             <div className="flex items-center gap-2 sm:gap-4">
-              <span className="hidden text-xs sm:text-sm md:inline-block max-w-[200px] truncate">
-                {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
-              </span>
+              <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="hidden text-xs sm:text-sm md:inline-flex max-w-[200px] truncate hover:bg-accent"
+                  >
+                    {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-[#101b31] max-w-[90vw] sm:max-w-md rounded-lg">
+                  <DialogHeader>
+                    <DialogTitle className="text-base sm:text-lg">Wallet Details</DialogTitle>
+                    <DialogDescription className="text-xs sm:text-sm">
+                      View your wallet information and balance.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-3 sm:gap-4 py-4">
+                    <div>
+                      <h3 className="text-sm font-medium">Address</h3>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs sm:text-sm text-muted-foreground break-all">{account}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCopyAddress}
+                          className="p-1"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">Balance</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {balance || "Fetching balance..."}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">Wallet Type</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {walletType === "eoa" ? "MetaMask (EOA)" : "Smart Wallet (AA)"}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">Network</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{getChainName(chainId)}</p>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Button
                 variant="outline"
                 size="sm"
@@ -443,7 +501,13 @@ export default function Header() {
                 ))}
                 {account && (
                   <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
-                    {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                    <Button
+                      variant="ghost"
+                      className="text-left w-full truncate"
+                      onClick={() => setIsWalletDialogOpen(true)}
+                    >
+                      {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                    </Button>
                   </li>
                 )}
               </ul>

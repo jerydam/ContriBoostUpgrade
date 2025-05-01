@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,123 +10,197 @@ import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
+import { Loader2, PlusCircle, AlertCircle, Globe } from "lucide-react";
 
-// Contract addresses
-const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
-const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
+// Network configurations
+const NETWORKS = {
+  lisk: {
+    chainId: 4202,
+    name: "Lisk Sepolia",
+    rpcUrl: "https://rpc.sepolia-api.lisk.com",
+    contriboostFactory: "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631",
+    goalFundFactory: "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41",
+    tokenAddress: "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda", // USDT
+    tokenSymbol: "USDT",
+    nativeSymbol: "ETH",
+  },
+  celo: {
+    chainId: 44787,
+    name: "Celo Alfajores",
+    rpcUrl: "https://alfajores-forno.celo-testnet.org",
+    contriboostFactory: "0x2cF3869e0522ebEa4161ff601d5711A7Af13ebA3",
+    goalFundFactory: "0x2F07fc486b87B5512b3e33E369E0151de52BE1dA",
+    tokenAddress: "0x874069Fa1Eb16D44d622BC6Cf1632c057f6F7f2d", // cUSD
+    tokenSymbol: "cUSD",
+    nativeSymbol: "CELO",
+  },
+};
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
-  const [balance, setBalance] = useState("0");
+  const [balance, setBalance] = useState({ lisk: "0", celo: "0" });
   const [userPools, setUserPools] = useState([]);
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
 
+  // Initialize providers
+  const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
+  const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
+
   useEffect(() => {
-    if (provider && account) {
+    if (account) {
       fetchUserData();
     } else {
       setIsLoading(false);
     }
-  }, [provider, account]);
+  }, [account]);
 
   async function fetchUserData() {
-    if (!provider || !account) return;
+    if (!account) return;
 
     setIsLoading(true);
     setError(null);
+    const fetchedPools = [];
+    const fetchedFunds = [];
+    const newBalance = { lisk: "0", celo: "0" };
+
+    // Fetch data from Lisk Sepolia
     try {
-      // Fetch account balance
-      const accountBalance = await provider.getBalance(account);
-      setBalance(ethers.formatEther(accountBalance));
-
-      // Fetch user's Contriboost pools
-      const contriboostFactory = new ethers.Contract(
-        CONTRIBOOST_FACTORY_ADDRESS,
-        ContriboostFactoryAbi,
-        provider
-      );
-      const userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
-      const contriboostDetails = await Promise.all(
-        userContriboostAddresses.map(async (address) => {
-          try {
-            const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
-            if (!detailsArray || !detailsArray[0]) {
-              console.warn(`No details returned for Contriboost at ${address}`);
-              return null;
-            }
-            const details = detailsArray[0];
-
-            // Fetch current participants from the Contriboost contract
-            const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
-            let currentParticipants = 0;
-            try {
-              const activeParticipants = await contriboostContract.getActiveParticipants();
-              currentParticipants = activeParticipants.length;
-            } catch (err) {
-              console.warn(`Failed to fetch active participants for ${address}:`, err);
-            }
-
-            return {
-              contractAddress: details.contractAddress,
-              name: details.name || "Unnamed Pool",
-              dayRange: Number(details.dayRange || 0),
-              expectedNumber: Number(details.expectedNumber || 0),
-              contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
-              hostFeePercentage: Number(details.hostFeePercentage || 0),
-              currentParticipants,
-            };
-          } catch (err) {
-            console.error(`Error processing Contriboost at ${address}:`, err);
-            return null;
-          }
-        })
-      );
-      setUserPools(contriboostDetails.filter((pool) => pool !== null));
-
-      // Fetch user's GoalFunds
-      const goalFundFactory = new ethers.Contract(
-        GOALFUND_FACTORY_ADDRESS,
-        GoalFundFactoryAbi,
-        provider
-      );
-      const userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
-      const goalFundDetails = await Promise.all(
-        userGoalFundAddresses.map(async (address) => {
-          try {
-            const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
-            if (!detailsArray || !detailsArray[0]) {
-              console.warn(`No details returned for GoalFund at ${address}`);
-              return null;
-            }
-            const details = detailsArray[0];
-            return {
-              contractAddress: details.contractAddress,
-              name: details.name || "Unnamed Fund",
-              targetAmount: ethers.formatEther(details.targetAmount || 0n),
-              currentAmount: ethers.formatEther(details.currentAmount || 0n),
-              deadline: Number(details.deadline || 0),
-              beneficiary: details.beneficiary || ethers.ZeroAddress,
-              tokenAddress: details.tokenAddress || ethers.ZeroAddress,
-              fundType: Number(details.fundType || 0),
-              platformFeePercentage: Number(details.platformFeePercentage || 0),
-            };
-          } catch (err) {
-            console.error(`Error processing GoalFund at ${address}:`, err);
-            return null;
-          }
-        })
-      );
-      setUserFunds(goalFundDetails.filter((fund) => fund !== null));
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      setError("Failed to load your data. Please try again later.");
-    } finally {
-      setIsLoading(false);
+      await fetchNetworkData("lisk", liskProvider, account, fetchedPools, fetchedFunds, newBalance);
+    } catch (e) {
+      console.error("Error fetching Lisk Sepolia data:", e);
+      setError((prev) => prev ? `${prev}; Lisk Sepolia: ${e.message}` : `Lisk Sepolia: ${e.message}`);
     }
+
+    // Fetch data from Celo Alfajores
+    try {
+      await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
+    } catch (e) {
+      console.error("Error fetching Celo Alfajores data:", e);
+      setError((prev) => prev ? `${prev}; Celo Alfajores: ${e.message}` : `Celo Alfajores: ${e.message}`);
+    }
+
+    setBalance(newBalance);
+    setUserPools(fetchedPools);
+    setUserFunds(fetchedFunds);
+    setIsLoading(false);
+  }
+
+  async function fetchNetworkData(network, provider, account, fetchedPools, fetchedFunds, newBalance) {
+    const networkConfig = NETWORKS[network];
+
+    // Fetch account balance
+    try {
+      const accountBalance = await provider.getBalance(account);
+      newBalance[network] = ethers.formatEther(accountBalance);
+    } catch (e) {
+      console.warn(`Failed to fetch balance for ${network}:`, e);
+      newBalance[network] = "0";
+    }
+
+    // Fetch user's Contriboost pools
+    const contriboostFactory = new ethers.Contract(
+      networkConfig.contriboostFactory,
+      ContriboostFactoryAbi,
+      provider
+    );
+    let userContriboostAddresses = [];
+    try {
+      userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
+    } catch (e) {
+      console.warn(`Failed to fetch Contriboost addresses for ${network}:`, e);
+      userContriboostAddresses = [];
+    }
+
+    const contriboostDetails = await Promise.all(
+      userContriboostAddresses.map(async (address) => {
+        try {
+          const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
+          if (!detailsArray || !detailsArray[0]) {
+            console.warn(`No details returned for Contriboost at ${address} on ${network}`);
+            return null;
+          }
+          const details = detailsArray[0];
+
+          // Fetch current participants from the Contriboost contract
+          const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
+          let currentParticipants = 0;
+          try {
+            const activeParticipants = await contriboostContract.getActiveParticipants();
+            currentParticipants = activeParticipants.length;
+          } catch (err) {
+            console.warn(`Failed to fetch active participants for ${address} on ${network}:`, err);
+          }
+
+          return {
+            contractAddress: details.contractAddress,
+            name: details.name || "Unnamed Pool",
+            dayRange: Number(details.dayRange || 0),
+            expectedNumber: Number(details.expectedNumber || 0),
+            contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
+            hostFeePercentage: Number(details.hostFeePercentage || 0),
+            currentParticipants,
+            network, // Add network to identify source
+            tokenSymbol: details.tokenAddress === ethers.ZeroAddress
+              ? networkConfig.nativeSymbol
+              : networkConfig.tokenSymbol,
+          };
+        } catch (err) {
+          console.error(`Error processing Contriboost at ${address} on ${network}:`, err);
+          return null;
+        }
+      })
+    );
+
+    // Fetch user's GoalFunds
+    const goalFundFactory = new ethers.Contract(
+      networkConfig.goalFundFactory,
+      GoalFundFactoryAbi,
+      provider
+    );
+    let userGoalFundAddresses = [];
+    try {
+      userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
+    } catch (e) {
+      console.warn(`Failed to fetch GoalFund addresses for ${network}:`, e);
+      userGoalFundAddresses = [];
+    }
+
+    const goalFundDetails = await Promise.all(
+      userGoalFundAddresses.map(async (address) => {
+        try {
+          const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
+          if (!detailsArray || !detailsArray[0]) {
+            console.warn(`No details returned for GoalFund at ${address} on ${network}`);
+            return null;
+          }
+          const details = detailsArray[0];
+          return {
+            contractAddress: details.contractAddress,
+            name: details.name || "Unnamed Fund",
+            targetAmount: ethers.formatEther(details.targetAmount || 0n),
+            currentAmount: ethers.formatEther(details.currentAmount || 0n),
+            deadline: Number(details.deadline || 0),
+            beneficiary: details.beneficiary || ethers.ZeroAddress,
+            tokenAddress: details.tokenAddress || ethers.ZeroAddress,
+            fundType: Number(details.fundType || 0),
+            platformFeePercentage: Number(details.platformFeePercentage || 0),
+            network, // Add network to identify source
+            tokenSymbol: details.tokenAddress === ethers.ZeroAddress
+              ? networkConfig.nativeSymbol
+              : networkConfig.tokenSymbol,
+          };
+        } catch (err) {
+          console.error(`Error processing GoalFund at ${address} on ${network}:`, err);
+          return null;
+        }
+      })
+    );
+
+    fetchedPools.push(...contriboostDetails.filter((pool) => pool !== null));
+    fetchedFunds.push(...goalFundDetails.filter((fund) => fund !== null));
   }
 
   async function handleCreateNavigation(path) {
@@ -141,7 +216,7 @@ export default function AccountPage() {
   }
 
   function formatAddress(address) {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "N/A";
   }
 
   if (!account) {
@@ -207,7 +282,12 @@ export default function AccountPage() {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
-                <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} ETH</p>
+                <p className="text-sm font-medium">
+                  Lisk Sepolia: {parseFloat(balance.lisk).toFixed(4)} {NETWORKS.lisk.nativeSymbol}
+                </p>
+                <p className="text-sm font-medium">
+                  Celo Alfajores: {parseFloat(balance.celo).toFixed(4)} {NETWORKS.celo.nativeSymbol}
+                </p>
               </div>
             </div>
           </div>
@@ -264,18 +344,21 @@ export default function AccountPage() {
                   return null;
                 }
                 return (
-                  <Card key={pool.contractAddress}>
+                  <Card key={`${pool.network}-${pool.contractAddress}`}>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base sm:text-lg">{pool.name}</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        {pool.dayRange} days per cycle
+                      <CardDescription className="text-xs sm:text-sm flex items-center gap-1">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        {NETWORKS[pool.network].name} | {pool.dayRange} days per cycle
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Contribution</span>
-                          <span className="font-medium">{parseFloat(pool.contributionAmount).toFixed(4)} ETH</span>
+                          <span className="font-medium">
+                            {parseFloat(pool.contributionAmount).toFixed(4)} {pool.tokenSymbol}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Participants</span>
@@ -291,7 +374,7 @@ export default function AccountPage() {
                     </CardContent>
                     <CardFooter>
                       <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
-                        <Link href={`/pools/details/${pool.contractAddress}`}>
+                        <Link href={`/pools/details/${pool.contractAddress}?network=${pool.network}`}>
                           View Details
                         </Link>
                       </Button>
@@ -317,22 +400,27 @@ export default function AccountPage() {
           {userFunds.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {userFunds.map((fund) => (
-                <Card key={fund.contractAddress}>
+                <Card key={`${fund.network}-${fund.contractAddress}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base sm:text-lg">{fund.name}</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Deadline: {formatDate(fund.deadline)}
+                    <CardDescription className="text-xs sm:text-sm flex items-center gap-1">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      {NETWORKS[fund.network].name} | Deadline: {formatDate(fund.deadline)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-xs sm:text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Target</span>
-                        <span className="font-medium">{parseFloat(fund.targetAmount).toFixed(4)} ETH</span>
+                        <span className="font-medium">
+                          {parseFloat(fund.targetAmount).toFixed(4)} {fund.tokenSymbol}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">{parseFloat(fund.currentAmount).toFixed(4)} ETH</span>
+                        <span className="font-medium">
+                          {parseFloat(fund.currentAmount).toFixed(4)} {fund.tokenSymbol}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Type</span>
@@ -355,7 +443,7 @@ export default function AccountPage() {
                   </CardContent>
                   <CardFooter>
                     <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
-                      <Link href={`/pools/details/${fund.contractAddress}`}>
+                      <Link href={`/pools/details/${fund.contractAddress}?network=${fund.network}`}>
                         View Details
                       </Link>
                     </Button>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -69,7 +70,6 @@ export default function Header() {
       if (connectorId === "metamask") {
         await connect();
         setIsConnectDialogOpen(false);
-        toast.success("Connected with MetaMask!");
       } else {
         if (connectorId === "phone") {
           const error = validatePhoneNumber(options.phoneNumber);
@@ -141,7 +141,13 @@ export default function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 sm:gap-6">
           <Link href="/" className="text-lg font-bold sm:text-xl lg:text-2xl">
-            Contriboost
+          <Image
+          src={"/contriboostb.png"}
+          alt="Contriboost Logo"
+          width={500}
+          height={500}
+          className="h-auto w-auto sm:h-10 lg:h-12 bg-amber-50"
+          />
           </Link>
           <nav className="hidden md:flex">
             <ul className="flex items-center gap-4 sm:gap-6">
@@ -462,7 +468,13 @@ export default function Header() {
           <div className="container mx-auto px-4 py-4 h-full flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <Link href="/" className="text-lg font-bold sm:text-xl">
-                Contriboost
+              <Image
+                  src="/contriboostb.png"
+                  alt="Contriboost Logo"
+                  width={100}
+                  height={100}
+                  className="h-auto w-auto sm:h-10 bg-amber-50"
+                />
               </Link>
               <button
                 onClick={toggleMobileMenu}

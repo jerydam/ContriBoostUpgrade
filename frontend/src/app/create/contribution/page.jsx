@@ -22,12 +22,12 @@ import { toast } from "react-toastify";
 // Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631", // Placeholder; replace with Lisk Sepolia factory address
-    usdt: "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda", // Placeholder; replace with Lisk Sepolia stablecoin address
+    factory: "0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06", // Placeholder; replace with Lisk Sepolia factory address
+    usdt: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // Placeholder; replace with Lisk Sepolia stablecoin address
   },
   celo: {
-    factory: "0x2cF3869e0522ebEa4161ff601d5711A7Af13ebA3", // Celo Alfajores Contriboost factory
-    cusd: "0x874069Fa1Eb16D44d622BC6Cf1632c057f6F7f2d", // cUSD for Alfajores
+    factory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F", // Celo Alfajores Contriboost factory
+    cusd: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD for Alfajores
   },
 };
 

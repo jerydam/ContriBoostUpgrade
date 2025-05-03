@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { ethers } from "ethers";
+import { AlchemyProvider, ethers } from "ethers";
 import { inAppWallet, preAuthenticate, authenticate, createWallet } from "thirdweb/wallets";
 import { createThirdwebClient, defineChain } from "thirdweb";
 import { debounce } from "lodash";
@@ -16,7 +16,7 @@ const liskSepolia = defineChain({
   id: 4202,
   name: "Lisk Sepolia Testnet",
   nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
-  rpc: ["https://rpc.sepolia-api.lisk.com", "https://sepolia.infura.io/v3/YOUR_INFURA_KEY"], // Fallback RPC
+  rpc: ["https://rpc.sepolia-api.lisk.com"],
   blockExplorers: [{ name: "Lisk Explorer", url: "https://sepolia-blockscout.lisk.com" }],
 });
 

@@ -9,14 +9,14 @@ const validateContractAddress = (address) => {
 
 export const CONTRACTS = {
   LISK_SEPOLIA: {
-    ContriboostFactory: validateContractAddress("0xaE83198F4c622a5dccdda1B494fF811f5B6F3631"),
-    GoalFundFactory: validateContractAddress("0x791F269E311aE13e490ffEf7DFd68f27f7B21E41"),
-    USDT: validateContractAddress("0x2728DD8B45B788e26d12B13Db5A244e5403e7eda"),
+    ContriboostFactory: validateContractAddress("0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06"),
+    GoalFundFactory: validateContractAddress("0x68fF2794A087da4B0A5247e9693eC4290D8eaE99"),
+    USDT: validateContractAddress("0x52Aee1645CA343515D12b6bd6FE24c026274e91D"),
   },
   CELO_ALFAJORES: {
     // Add addresses for Celo Alfajores if deployed
-    ContriboostFactory: "0x2cF3869e0522ebEa4161ff601d5711A7Af13ebA3",
-    GoalFundFactory: "0x2F07fc486b87B5512b3e33E369E0151de52BE1dA",
+    ContriboostFactory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F",
+    GoalFundFactory: "0x10883362beCE017EA51d643A2Dc6669bF47D2c99",
     USDT: "",
   },
 };

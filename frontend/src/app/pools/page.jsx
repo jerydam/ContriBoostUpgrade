@@ -10,7 +10,6 @@ import {
   ContriboostAbi,
   GoalFundFactoryAbi,
   GoalFundAbi,
-  CeloContriboostFactoryAbi,
 } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,9 +44,9 @@ const NETWORKS = {
     chainId: 4202,
     name: "Lisk Sepolia",
     rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631",
-    goalFundFactory: "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41",
-    tokenAddress: "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda", // USDT
+    contriboostFactory: "0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06",
+    goalFundFactory: "0x68fF2794A087da4B0A5247e9693eC4290D8eaE99",
+    tokenAddress: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // USDT
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
@@ -55,9 +54,9 @@ const NETWORKS = {
     chainId: 44787,
     name: "Celo Alfajores",
     rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x2cF3869e0522ebEa4161ff601d5711A7Af13ebA3",
-    goalFundFactory: "0x2F07fc486b87B5512b3e33E369E0151de52BE1dA",
-    tokenAddress: "0x874069Fa1Eb16D44d622BC6Cf1632c057f6F7f2d", // cUSD
+    contriboostFactory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F",
+    goalFundFactory: "0x10883362beCE017EA51d643A2Dc6669bF47D2c99",
+    tokenAddress: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },
@@ -111,7 +110,7 @@ export default function PoolsPage() {
 
     // Fetch Celo Alfajores Contriboost pools
     try {
-      const celoContriboostPools = await fetchContriboostPools("celo", celoProvider, CeloContriboostFactoryAbi);
+      const celoContriboostPools = await fetchContriboostPools("celo", celoProvider, ContriboostFactoryAbi);
       allPools.push(...celoContriboostPools);
     } catch (error) {
       console.error("Error fetching Celo Alfajores Contriboost pools:", error);
@@ -179,6 +178,7 @@ export default function PoolsPage() {
           let participants = [];
           let currentSegment = 0;
           let startTimestamp = 0;
+          let expectedNumber = Number(details.expectedNumber || 0);
           try {
             participants = await contract.getActiveParticipants();
             currentSegment = await contract.currentSegment();
@@ -191,22 +191,29 @@ export default function PoolsPage() {
           let status = "not-started";
           if (now < startTimestamp) {
             status = "not-started";
-          } else if (participants.length >= Number(details.expectedNumber)) {
-            status = "full";
+          } else if (currentSegment > expectedNumber) {
+            status = "completed";
+          } else if (participants.length >= expectedNumber && currentSegment > 0) {
+            status = "active";
           } else if (currentSegment > 0) {
             status = "active";
+          } else if (participants.length >= expectedNumber) {
+            status = "full";
           }
 
-          let userStatus = { isParticipant: false, hasReceivedFunds: false };
+          let userStatus = { isParticipant: false, isActive: false, hasReceivedFunds: false, missedDeposits: 0 };
           if (account && chainId === config.chainId) {
             try {
               const participantStatus = await contract.getParticipantStatus(account);
               userStatus = {
                 isParticipant: participantStatus.exists,
+                isActive: participantStatus.active,
                 hasReceivedFunds: participantStatus.receivedFunds,
+                missedDeposits: Number(participantStatus.missedDeposits),
               };
             } catch (err) {
               console.warn(`Failed to fetch participant status for ${address} on ${config.name}:`, err);
+              toast.warn(`Please switch to ${config.name} to view your participant status for ${formatAddress(address)}`);
             }
           }
 
@@ -217,7 +224,7 @@ export default function PoolsPage() {
             contractAddress: details.contractAddress,
             name: details.name || "Unnamed Pool",
             dayRange: Number(details.dayRange || 0),
-            expectedNumber: Number(details.expectedNumber || 0),
+            expectedNumber,
             contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
             tokenAddress: details.tokenAddress || ethers.ZeroAddress,
             tokenSymbol: details.tokenAddress === ethers.ZeroAddress ? config.nativeSymbol : config.tokenSymbol,
@@ -225,6 +232,7 @@ export default function PoolsPage() {
             platformFeePercentage: Number(details.platformFeePercentage || 0),
             maxMissedDeposits: Number(details.maxMissedDeposits || 0),
             currentParticipants: participants.length,
+            currentSegment: Number(currentSegment),
             status,
             userStatus,
           };
@@ -288,7 +296,7 @@ export default function PoolsPage() {
             } catch (err) {
               console.warn(`Failed to fetch contribution for ${pool.contractAddress} on ${config.name}:`, err);
             }
-          }
+          } 
 
           return {
             type: "GoalFund",
@@ -387,7 +395,17 @@ export default function PoolsPage() {
 
   async function exitContriboost(pool) {
     if (!(await ensureCorrectNetwork(pool.chainId))) return;
-    toast.error("Exit functionality not implemented in Contriboost contract.");
+
+    try {
+      const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+      const tx = await contract.exitContriboost({ gasLimit: 200000 });
+      await tx.wait();
+      await fetchPools();
+      toast.success("Successfully exited the Contriboost pool!");
+    } catch (error) {
+      console.error("Error exiting Contriboost:", error);
+      toast.error(`Error: ${error.reason || error.message || "Failed to exit"}`);
+    }
   }
 
   async function handleCreateNavigation(path) {
@@ -490,6 +508,7 @@ export default function PoolsPage() {
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="full">Full (Contriboost)</SelectItem>
             <SelectItem value="not-started">Not Started (Contriboost)</SelectItem>
+            <SelectItem value="completed">Completed (Contriboost)</SelectItem>
             <SelectItem value="achieved">Achieved (GoalFund)</SelectItem>
             <SelectItem value="expired">Expired (GoalFund)</SelectItem>
           </SelectContent>
@@ -582,6 +601,7 @@ export default function PoolsPage() {
               isContriboost &&
               !isJoined &&
               pool.status !== "full" &&
+              pool.status !== "completed" &&
               pool.currentParticipants < pool.expectedNumber;
             const canContribute = !isContriboost && pool.status === "active";
             const canExit = isContriboost && isJoined && pool.status === "not-started";
@@ -612,6 +632,11 @@ export default function PoolsPage() {
                           {NETWORKS[pool.network].name}
                         </span>
                       </div>
+                      {isContriboost && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Segment {pool.currentSegment} of {pool.expectedNumber}
+                        </div>
+                      )}
                       {!isContriboost && pool.fundType === "Grouped" && pool.tags.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {pool.tags.map((tag, index) => (
@@ -633,6 +658,8 @@ export default function PoolsPage() {
                           ? "bg-amber-100 text-amber-800"
                           : pool.status === "not-started"
                           ? "bg-blue-100 text-blue-800"
+                          : pool.status === "completed"
+                          ? "bg-gray-100 text-gray-800"
                           : pool.status === "achieved"
                           ? "bg-teal-100 text-teal-800"
                           : "bg-red-100 text-red-800"
@@ -644,6 +671,8 @@ export default function PoolsPage() {
                         ? "Full"
                         : pool.status === "not-started"
                         ? "Not Started"
+                        : pool.status === "completed"
+                        ? "Completed"
                         : pool.status === "achieved"
                         ? "Achieved"
                         : "Expired"}
@@ -701,7 +730,9 @@ export default function PoolsPage() {
                           {isContriboost
                             ? pool.userStatus.hasReceivedFunds
                               ? "Received Funds"
-                              : "Active"
+                              : pool.userStatus.isActive
+                              ? `Active (${pool.userStatus.missedDeposits} missed)`
+                              : "Inactive"
                             : `${parseFloat(pool.userStatus.contributionAmount).toFixed(4)} ${pool.tokenSymbol}`}
                         </span>
                       </div>

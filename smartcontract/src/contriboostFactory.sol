@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
-
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -13,6 +12,7 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
     address public platformOwner;
 
     event ContriboostCreated(address indexed host, address contriboostAddress);
+    event DebugContriboostCreation(address indexed host, address indexed platformOwner, address contriboostAddress);
 
     struct ContriboostDetails {
         address contractAddress;
@@ -26,7 +26,13 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
         uint maxMissedDeposits;
     }
 
-    constructor() {
+    struct ContriboostTestDetails {
+        address contractAddress;
+        address host;
+        address owner;
+    }
+
+    constructor() Ownable() {
         platformOwner = msg.sender;
     }
 
@@ -44,11 +50,24 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
             _name,
             _description,
             _tokenAddress,
-            platformOwner
+            msg.sender, // Pass the host (caller of createContriboost)
+            platformOwner // Pass the platform owner (factory deployer)
         );
-        allContriboosts.push(address(newContriboost));
-        userContriboosts[msg.sender].push(address(newContriboost));
-        emit ContriboostCreated(msg.sender, address(newContriboost));
+        address contriboostAddress = address(newContriboost);
+        allContriboosts.push(contriboostAddress);
+        userContriboosts[msg.sender].push(contriboostAddress);
+        emit ContriboostCreated(msg.sender, contriboostAddress);
+        emit DebugContriboostCreation(msg.sender, platformOwner, contriboostAddress);
+    }
+
+    function getContriboostTestDetails(address _contriboost) external view returns (ContriboostTestDetails memory) {
+        require(_contriboost != address(0), "Invalid Contriboost address");
+        Contriboost contriboost = Contriboost(payable(_contriboost));
+        return ContriboostTestDetails(
+            _contriboost,
+            contriboost.host(),
+            contriboost.getOwner()
+        );
     }
 
     function getContriboosts() external view returns (address[] memory) {
@@ -60,25 +79,25 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
     }
 
     function getAllContriboostsDetails() external view returns (ContriboostDetails[] memory) {
-    ContriboostDetails[] memory details = new ContriboostDetails[](allContriboosts.length);
-    
-    for (uint i = 0; i < allContriboosts.length; i++) {
-        Contriboost contriboost = Contriboost(payable(allContriboosts[i]));
-        details[i] = ContriboostDetails(
-            allContriboosts[i],
-            contriboost.name(),
-            contriboost.dayRange(),
-            contriboost.expectedNumber(),
-            contriboost.contributionAmount(),
-            address(contriboost.token()),
-            contriboost.hostFeePercentage(),
-            contriboost.platformFeePercentage(),
-            contriboost.maxMissedDeposits()
-        );
+        ContriboostDetails[] memory details = new ContriboostDetails[](allContriboosts.length);
+        
+        for (uint i = 0; i < allContriboosts.length; i++) {
+            Contriboost contriboost = Contriboost(payable(allContriboosts[i]));
+            details[i] = ContriboostDetails(
+                allContriboosts[i],
+                contriboost.name(),
+                contriboost.dayRange(),
+                contriboost.expectedNumber(),
+                contriboost.contributionAmount(),
+                address(contriboost.token()),
+                contriboost.hostFeePercentage(),
+                contriboost.platformFeePercentage(),
+                contriboost.maxMissedDeposits()
+            );
+        }
+        
+        return details;
     }
-    
-    return details;
-}
 
     function getContriboostDetails(address _contriboost, bool all)
         external view returns (ContriboostDetails[] memory) {
@@ -117,7 +136,6 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
         }
     }
 
-    // New function to get details of a single Contriboost
     function getSingleContriboostDetails(address _contriboost)
         external view returns (ContriboostDetails memory) {
         require(_contriboost != address(0), "Invalid Contriboost address");
@@ -147,6 +165,10 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
             require(balance > 0, "No tokens to withdraw");
             require(token.transfer(owner(), balance), "Token withdrawal failed");
         }
+    }
+
+    function getPlatformOwner() external view returns (address) {
+        return platformOwner;
     }
 
     receive() external payable {}

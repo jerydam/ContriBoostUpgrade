@@ -23,7 +23,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
         bool active;
         uint missedDeposits;
     }
-   
+
     struct Config {
         uint dayRange;
         uint expectedNumber;
@@ -34,7 +34,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
         uint startTimestamp;
         PaymentMethod paymentMethod;
     }
-    
+
     string public name;
     string public description;
     address public host;
@@ -61,15 +61,18 @@ contract Contriboost is ReentrancyGuard, Ownable {
     event ParticipantJoined(address indexed participant, uint id);
     event ParticipantInactive(address indexed participant);
     event ParticipantReactivated(address indexed participant);
-    event ParticipantAddedByOwner(address indexed participant, uint id);
+    event ParticipantAddedByHost(address indexed participant, uint id);
     event TokenAddressUpdated(address indexed oldToken, address indexed newToken);
     event PlatformFeeTransferred(address indexed platformOwner, uint amount);
+    event ContriboostInitialized(address indexed host, address indexed platformOwner, address indexed owner);
+    event ParticipantExited(address indexed participant, uint id);
 
     constructor(
         Config memory _config,
         string memory _name,
         string memory _description,
         address _tokenAddress,
+        address _host,
         address _platformOwner
     ) Ownable() {
         require(_config.dayRange > 0, "Day range must be greater than zero");
@@ -79,8 +82,9 @@ contract Contriboost is ReentrancyGuard, Ownable {
         require(_config.hostFeePercentage <= 500, "Host fee cannot exceed 5%");
         require(_config.platformFeePercentage <= 500, "Platform fee cannot exceed 5%");
         require(_platformOwner != address(0), "Invalid platform owner address");
+        require(_host != address(0), "Invalid host address");
 
-        host = msg.sender;
+        host = _host;
         dayRange = _config.dayRange;
         expectedNumber = _config.expectedNumber;
         contributionAmount = _config.contributionAmount;
@@ -101,6 +105,8 @@ contract Contriboost is ReentrancyGuard, Ownable {
         } else {
             revert("Invalid payment method configuration");
         }
+
+        emit ContriboostInitialized(_host, _platformOwner, owner());
     }
 
     modifier onlyHost() {
@@ -122,12 +128,11 @@ contract Contriboost is ReentrancyGuard, Ownable {
 
     modifier depositAllowed() {
         require(block.timestamp >= startTimestamp, "Contributions have not started yet");
-        require(participantList.length >= expectedNumber || ownerAddedParticipants(), "Not enough participants");
+        require(msg.sender != address(0), "Address zero cannot participate");
+        // Added requirements: segment must not be completed, and participant must not have deposited in this segment
+        require(currentSegment <= expectedNumber, "All segments have been completed");
+        require(!segmentParticipation[currentSegment][msg.sender], "Already participated in this segment");
         _;
-    }
-
-    function ownerAddedParticipants() internal view returns (bool) {
-        return block.timestamp >= startTimestamp && participantList.length > 0 && msg.sender == host;
     }
 
     function setTokenAddress(address _newTokenAddress) external onlyOwner {
@@ -159,7 +164,29 @@ contract Contriboost is ReentrancyGuard, Ownable {
         participant.lastDepositTime = block.timestamp;
         participantList.push(_participant);
 
-        emit ParticipantAddedByOwner(_participant, participant.id);
+        emit ParticipantAddedByHost(_participant, participant.id);
+    }
+
+    function reactivateParticipantByHost(address _participant) external payable onlyHost nonReentrant {
+        require(participants[_participant].exists, "Participant does not exist");
+        Participant storage participant = participants[_participant];
+        require(!participant.active, "Participant is already active");
+
+        uint missedAmount = contributionAmount.mul(participant.missedDeposits);
+        if (paymentMethod == PaymentMethod.ERC20) {
+            require(msg.value == 0, "Ether not accepted for ERC20 payment");
+            bool success = token.transferFrom(msg.sender, address(this), missedAmount);
+            require(success, "Token transfer failed");
+        } else {
+            require(msg.value == missedAmount, "Incorrect Ether amount");
+        }
+
+        participant.depositAmount = participant.depositAmount.add(missedAmount);
+        participant.lastDepositTime = block.timestamp;
+        participant.active = true;
+        participant.missedDeposits = 0;
+
+        emit ParticipantReactivated(_participant);
     }
 
     function join() external canJoin nonReentrant {
@@ -206,6 +233,30 @@ contract Contriboost is ReentrancyGuard, Ownable {
                 }
             }
         }
+    }
+
+    function exitContriboost() external onlyParticipant nonReentrant {
+        require(block.timestamp < startTimestamp, "Cannot exit after Contriboost has started");
+        Participant storage participant = participants[msg.sender];
+        require(participant.depositAmount == 0, "Cannot exit with deposited funds");
+
+        // Store participant ID for event
+        uint participantId = participant.id;
+
+        // Remove participant from mapping
+        delete participants[msg.sender];
+
+        // Remove participant from participantList
+        for (uint i = 0; i < participantList.length; i++) {
+            if (participantList[i] == msg.sender) {
+                // Move last element to current index and pop the last element
+                participantList[i] = participantList[participantList.length - 1];
+                participantList.pop();
+                break;
+            }
+        }
+
+        emit ParticipantExited(msg.sender, participantId);
     }
 
     function reactivateParticipant() external payable onlyParticipant nonReentrant {
@@ -345,6 +396,10 @@ contract Contriboost is ReentrancyGuard, Ownable {
         } else {
             revert("Unsupported payment method");
         }
+    }
+
+    function getOwner() external view returns (address) {
+        return owner();
     }
 
     receive() external payable {

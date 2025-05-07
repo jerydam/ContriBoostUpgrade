@@ -22,12 +22,14 @@ import { toast } from "react-toastify";
 // Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06", // Placeholder; replace with Lisk Sepolia factory address
-    usdt: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // Placeholder; replace with Lisk Sepolia stablecoin address
+    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4", // Placeholder; replace with Lisk Sepolia factory address
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin address
+    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
   },
   celo: {
-    factory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F", // Celo Alfajores Contriboost factory
-    cusd: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD for Alfajores
+    factory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c", // Celo Alfajores Contriboost factory
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
+    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
   },
 };
 
@@ -60,7 +62,7 @@ const formSchema = z.object({
       const date = new Date(value);
       return !isNaN(date.getTime()) && date > new Date();
     },
-    { message: "Start date must be in the future" }
+    { message: "Start date and time must be in the future" }
   ),
 });
 
@@ -82,7 +84,7 @@ export default function CreateContriboostPage() {
       paymentMethod: "0",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16), // 1 day from now
     },
   });
 
@@ -136,10 +138,11 @@ export default function CreateContriboostPage() {
 
     try {
       const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
+      // Updated to use native token address for Celo and zero address for Lisk
       const tokenAddress =
         values.paymentMethod === "1"
           ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
-          : ethers.ZeroAddress;
+          : CONTRACT_ADDRESSES[selectedNetwork].native;
 
       const factoryContract = new ethers.Contract(factoryAddress, ContriboostFactoryAbi, signer);
       const config = {
@@ -208,7 +211,7 @@ export default function CreateContriboostPage() {
 
       toast.success("Contriboost pool created successfully!");
       setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}`);
+        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
       }, 500);
     } catch (error) {
       console.error("Error creating Contriboost:", error);
@@ -349,6 +352,7 @@ export default function CreateContriboostPage() {
                       </FormItem>
                     )}
                   />
+                
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
@@ -451,7 +455,11 @@ export default function CreateContriboostPage() {
                     <FormItem>
                       <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                          min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                        />
                       </FormControl>
                       <FormDescription>When the first cycle will begin</FormDescription>
                       <FormMessage />

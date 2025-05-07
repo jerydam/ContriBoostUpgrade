@@ -18,9 +18,9 @@ const NETWORKS = {
     chainId: 4202,
     name: "Lisk Sepolia",
     rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06",
-    goalFundFactory: "0x68fF2794A087da4B0A5247e9693eC4290D8eaE99",
-    tokenAddress: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // USDT
+    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
+    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
+    tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
@@ -28,9 +28,9 @@ const NETWORKS = {
     chainId: 44787,
     name: "Celo Alfajores",
     rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F",
-    goalFundFactory: "0x10883362beCE017EA51d643A2Dc6669bF47D2c99",
-    tokenAddress: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD
+    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },

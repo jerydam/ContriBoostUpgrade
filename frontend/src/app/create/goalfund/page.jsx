@@ -21,12 +21,14 @@ import { toast } from "react-toastify";
 // Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0x68fF2794A087da4B0A5247e9693eC4290D8eaE99", // Placeholder; replace with Lisk Sepolia GoalFund factory
-    usdt: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // Placeholder; replace with Lisk Sepolia stablecoin
+    factory: "0x3D6D20896b945E947b962a8c043E09c522504079", // Placeholder; replace with Lisk Sepolia GoalFund factory
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin
+    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
   },
   celo: {
-    factory: "0x10883362beCE017EA51d643A2Dc6669bF47D2c99", // Celo Alfajores GoalFund factory
-    cusd: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD for Alfajores
+    factory: "0xDB4421c212D78bfCB4380276428f70e50881ABad", // Celo Alfajores GoalFund factory
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
+    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
   },
 };
 
@@ -54,11 +56,11 @@ const formSchema = z.object({
       const date = new Date(value);
       return !isNaN(date.getTime()) && date > new Date();
     },
-    { message: "Deadline must be in the future" }
+    { message: "Deadline date and time must be in the future" }
   ),
   beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
-  fundType: z.enum(["0", "1"]), // 0 for Group, 1 for Personal
-  paymentMethod: z.enum(["0", "1"]), // 0 for ETH/CELO, 1 for USDT/cUSD
+  fundType: z.enum(["0", "1"]),
+  paymentMethod: z.enum(["0", "1"]),
 });
 
 export default function CreateGoalFundPage() {
@@ -74,7 +76,7 @@ export default function CreateGoalFundPage() {
       name: "",
       description: "",
       targetAmount: "1",
-      deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16), // 30 days from now
       beneficiary: account || "",
       fundType: "0",
       paymentMethod: "0",
@@ -139,10 +141,11 @@ export default function CreateGoalFundPage() {
 
     try {
       const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
+      // Updated to use native token address for Celo and zero address for Lisk
       const tokenAddress =
         values.paymentMethod === "1"
           ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
-          : ethers.ZeroAddress;
+          : CONTRACT_ADDRESSES[selectedNetwork].native;
 
       const factoryContract = new ethers.Contract(factoryAddress, GoalFundFactoryAbi, signer);
 
@@ -222,7 +225,7 @@ export default function CreateGoalFundPage() {
 
       toast.success("GoalFund created successfully!");
       setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}`);
+        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
       }, 500);
     } catch (error) {
       console.error("Error creating GoalFund:", error);
@@ -370,7 +373,11 @@ export default function CreateGoalFundPage() {
                       <FormItem>
                         <FormLabel>Deadline</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input
+                            type="datetime-local"
+                            {...field}
+                            min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                          />
                         </FormControl>
                         <FormDescription className="text-xs sm:text-sm">
                           When the funding campaign will end

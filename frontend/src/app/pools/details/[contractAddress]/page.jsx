@@ -12,6 +12,13 @@ import {
 } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Loader2, AlertCircle, DollarSign, Calendar, Users, Tag, Globe } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,9 +38,9 @@ const NETWORKS = {
     chainId: 4202,
     name: "Lisk Sepolia",
     rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0x32C4F29AC9b7ed3fC9B202224c8419d2DCC45B06",
-    goalFundFactory: "0x68fF2794A087da4B0A5247e9693eC4290D8eaE99",
-    tokenAddress: "0x52Aee1645CA343515D12b6bd6FE24c026274e91D", // USDT
+    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
+    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
+    tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
@@ -41,9 +48,9 @@ const NETWORKS = {
     chainId: 44787,
     name: "Celo Alfajores",
     rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x6C07EBb84bD92D6bBBaC6Cf2d4Ac0610Fab6e39F",
-    goalFundFactory: "0x10883362beCE017EA51d643A2Dc6669bF47D2c99",
-    tokenAddress: "0x053fc0352a16cDA6cF3FE0D28b80386f7B921540", // cUSD
+    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },
@@ -68,6 +75,8 @@ export default function PoolDetailsPage() {
   const [newOwnerAddress, setNewOwnerAddress] = useState("");
   const [participants, setParticipants] = useState([]);
   const [network, setNetwork] = useState(null);
+  // Added state to track if any deposits have been made
+  const [hasDeposits, setHasDeposits] = useState(false);
 
   // Initialize providers
   const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
@@ -151,6 +160,12 @@ export default function PoolDetailsPage() {
             };
           })
         );
+
+        // Check if any participant has made a deposit
+        const hasAnyDeposits = participantDetails.some(
+          (participant) => parseFloat(participant.depositAmount) > 0
+        );
+        setHasDeposits(hasAnyDeposits);
 
         const now = Math.floor(Date.now() / 1000);
         let status = "not-started";
@@ -417,10 +432,6 @@ export default function PoolDetailsPage() {
 
   async function emergencyWithdraw(tokenAddress) {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost && !userStatus?.isOwner) {
-      toast.warning("Only the host or owner nationalists can perform emergency withdrawal");
-      return;
-    }
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(
@@ -446,10 +457,6 @@ export default function PoolDetailsPage() {
 
   async function setDescription() {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost) {
-      toast.warning("Only the host can set description");
-      return;
-    }
     if (!newDescription) {
       toast.warning("Please enter a new description");
       return;
@@ -474,10 +481,6 @@ export default function PoolDetailsPage() {
 
   async function setHostFeePercentage() {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost) {
-      toast.warning("Only the host can set host fee");
-      return;
-    }
     if (!newHostFee || isNaN(newHostFee) || Number(newHostFee) < 0) {
       toast.warning("Please enter a valid host fee percentage");
       return;
@@ -505,10 +508,6 @@ export default function PoolDetailsPage() {
 
   async function setTokenAddress() {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost) {
-      toast.warning("Only the host can set token address");
-      return;
-    }
     if (!ethers.isAddress(newTokenAddress)) {
       toast.warning("Please enter a valid token address");
       return;
@@ -533,10 +532,6 @@ export default function PoolDetailsPage() {
 
   async function reactivateContriboost(participantAddress) {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost) {
-      toast.warning("Only the host can reactivate participants");
-      return;
-    }
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
@@ -563,10 +558,6 @@ export default function PoolDetailsPage() {
 
   async function distributeContriboostFunds() {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost) {
-      toast.warning("Only the host can distribute funds");
-      return;
-    }
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
@@ -589,10 +580,6 @@ export default function PoolDetailsPage() {
 
   async function transferOwnership() {
     if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isHost && !userStatus?.isOwner) {
-      toast.warning("Only the host or owner can transfer ownership");
-      return;
-    }
     if (!ethers.isAddress(newOwnerAddress)) {
       toast.warning("Please enter a valid owner address");
       return;
@@ -816,12 +803,12 @@ export default function PoolDetailsPage() {
     poolDetails.status !== "full" &&
     poolDetails.status !== "completed" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
+  // Modified to allow deposits regardless of hasReceivedFunds
   const canDepositContriboost =
     isContriboost &&
     userStatus &&
     userStatus.isParticipant &&
     userStatus.isActive &&
-    !userStatus.hasReceivedFunds &&
     poolDetails.status === "active";
   const isDepositDisabled = poolDetails.status === "completed";
   const canCheckMissedDeposits =
@@ -844,8 +831,9 @@ export default function PoolDetailsPage() {
     isContriboost &&
     userStatus &&
     userStatus.isHost;
+  // Modified to only show distribute button if deposits exist and user is host
   const showDistributeContriboost =
-    isContriboost && poolDetails.status === "active";
+    isContriboost && poolDetails.status === "active" && hasDeposits && userStatus?.isHost;
   const canTransferOwnership =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -864,6 +852,130 @@ export default function PoolDetailsPage() {
     poolDetails.status === "expired" &&
     !poolDetails.achieved;
   const isCorrectNetwork = chainId === NETWORKS[network].chainId;
+
+  // Admin Actions Dialog Component
+  function AdminActionsDialog() {
+    return (
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            disabled={isProcessing || isConnecting}
+            className="min-w-[120px]"
+          >
+            Admin Actions
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Admin Actions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {canSetDescription && (
+              <div className="space-y-2">
+                <Label htmlFor="newDescription">New Description</Label>
+                <Input
+                  id="newDescription"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Enter new description"
+                />
+                <Button
+                  onClick={isCorrectNetwork ? setDescription : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Set Description" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+            {canSetHostFee && (
+              <div className="space-y-2">
+                <Label htmlFor="newHostFee">New Host Fee (%)</Label>
+                <Input
+                  id="newHostFee"
+                  type="number"
+                  value={newHostFee}
+                  onChange={(e) => setNewHostFee(e.target.value)}
+                  placeholder="Enter new host fee percentage"
+                />
+                <Button
+                  onClick={isCorrectNetwork ? setHostFeePercentage : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Set Host Fee" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+            {canSetTokenAddress && (
+              <div className="space-y-2">
+                <Label htmlFor="newTokenAddress">New Token Address</Label>
+                <Input
+                  id="newTokenAddress"
+                  value={newTokenAddress}
+                  onChange={(e) => setNewTokenAddress(e.target.value)}
+                  placeholder="Enter new token address"
+                />
+                <Button
+                  onClick={isCorrectNetwork ? setTokenAddress : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Set Token Address" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+            {canTransferOwnership && (
+              <div className="space-y-2">
+                <Label htmlFor="newOwnerAddress">New Owner Address</Label>
+                <Input
+                  id="newOwnerAddress"
+                  value={newOwnerAddress}
+                  onChange={(e) => setNewOwnerAddress(e.target.value)}
+                  placeholder="Enter new owner address"
+                />
+                <Button
+                  onClick={isCorrectNetwork ? transferOwnership : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Transfer Ownership" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+            {canEmergencyWithdraw && (
+              <div className="space-y-2">
+                <Button
+                  onClick={isCorrectNetwork ? () => emergencyWithdraw(poolDetails.tokenAddress) : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Emergency Withdraw" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+            {canCheckMissedDeposits && (
+              <div className="space-y-2">
+                <Button
+                  onClick={isCorrectNetwork ? checkMissedDeposits : () => switchNetwork(NETWORKS[network].chainId)}
+                  disabled={isProcessing || isConnecting}
+                  className="w-full"
+                >
+                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCorrectNetwork ? "Check Missed Deposits" : `Switch to ${NETWORKS[network].name}`}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -1057,32 +1169,11 @@ export default function PoolDetailsPage() {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          {canCheckMissedDeposits && (
-            <Button
-              onClick={isCorrectNetwork ? checkMissedDeposits : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Check Missed Deposits" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          )}
-          {canEmergencyWithdraw && (
-            <Button
-              onClick={isCorrectNetwork ? () => emergencyWithdraw(poolDetails.tokenAddress) : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Emergency Withdraw" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          )}
           {showDistributeContriboost && (
             <Button
               onClick={isCorrectNetwork ? distributeContriboostFunds : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting || !userStatus?.isHost}
+              disabled={isProcessing || isConnecting}
               className="min-w-[120px]"
-              title={!userStatus?.isHost ? "Only the pool host can distribute funds" : undefined}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isCorrectNetwork ? "Distribute Funds" : `Switch to ${NETWORKS[network].name}`}
@@ -1108,96 +1199,10 @@ export default function PoolDetailsPage() {
               {isCorrectNetwork ? "Refund Contributors" : `Switch to ${NETWORKS[network].name}`}
             </Button>
           )}
+          {(canEmergencyWithdraw || canCheckMissedDeposits || canSetDescription || canSetHostFee || canSetTokenAddress || canTransferOwnership) && (
+            <AdminActionsDialog />
+          )}
         </div>
-        {canSetDescription && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="newDescription">New Description</Label>
-              <Input
-                id="newDescription"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="Enter new description"
-                className="w-48"
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? setDescription : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Set Description" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {canSetHostFee && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="newHostFee">New Host Fee (%)</Label>
-              <Input
-                id="newHostFee"
-                type="number"
-                value={newHostFee}
-                onChange={(e) => setNewHostFee(e.target.value)}
-                placeholder="Enter new host fee percentage"
-                className="w-48"
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? setHostFeePercentage : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Set Host Fee" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {canSetTokenAddress && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="newTokenAddress">New Token Address</Label>
-              <Input
-                id="newTokenAddress"
-                value={newTokenAddress}
-                onChange={(e) => setNewTokenAddress(e.target.value)}
-                placeholder="Enter new token address"
-                className="w-48"
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? setTokenAddress : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Set Token Address" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {canTransferOwnership && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="newOwnerAddress">New Owner Address</Label>
-              <Input
-                id="newOwnerAddress"
-                value={newOwnerAddress}
-                onChange={(e) => setNewOwnerAddress(e.target.value)}
-                placeholder="Enter new owner address"
-                className="w-48"
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? transferOwnership : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Transfer Ownership" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
       </div>
 
       {isContriboost && participants.length > 0 && (

@@ -1,562 +1,562 @@
 export const ContriboostFactoryAbi =[
 	{
-	  "inputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "constructor"
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "owner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnableInvalidOwner",
-	  "type": "error"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "account",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnableUnauthorizedAccount",
-	  "type": "error"
-	},
-	{
-	  "anonymous": false,
-	  "inputs": [
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "host",
-		  "type": "address"
-		},
-		{
-		  "indexed": false,
-		  "internalType": "address",
-		  "name": "contriboostAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "ContriboostCreated",
-	  "type": "event"
-	},
-	{
-	  "anonymous": false,
-	  "inputs": [
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "host",
-		  "type": "address"
-		},
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "platformOwner",
-		  "type": "address"
-		},
-		{
-		  "indexed": false,
-		  "internalType": "address",
-		  "name": "contriboostAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "DebugContriboostCreation",
-	  "type": "event"
-	},
-	{
-	  "anonymous": false,
-	  "inputs": [
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "previousOwner",
-		  "type": "address"
-		},
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "newOwner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnershipTransferred",
-	  "type": "event"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "name": "allContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "components": [
+		"inputs": [
 			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "startTimestamp",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "enum Contriboost.PaymentMethod",
-			  "name": "paymentMethod",
-			  "type": "uint8"
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
 			}
-		  ],
-		  "internalType": "struct Contriboost.Config",
-		  "name": "_config",
-		  "type": "tuple"
-		},
-		{
-		  "internalType": "string",
-		  "name": "_name",
-		  "type": "string"
-		},
-		{
-		  "internalType": "string",
-		  "name": "_description",
-		  "type": "string"
-		},
-		{
-		  "internalType": "address",
-		  "name": "_tokenAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "createContriboost",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
+		],
+		"name": "OwnableInvalidOwner",
+		"type": "error"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_tokenAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "emergencyWithdraw",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "getAllContriboostsDetails",
-	  "outputs": [
-		{
-		  "components": [
+		"inputs": [
 			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
 			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails[]",
-		  "name": "",
-		  "type": "tuple[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		],
+		"name": "OwnableUnauthorizedAccount",
+		"type": "error"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_contriboost",
-		  "type": "address"
-		},
-		{
-		  "internalType": "bool",
-		  "name": "all",
-		  "type": "bool"
-		}
-	  ],
-	  "name": "getContriboostDetails",
-	  "outputs": [
-		{
-		  "components": [
+		"anonymous": false,
+		"inputs": [
 			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
+				"indexed": true,
+				"internalType": "address",
+				"name": "host",
+				"type": "address"
 			},
 			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
+				"indexed": false,
+				"internalType": "address",
+				"name": "contriboostAddress",
+				"type": "address"
 			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails[]",
-		  "name": "",
-		  "type": "tuple[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		],
+		"name": "ContriboostCreated",
+		"type": "event"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_contriboost",
-		  "type": "address"
-		}
-	  ],
-	  "name": "getContriboostTestDetails",
-	  "outputs": [
-		{
-		  "components": [
+		"inputs": [
 			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "dayRange",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "expectedNumber",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "contributionAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "hostFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "maxMissedDeposits",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "startTimestamp",
+						"type": "uint256"
+					},
+					{
+						"internalType": "enum Contriboost.PaymentMethod",
+						"name": "paymentMethod",
+						"type": "uint8"
+					}
+				],
+				"internalType": "struct Contriboost.Config",
+				"name": "_config",
+				"type": "tuple"
 			},
 			{
-			  "internalType": "address",
-			  "name": "host",
-			  "type": "address"
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
 			},
 			{
-			  "internalType": "address",
-			  "name": "owner",
-			  "type": "address"
+				"internalType": "string",
+				"name": "_description",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "_tokenAddress",
+				"type": "address"
 			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostTestDetails",
-		  "name": "",
-		  "type": "tuple"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		],
+		"name": "createContriboost",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
-	  "inputs": [],
-	  "name": "getContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address[]",
-		  "name": "",
-		  "type": "address[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "getPlatformOwner",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_contriboost",
-		  "type": "address"
-		}
-	  ],
-	  "name": "getSingleContriboostDetails",
-	  "outputs": [
-		{
-		  "components": [
+		"anonymous": false,
+		"inputs": [
 			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
+				"indexed": true,
+				"internalType": "address",
+				"name": "host",
+				"type": "address"
 			},
 			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
+				"indexed": true,
+				"internalType": "address",
+				"name": "platformOwner",
+				"type": "address"
 			},
 			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
+				"indexed": false,
+				"internalType": "address",
+				"name": "contriboostAddress",
+				"type": "address"
 			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails",
-		  "name": "",
-		  "type": "tuple"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		],
+		"name": "DebugContriboostCreation",
+		"type": "event"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_user",
-		  "type": "address"
-		}
-	  ],
-	  "name": "getUserContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address[]",
-		  "name": "",
-		  "type": "address[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_tokenAddress",
+				"type": "address"
+			}
+		],
+		"name": "emergencyWithdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
-	  "inputs": [],
-	  "name": "owner",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
 	},
 	{
-	  "inputs": [],
-	  "name": "platformFeePercentage",
-	  "outputs": [
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
-	  "inputs": [],
-	  "name": "platformOwner",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
-	  "inputs": [],
-	  "name": "renounceOwnership",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
+		"stateMutability": "payable",
+		"type": "receive"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "newOwner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "transferOwnership",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "allContriboosts",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
 	},
 	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		},
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "name": "userContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
+		"inputs": [],
+		"name": "getAllContriboostsDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "dayRange",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "expectedNumber",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "contributionAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "hostFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "maxMissedDeposits",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct ContriboostFactory.ContriboostDetails[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
 	},
 	{
-	  "stateMutability": "payable",
-	  "type": "receive"
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_contriboost",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "all",
+				"type": "bool"
+			}
+		],
+		"name": "getContriboostDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "dayRange",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "expectedNumber",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "contributionAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "hostFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "maxMissedDeposits",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct ContriboostFactory.ContriboostDetails[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getContriboosts",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "",
+				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_contriboost",
+				"type": "address"
+			}
+		],
+		"name": "getContriboostTestDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "host",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "owner",
+						"type": "address"
+					}
+				],
+				"internalType": "struct ContriboostFactory.ContriboostTestDetails",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getPlatformOwner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_contriboost",
+				"type": "address"
+			}
+		],
+		"name": "getSingleContriboostDetails",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "contractAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "dayRange",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "expectedNumber",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "contributionAmount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "tokenAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "hostFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "platformFeePercentage",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "maxMissedDeposits",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct ContriboostFactory.ContriboostDetails",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getUserContriboosts",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "",
+				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "platformFeePercentage",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "platformOwner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "userContriboosts",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
 	}
-  ]
+]
 
 export const ContriboostAbi =[
 	{

@@ -10,7 +10,7 @@ import { SUPPORTED_CHAINS } from "@/utils/config";
 
 // Thirdweb client
 const thirdwebClient = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_CLIENT_ID,
+  clientId: "b81c12c8d9ae57479a26c52be1d198eb",
 });
 
 // Define custom chains

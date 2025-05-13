@@ -68,7 +68,6 @@ export default function PoolsPage() {
   const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
 
   useEffect(() => {
-    // Check if navigated from pool creation
     const created = searchParams.get("created");
     if (created === "true") {
       toast.success("Pool created successfully!");
@@ -87,7 +86,6 @@ export default function PoolsPage() {
     setFetchErrors([]);
     const allPools = [];
 
-    // Fetch Lisk Sepolia Contriboost pools
     try {
       const liskContriboostPools = await fetchContriboostPools("lisk", liskProvider, ContriboostFactoryAbi);
       allPools.push(...liskContriboostPools);
@@ -96,7 +94,6 @@ export default function PoolsPage() {
       setFetchErrors((prev) => [...prev, `Lisk Sepolia Contriboost: ${error.message}`]);
     }
 
-    // Fetch Lisk Sepolia GoalFund pools
     try {
       const liskGoalFundPools = await fetchGoalFundPools("lisk", liskProvider);
       allPools.push(...liskGoalFundPools);
@@ -105,21 +102,28 @@ export default function PoolsPage() {
       setFetchErrors((prev) => [...prev, `Lisk Sepolia GoalFund: ${error.message}`]);
     }
 
-    // Deduplicate by contractAddress and network, validate addresses
+    // Deduplicate and sort by latest
     const seen = new Set();
-    const deduplicatedPools = allPools.filter((pool) => {
-      if (!pool || !pool.contractAddress || !ethers.isAddress(pool.contractAddress)) {
-        console.warn(`Invalid pool address detected:`, pool);
-        return false;
-      }
-      const key = `${pool.contractAddress}-${pool.network}`;
-      if (seen.has(key)) {
-        console.warn(`Duplicate pool found: ${key}`);
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
+    const deduplicatedPools = allPools
+      .filter((pool) => {
+        if (!pool || !pool.contractAddress || !ethers.isAddress(pool.contractAddress)) {
+          console.warn(`Invalid pool address detected:`, pool);
+          return false;
+        }
+        const key = `${pool.contractAddress}-${pool.network}`;
+        if (seen.has(key)) {
+          console.warn(`Duplicate pool found: ${key}`);
+          return false;
+        }
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by latest: Use startTimestamp for Contriboost, deadline for GoalFund
+        const timeA = a.type === "Contriboost" ? a.startTimestamp : a.deadline;
+        const timeB = b.type === "Contriboost" ? b.startTimestamp : b.deadline;
+        return timeB - timeA; // Descending (latest first)
+      });
 
     setPools(deduplicatedPools);
     setIsLoading(false);
@@ -128,22 +132,16 @@ export default function PoolsPage() {
       toast.error("Some pools failed to load. Check console for details.");
     } else if (deduplicatedPools.length === 0) {
       toast.warn("No valid pools found. Try creating a new pool.");
-    } else {
-      toast.success("Pools loaded successfully!");
     }
   }
 
   async function fetchContriboostPools(network, provider, factoryAbi) {
     const config = NETWORKS[network];
-    const contriboostFactory = new ethers.Contract(
-      config.contriboostFactory,
-      factoryAbi,
-      provider
-    );
+    const contriboostFactory = new ethers.Contract(config.contriboostFactory, factoryAbi, provider);
 
     let contriboostAddresses = [];
     try {
-      console.log(`Fetching Contriboost addresses for ${config.name} at ${config.contriboostFactory}...`);
+      console.log(`Fetching Contriboost addresses for ${config.name}...`);
       contriboostAddresses = await contriboostFactory.getContriboosts();
       console.log(`Contriboost addresses for ${config.name}:`, contriboostAddresses);
     } catch (error) {
@@ -165,7 +163,6 @@ export default function PoolsPage() {
           }
           const details = detailsArray[0];
 
-          // Validate contractAddress
           if (!ethers.isAddress(details.contractAddress)) {
             console.warn(`Invalid contract address in details for ${address} on ${config.name}:`, details.contractAddress);
             return null;
@@ -179,7 +176,7 @@ export default function PoolsPage() {
           try {
             participants = await contract.getActiveParticipants();
             currentSegment = await contract.currentSegment();
-            startTimestamp = await contract.startTimestamp();
+            startTimestamp = Number(await contract.startTimestamp());
           } catch (err) {
             console.warn(`Failed to fetch additional data for Contriboost at ${address} on ${config.name}:`, err);
           }
@@ -230,6 +227,7 @@ export default function PoolsPage() {
             maxMissedDeposits: Number(details.maxMissedDeposits || 0),
             currentParticipants: participants.length,
             currentSegment: Number(currentSegment),
+            startTimestamp, // Added for sorting
             status,
             userStatus,
           };
@@ -245,11 +243,7 @@ export default function PoolsPage() {
 
   async function fetchGoalFundPools(network, provider) {
     const config = NETWORKS[network];
-    const goalFundFactory = new ethers.Contract(
-      config.goalFundFactory,
-      GoalFundFactoryAbi,
-      provider
-    );
+    const goalFundFactory = new ethers.Contract(config.goalFundFactory, GoalFundFactoryAbi, provider);
 
     let goalFundDetailsRaw = [];
     try {
@@ -659,7 +653,7 @@ export default function PoolsPage() {
               pool.status !== "full" &&
               pool.status !== "completed" &&
               pool.currentParticipants < pool.expectedNumber;
-            const canContribute = !isContriboost && pool.status === "active";
+            const canContribute = false; // Disable for all pools, as contributions are handled on details page
             const canExit = isContriboost && isJoined && pool.status === "not-started";
             const isCorrectNetwork = chainId === pool.chainId;
 
@@ -748,73 +742,7 @@ export default function PoolsPage() {
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Participants</span>
                           <span className="font-medium flex items-center">
-                            <Users className="h-3#pragma once
-
-#include <string>
-#include <vector>
-
-using namespace std;
-
-class Trie {
-private:
-    struct TrieNode {
-        vector<TrieNode*> children;
-        bool isEndOfWord;
-
-        TrieNode() : children(26, nullptr), isEndOfWord(false) {}
-        ~TrieNode() {
-            for (TrieNode* child : children) {
-                delete child;
-            }
-        }
-    };
-
-    TrieNode* root;
-
-public:
-    Trie() : root(new TrieNode()) {}
-
-    ~Trie() {
-        delete root;
-    }
-
-    void insert(const string& word) {
-        TrieNode* current = root;
-        for (char c : word) {
-            int index = c - 'a';
-            if (index < 0 || index >= 26) continue; // Skip non-lowercase letters
-            if (!current->children[index]) {
-                current->children[index] = new TrieNode();
-            }
-            current = current->children[index];
-        }
-        current->isEndOfWord = true;
-    }
-
-    bool search(const string& word) {
-        TrieNode* node = searchNode(word);
-        return node && node->isEndOfWord;
-    }
-
-    bool startsWith(const string& prefix) {
-        return searchNode(prefix) != nullptr;
-    }
-
-private:
-    TrieNode* searchNode(const string& str) {
-        TrieNode* current = root;
-        for (char c : str) {
-            int index = c - 'a';
-            if (index < 0 || index >= 26) return nullptr; // Invalid character
-            if (!current->children[index]) {
-                return nullptr;
-            }
-            current = current->children[index];
-        }
-        return current;
-    }
-};
-.5 w-3.5 mr-1" />
+                            <Users className="h-3 w-3 mr-1" />
                             {pool.currentParticipants}/{pool.expectedNumber}
                           </span>
                         </div>
@@ -861,35 +789,43 @@ private:
                     )}
                   </div>
                 </CardContent>
-                <CardFooter className="flex gap-2 pt-2">
-                  {(canJoin || canContribute || canExit) && (
-                    <Button
-                      className="flex-1"
-                      onClick={() =>
-                        isCorrectNetwork
-                          ? canJoin
-                            ? joinContriboost(pool)
-                            : canContribute
-                            ? contributeGoalFund(pool)
-                            : exitContriboost(pool)
-                          : switchNetwork(pool.chainId)
-                      }
-                      disabled={isConnecting}
-                    >
-                      {isConnecting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : isCorrectNetwork ? (
-                        canJoin ? "Join" : canContribute ? "Contribute" : "Exit"
-                      ) : (
-                        `Switch to ${NETWORKS[pool.network].name}`
-                      )}
+                <CardFooter className="flex justify-center gap-2 pt-2">
+                  {pool.type === "GoalFund" ? (
+                    <Button variant="outline" className="w-full max-w-xs" asChild>
+                      <Link href={`/pools/details/${encodeURIComponent(pool.contractAddress)}?network=${pool.network}`}>
+                        View Details
+                      </Link>
                     </Button>
+                  ) : (
+                    <>
+                      {(canJoin || canExit) && (
+                        <Button
+                          className="flex-1"
+                          onClick={() =>
+                            isCorrectNetwork
+                              ? canJoin
+                                ? joinContriboost(pool)
+                                : exitContriboost(pool)
+                              : switchNetwork(pool.chainId)
+                          }
+                          disabled={isConnecting}
+                        >
+                          {isConnecting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : isCorrectNetwork ? (
+                            canJoin ? "Join" : "Exit"
+                          ) : (
+                            `Switch to ${NETWORKS[pool.network].name}`
+                          )}
+                        </Button>
+                      )}
+                      <Button variant="outline" className="flex-1" asChild>
+                        <Link href={`/pools/details/${encodeURIComponent(pool.contractAddress)}?network=${pool.network}`}>
+                          View Details
+                        </Link>
+                      </Button>
+                    </>
                   )}
-                  <Button variant="outline" className="flex-1" asChild>
-                    <Link href={`/pools/details/${encodeURIComponent(pool.contractAddress)}?network=${pool.network}`}>
-                      View Details
-                    </Link>
-                  </Button>
                 </CardFooter>
               </Card>
             );

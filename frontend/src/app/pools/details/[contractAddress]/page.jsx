@@ -369,7 +369,7 @@ export default function PoolDetailsPage() {
         logs: receipt.logs || "No logs available",
       });
       await fetchPoolDetails();
-      toast.success(`Successfully joined the Contriboost pool! Tx: ${transactionHash}`);
+      toast.success(`Successfully joined the Contriboost pool!`);
     } catch (error) {
       console.error("Error joining Contriboost:", error);
       let message = error.reason || error.message || "Failed to join";
@@ -470,7 +470,7 @@ export default function PoolDetailsPage() {
   
       console.log("Deposit Contriboost tx hash:", transactionHash);
       await fetchPoolDetails();
-      toast.success(`Deposit successful! Tx: ${transactionHash}`);
+      toast.success(`Deposit successful! `);
       setDepositAmount("");
     } catch (error) {
       console.error("Error depositing to Contriboost:", error);
@@ -515,7 +515,7 @@ export default function PoolDetailsPage() {
   
       console.log("Check missed deposits tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Missed deposits checked successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Missed deposits checked successfully!`);
     } catch (error) {
       console.error("Error checking missed deposits:", error);
       let message = error.reason || error.message || "Failed to check missed deposits";
@@ -553,7 +553,7 @@ export default function PoolDetailsPage() {
   
       console.log("Emergency withdraw tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Emergency withdrawal successful! Tx: ${receipt.transactionHash}`);
+      toast.success(`Emergency withdrawal successful!`);
     } catch (error) {
       console.error("Error performing emergency withdrawal:", error);
       let message = error.reason || error.message || "Failed to perform emergency withdrawal";
@@ -595,7 +595,7 @@ export default function PoolDetailsPage() {
   
       console.log("Set description tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Description updated successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Description updated successfully!`);
       setNewDescription("");
     } catch (error) {
       console.error("Error setting description:", error);
@@ -640,7 +640,7 @@ export default function PoolDetailsPage() {
   
       console.log("Set host fee tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Host fee updated successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Host fee updated successfully!`);
       setNewHostFee("");
     } catch (error) {
       console.error("Error setting host fee:", error);
@@ -683,7 +683,7 @@ export default function PoolDetailsPage() {
   
       console.log("Set token address tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Token address updated successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Token address updated successfully!`);
       setNewTokenAddress("");
     } catch (error) {
       console.error("Error setting token address:", error);
@@ -725,7 +725,7 @@ export default function PoolDetailsPage() {
   
       console.log("Reactivate participant tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}! Tx: ${receipt.transactionHash}`);
+      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}!`);
     } catch (error) {
       console.error("Error reactivating in Contriboost:", error);
       let message = error.reason || error.message || "Failed to reactivate";
@@ -763,7 +763,7 @@ export default function PoolDetailsPage() {
   
       console.log("Distribute funds tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Funds distributed successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Funds distributed successfully!`);
     } catch (error) {
       console.error("Error distributing funds:", error);
       let message = error.reason || error.message || "Failed to distribute funds";
@@ -805,7 +805,7 @@ export default function PoolDetailsPage() {
   
       console.log("Transfer ownership tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Ownership transferred successfully! Tx: ${receipt.transactionHash}`);
+      toast.success(`Ownership transferred successfully!`);
       setNewOwnerAddress("");
     } catch (error) {
       console.error("Error transferring ownership:", error);
@@ -852,7 +852,7 @@ export default function PoolDetailsPage() {
   
       console.log("Exit Contriboost tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully exited the Contriboost pool! Tx: ${receipt.transactionHash}`);
+      toast.success(`Successfully exited the Contriboost pool!`);
     } catch (error) {
       console.error("Error exiting Contriboost:", error);
       let message = error.reason || error.message || "Failed to exit";
@@ -979,7 +979,7 @@ export default function PoolDetailsPage() {
   
       console.log("Contribute GoalFund tx hash:", transactionHash);
       await fetchPoolDetails();
-      toast.success(`Contribution successful! Tx: ${transactionHash}`);
+      toast.success(`Contribution successful!`);
       setContributeAmount("");
     } catch (error) {
       console.error("Error contributing to GoalFund:", error);
@@ -1039,7 +1039,7 @@ export default function PoolDetailsPage() {
       console.log("Refund contributors tx hash:", tx.hash);
       await tx.wait();
       await fetchPoolDetails();
-      toast.success(`Refunds issued successfully! Tx: ${tx.hash}`);
+      toast.success(`Refunds issued successfully!`);
     } catch (error) {
       console.error("Error issuing refunds:", error);
       let message = error.reason || error.message || "Failed to issue refunds";
@@ -1151,7 +1151,7 @@ export default function PoolDetailsPage() {
             Admin Actions
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] bg-[#101b31]">
           <DialogHeader>
             <DialogTitle>Admin Actions</DialogTitle>
           </DialogHeader>

@@ -18,27 +18,27 @@ const NETWORKS = {
     chainId: 4202,
     name: "Lisk Sepolia",
     rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
+    contriboostFactory: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
+    goalFundFactory: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
     tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
-  celo: {
-    chainId: 44787,
-    name: "Celo Alfajores",
-    rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
-    tokenSymbol: "cUSD",
-    nativeSymbol: "CELO",
-  },
+  // celo: {
+  //   chainId: 44787,
+  //   name: "Celo Alfajores",
+  //   rpcUrl: "https://alfajores-forno.celo-testnet.org",
+  //   contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+  //   goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+  //   tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
+  //   tokenSymbol: "cUSD",
+  //   nativeSymbol: "CELO",
+  // },
 };
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
-  const [balance, setBalance] = useState({ lisk: "0", celo: "0" });
+  const [balance, setBalance] = useState({ lisk: "0" });
   const [userPools, setUserPools] = useState([]);
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function AccountPage() {
 
   // Initialize providers
   const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
-  const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
+  // const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
 
   useEffect(() => {
     if (account) {
@@ -64,7 +64,10 @@ export default function AccountPage() {
     setError(null);
     const fetchedPools = [];
     const fetchedFunds = [];
-    const newBalance = { lisk: "0", celo: "0" };
+    const newBalance = { lisk: "0", 
+      // celo: "0" 
+    };
+
 
     // Fetch data from Lisk Sepolia
     try {
@@ -74,13 +77,13 @@ export default function AccountPage() {
       setError((prev) => prev ? `${prev}; Lisk Sepolia: ${e.message}` : `Lisk Sepolia: ${e.message}`);
     }
 
-    // Fetch data from Celo Alfajores
-    try {
-      await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
-    } catch (e) {
-      console.error("Error fetching Celo Alfajores data:", e);
-      setError((prev) => prev ? `${prev}; Celo Alfajores: ${e.message}` : `Celo Alfajores: ${e.message}`);
-    }
+    // // Fetch data from Celo Alfajores
+    // try {
+    //   await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
+    // } catch (e) {
+    //   console.error("Error fetching Celo Alfajores data:", e);
+    //   setError((prev) => prev ? `${prev}; Celo Alfajores: ${e.message}` : `Celo Alfajores: ${e.message}`);
+    // }
 
     setBalance(newBalance);
     setUserPools(fetchedPools);
@@ -285,9 +288,9 @@ export default function AccountPage() {
                 <p className="text-sm font-medium">
                   Lisk Sepolia: {parseFloat(balance.lisk).toFixed(4)} {NETWORKS.lisk.nativeSymbol}
                 </p>
-                <p className="text-sm font-medium">
+                {/* <p className="text-sm font-medium">
                   Celo Alfajores: {parseFloat(balance.celo).toFixed(4)} {NETWORKS.celo.nativeSymbol}
-                </p>
+                </p> */}
               </div>
             </div>
           </div>

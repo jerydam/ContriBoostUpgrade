@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ethers } from "ethers";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import {
   ContriboostFactoryAbi,
@@ -44,23 +45,23 @@ const NETWORKS = {
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
-  celo: {
-    chainId: 44787,
-    name: "Celo Alfajores",
-    rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
-    tokenSymbol: "cUSD",
-    nativeSymbol: "CELO",
-  },
+  // celo: {
+  //   chainId: 44787,
+  //   name: "Celo Alfajores",
+  //   rpcUrl: "https://alfajores-forno.celo-testnet.org",
+  //   contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+  //   goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+  //   tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
+  //   tokenSymbol: "cUSD",
+  //   nativeSymbol: "CELO",
+  // },
 };
 
 export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { provider, signer, account, connect, isConnecting, chainId, switchNetwork } = useWeb3();
+  const { provider, signer, account, connect, isConnecting, chainId, switchNetwork, thirdwebClient, liskSepolia, walletType } = useWeb3();
   const [poolDetails, setPoolDetails] = useState(null);
   const [poolType, setPoolType] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,12 +76,10 @@ export default function PoolDetailsPage() {
   const [newOwnerAddress, setNewOwnerAddress] = useState("");
   const [participants, setParticipants] = useState([]);
   const [network, setNetwork] = useState(null);
-  // Added state to track if any deposits have been made
   const [hasDeposits, setHasDeposits] = useState(false);
 
   // Initialize providers
   const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
-  const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
 
   useEffect(() => {
     const networkParam = searchParams.get("network");
@@ -113,7 +112,7 @@ export default function PoolDetailsPage() {
     setError(null);
 
     const networkConfig = NETWORKS[network];
-    const provider = network === "lisk" ? liskProvider : celoProvider;
+    const provider = network === "lisk" ? liskProvider : null;
 
     try {
       const contriboostFactory = new ethers.Contract(
@@ -161,7 +160,6 @@ export default function PoolDetailsPage() {
           })
         );
 
-        // Check if any participant has made a deposit
         const hasAnyDeposits = participantDetails.some(
           (participant) => parseFloat(participant.depositAmount) > 0
         );
@@ -296,9 +294,16 @@ export default function PoolDetailsPage() {
     }
     if (chainId !== NETWORKS[network].chainId) {
       try {
+        console.log("Switching to chain:", NETWORKS[network].chainId);
         await switchNetwork(NETWORKS[network].chainId);
+        // Verify signer chain
+        const signerChainId = await signer.getChainId();
+        if (signerChainId !== NETWORKS[network].chainId) {
+          throw new Error(`Signer chain mismatch: expected ${NETWORKS[network].chainId}, got ${signerChainId}`);
+        }
         return true;
       } catch (error) {
+        console.error("Network switch error:", error);
         toast.error(`Please switch to ${NETWORKS[network].name} in your wallet`);
         return false;
       }
@@ -314,16 +319,65 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join({ gasLimit: 200000 });
-      console.log("Join Contriboost tx hash:", tx.hash);
-      await tx.wait();
+      console.log("Joining Contriboost with config:", {
+        chain: JSON.stringify(liskSepolia, null, 2),
+        contractAddress,
+        walletType,
+        account,
+      });
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "join",
+        params: [],
+        gas: 200000n,
+      });
+
+      let receipt;
+      let transactionHash;
+      try {
+        receipt = await sendTransaction({
+          transaction,
+          account: signer,
+        });
+        transactionHash = receipt.transactionHash;
+      } catch (sendError) {
+        console.error("Transaction send error:", sendError);
+        if (walletType === "smart" && sendError.message.includes("eth_sendUserOperation")) {
+          console.warn("UserOp failed, attempting to recover...");
+          if (sendError.transactionHash) {
+            transactionHash = sendError.transactionHash;
+            receipt = await thirdwebClient.getTransactionReceipt({ hash: transactionHash });
+            console.log("Recovered receipt:", receipt);
+          } else {
+            throw new Error(`UserOp failed: ${sendError.message}`);
+          }
+        } else {
+          throw sendError;
+        }
+      }
+
+      console.log("Join Contriboost receipt:", {
+        transactionHash,
+        walletType,
+        logs: receipt.logs || "No logs available",
+      });
       await fetchPoolDetails();
-      toast.success(`Successfully joined the Contriboost pool! Tx: ${tx.hash}`);
+      toast.success(`Successfully joined the Contriboost pool! Tx: ${transactionHash}`);
     } catch (error) {
       console.error("Error joining Contriboost:", error);
       let message = error.reason || error.message || "Failed to join";
-      if (error.code === "CALL_EXCEPTION") {
+      if (error.message.includes("invalid chain")) {
+        message = "Invalid chain configuration. Ensure Lisk Sepolia is selected.";
+      } else if (error.message.includes("UserOp failed")) {
+        message = "Smart Wallet transaction failed. Ensure sufficient gas funds.";
+      } else if (error.code === "CALL_EXCEPTION") {
         message = "Contract call failed: Check pool status or participant limit";
       }
       toast.error(`Error: ${message}`);
@@ -331,7 +385,6 @@ export default function PoolDetailsPage() {
       setIsProcessing(false);
     }
   }
-
   async function depositContriboost() {
     if (!(await ensureCorrectNetwork())) return;
     if (!userStatus?.isParticipant || !userStatus?.isActive) {
@@ -346,20 +399,19 @@ export default function PoolDetailsPage() {
       toast.warning("Please enter a valid deposit amount");
       return;
     }
-
+  
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const amount = ethers.parseEther(depositAmount);
-
-      console.log("Depositing to Contriboost:", {
-        contractAddress,
-        amount: depositAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
       });
-
-      let tx;
+  
+      const amount = ethers.parseEther(depositAmount);
+  
+      // Check balance and allowance
       if (poolDetails.tokenAddress === ethers.ZeroAddress) {
         const balance = await provider.getBalance(account);
         if (balance < amount) {
@@ -367,7 +419,6 @@ export default function PoolDetailsPage() {
             `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
           );
         }
-        tx = await contract.deposit({ value: amount, gasLimit: 300000 });
       } else {
         const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
         const tokenBalance = await tokenContract.balanceOf(account);
@@ -382,16 +433,44 @@ export default function PoolDetailsPage() {
           const approveTx = await tokenContract.approve(contractAddress, amount, {
             gasLimit: 100000,
           });
-          console.log("Approve tx hash:", approveTx.hash);
           await approveTx.wait();
         }
-        tx = await contract.deposit({ gasLimit: 300000 });
       }
-
-      console.log("Deposit Contriboost tx hash:", tx.hash);
-      await tx.wait();
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "deposit",
+        params: [],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+  
+      let receipt;
+      let transactionHash;
+      try {
+        receipt = await sendTransaction({
+          transaction,
+          account: signer,
+        });
+        transactionHash = receipt.transactionHash;
+      } catch (sendError) {
+        console.error("Transaction send error:", sendError);
+        if (walletType === "smart" && sendError.message.includes("eth_sendUserOperation")) {
+          console.warn("UserOp failed, attempting to recover...");
+          if (sendError.transactionHash) {
+            transactionHash = sendError.transactionHash;
+            receipt = await thirdwebClient.getTransactionReceipt({ hash: transactionHash });
+          } else {
+            throw new Error(`UserOp failed: ${sendError.message}`);
+          }
+        } else {
+          throw sendError;
+        }
+      }
+  
+      console.log("Deposit Contriboost tx hash:", transactionHash);
       await fetchPoolDetails();
-      toast.success(`Deposit successful! Tx: ${tx.hash}`);
+      toast.success(`Deposit successful! Tx: ${transactionHash}`);
       setDepositAmount("");
     } catch (error) {
       console.error("Error depositing to Contriboost:", error);
@@ -415,15 +494,34 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.checkMissedDeposits({ gasLimit: 200000 });
-      console.log("Check missed deposits tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "checkMissedDeposits",
+        params: [],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Check missed deposits tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Missed deposits checked successfully! Tx: ${tx.hash}`);
+      toast.success(`Missed deposits checked successfully! Tx: ${receipt.transactionHash}`);
     } catch (error) {
       console.error("Error checking missed deposits:", error);
       let message = error.reason || error.message || "Failed to check missed deposits";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check pool status or permissions";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -434,21 +532,34 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = poolType === "Contriboost"
-        ? await contract.emergencyWithdraw(tokenAddress || ethers.ZeroAddress, { gasLimit: 300000 })
-        : await contract.emergencyWithdraw({ gasLimit: 300000 });
-      console.log("Emergency withdraw tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "emergencyWithdraw",
+        params: poolType === "Contriboost" ? [tokenAddress || ethers.ZeroAddress] : [],
+        gas: 300000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Emergency withdraw tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Emergency withdrawal successful! Tx: ${tx.hash}`);
+      toast.success(`Emergency withdrawal successful! Tx: ${receipt.transactionHash}`);
     } catch (error) {
       console.error("Error performing emergency withdrawal:", error);
       let message = error.reason || error.message || "Failed to perform emergency withdrawal";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check permissions or pool state";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -463,16 +574,35 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setDescription(newDescription, { gasLimit: 200000 });
-      console.log("Set description tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setDescription",
+        params: [newDescription],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Set description tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Description updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Description updated successfully! Tx: ${receipt.transactionHash}`);
       setNewDescription("");
     } catch (error) {
       console.error("Error setting description:", error);
       let message = error.reason || error.message || "Failed to set description";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check permissions or pool state";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -487,19 +617,37 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setHostFeePercentage(
-        Math.floor(Number(newHostFee) * 100),
-        { gasLimit: 200000 }
-      );
-      console.log("Set host fee tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const hostFee = Math.floor(Number(newHostFee) * 100);
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setHostFeePercentage",
+        params: [hostFee],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Set host fee tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Host fee updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Host fee updated successfully! Tx: ${receipt.transactionHash}`);
       setNewHostFee("");
     } catch (error) {
       console.error("Error setting host fee:", error);
       let message = error.reason || error.message || "Failed to set host fee";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check permissions or pool state";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -514,16 +662,35 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setTokenAddress(newTokenAddress, { gasLimit: 200000 });
-      console.log("Set token address tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setTokenAddress",
+        params: [newTokenAddress],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Set token address tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Token address updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Token address updated successfully! Tx: ${receipt.transactionHash}`);
       setNewTokenAddress("");
     } catch (error) {
       console.error("Error setting token address:", error);
       let message = error.reason || error.message || "Failed to set token address";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check permissions or pool state";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -534,16 +701,31 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
       const amount = ethers.parseEther(poolDetails.contributionAmount);
-      const tx =
-        poolDetails.tokenAddress === ethers.ZeroAddress
-          ? await contract.reactivateParticipant(participantAddress, { value: amount, gasLimit: 300000 })
-          : await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
-      console.log("Reactivate participant tx hash:", tx.hash);
-      await tx.wait();
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "reactivateParticipant",
+        params: [participantAddress],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Reactivate participant tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}! Tx: ${tx.hash}`);
+      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}! Tx: ${receipt.transactionHash}`);
     } catch (error) {
       console.error("Error reactivating in Contriboost:", error);
       let message = error.reason || error.message || "Failed to reactivate";
@@ -560,12 +742,28 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.distributeFunds({ gasLimit: 500000 });
-      console.log("Distribute funds tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "distributeFunds",
+        params: [],
+        gas: 500000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Distribute funds tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Funds distributed successfully! Tx: ${tx.hash}`);
+      toast.success(`Funds distributed successfully! Tx: ${receipt.transactionHash}`);
     } catch (error) {
       console.error("Error distributing funds:", error);
       let message = error.reason || error.message || "Failed to distribute funds";
@@ -586,20 +784,35 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = await contract.transferOwnership(newOwnerAddress, { gasLimit: 200000 });
-      console.log("Transfer ownership tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "transferOwnership",
+        params: [newOwnerAddress],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Transfer ownership tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Ownership transferred successfully! Tx: ${tx.hash}`);
+      toast.success(`Ownership transferred successfully! Tx: ${receipt.transactionHash}`);
       setNewOwnerAddress("");
     } catch (error) {
       console.error("Error transferring ownership:", error);
       let message = error.reason || error.message || "Failed to transfer ownership";
+      if (error.code === "CALL_EXCEPTION") {
+        message = "Contract call failed: Check permissions or pool state";
+      }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
@@ -618,12 +831,28 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.exitContriboost({ gasLimit: 200000 });
-      console.log("Exit Contriboost tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+  
+      const transaction = await prepareContractCall({
+        contract,
+        method: "exitContriboost",
+        params: [],
+        gas: 200000n,
+      });
+  
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+  
+      console.log("Exit Contriboost tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully exited the Contriboost pool! Tx: ${tx.hash}`);
+      toast.success(`Successfully exited the Contriboost pool! Tx: ${receipt.transactionHash}`);
     } catch (error) {
       console.error("Error exiting Contriboost:", error);
       let message = error.reason || error.message || "Failed to exit";
@@ -646,20 +875,26 @@ export default function PoolDetailsPage() {
       toast.warning("Please enter a valid contribution amount");
       return;
     }
-
+  
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: liskSepolia,
+        address: contractAddress,
+        abi: GoalFundAbi,
+      });
+  
       const amount = ethers.parseEther(contributeAmount);
-
+  
       console.log("Contributing to GoalFund:", {
         contractAddress,
         amount: contributeAmount,
         tokenAddress: poolDetails.tokenAddress,
         user: account,
       });
-
-      let tx;
+  
+      // Check balance and allowance
       if (poolDetails.tokenAddress === ethers.ZeroAddress) {
         const balance = await provider.getBalance(account);
         if (balance < amount) {
@@ -667,39 +902,83 @@ export default function PoolDetailsPage() {
             `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
           );
         }
-        tx = await contract.contribute({ value: amount, gasLimit: 300000 });
       } else {
-        const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+        const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, provider);
         const tokenBalance = await tokenContract.balanceOf(account);
-        if (tokenBalance < amount) {
+        if (BigInt(tokenBalance) < amount) {
           throw new Error(
             `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
           );
         }
+  
         const allowance = await tokenContract.allowance(account, contractAddress);
-        if (allowance < amount) {
+        if (BigInt(allowance) < amount) {
           console.log(`Approving ${poolDetails.tokenSymbol} allowance...`);
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
+          const tokenContractWrite = getContract({
+            client: thirdwebClient,
+            chain: liskSepolia,
+            address: poolDetails.tokenAddress,
+            abi: IERC20Abi,
           });
-          console.log("Approve tx hash:", approveTx.hash);
-          await approveTx.wait();
+          const approveTx = await prepareContractCall({
+            contract: tokenContractWrite,
+            method: "approve",
+            params: [contractAddress, amount],
+            gas: 100000n,
+          });
+          const approveReceipt = await sendTransaction({
+            transaction: approveTx,
+            account: signer,
+          });
+          console.log("Approve tx hash:", approveReceipt.transactionHash);
         }
-        tx = await contract.contribute(amount, { gasLimit: 300000 });
       }
-
-      console.log("Contribute GoalFund tx hash:", tx.hash);
-      await tx.wait();
+  
+      // Prepare transaction based on payment type
+      const transaction = await prepareContractCall({
+        contract,
+        method: "contribute",
+        params: poolDetails.tokenAddress === ethers.ZeroAddress ? [] : [amount],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+  
+      let receipt;
+      let transactionHash;
+      try {
+        receipt = await sendTransaction({
+          transaction,
+          account: signer,
+        });
+        transactionHash = receipt.transactionHash;
+      } catch (sendError) {
+        console.error("Transaction send error:", sendError);
+        if (walletType === "smart" && sendError.message?.includes("eth_sendUserOperation")) {
+          console.warn("UserOp failed, attempting to recover...");
+          if (sendError.transactionHash) {
+            transactionHash = sendError.transactionHash;
+            receipt = await thirdwebClient.getTransactionReceipt({ hash: transactionHash });
+          } else {
+            throw new Error(`UserOp failed: ${sendError.message}`);
+          }
+        } else {
+          throw sendError;
+        }
+      }
+  
+      console.log("Contribute GoalFund tx hash:", transactionHash);
       await fetchPoolDetails();
-      toast.success(`Contribution successful! Tx: ${tx.hash}`);
+      toast.success(`Contribution successful! Tx: ${transactionHash}`);
       setContributeAmount("");
     } catch (error) {
       console.error("Error contributing to GoalFund:", error);
       let message = "Failed to contribute";
-      if (error.message.includes("insufficient funds")) {
+      if (error.message?.includes("insufficient funds")) {
         message = "Insufficient funds for contribution and gas fees";
-      } else if (error.message.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
+      } else if (error.message?.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
         message = error.message;
+      } else if (error.message?.includes("invalid BigNumberish value")) {
+        message = "Contract call failed: Invalid transaction parameters";
       } else if (error.reason) {
         message = error.reason;
       } else if (error.code === "CALL_EXCEPTION") {
@@ -803,7 +1082,6 @@ export default function PoolDetailsPage() {
     poolDetails.status !== "full" &&
     poolDetails.status !== "completed" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
-  // Modified to allow deposits regardless of hasReceivedFunds
   const canDepositContriboost =
     isContriboost &&
     userStatus &&
@@ -831,7 +1109,6 @@ export default function PoolDetailsPage() {
     isContriboost &&
     userStatus &&
     userStatus.isHost;
-  // Modified to only show distribute button if deposits exist and user is host
   const showDistributeContriboost =
     isContriboost && poolDetails.status === "active" && hasDeposits && userStatus?.isHost;
   const canTransferOwnership =
@@ -853,7 +1130,6 @@ export default function PoolDetailsPage() {
     !poolDetails.achieved;
   const isCorrectNetwork = chainId === NETWORKS[network].chainId;
 
-  // Admin Actions Dialog Component
   function AdminActionsDialog() {
     return (
       <Dialog>

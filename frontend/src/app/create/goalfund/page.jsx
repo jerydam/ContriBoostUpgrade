@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ethers } from "ethers";
+import { isAddress, parseEther, ZeroAddress } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { GoalFundFactoryAbi } from "@/lib/contractabi";
+import { createGoalFund } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,24 +18,16 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-// Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0x3D6D20896b945E947b962a8c043E09c522504079", // Placeholder; replace with Lisk Sepolia GoalFund factory
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin
-    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
-  },
-  celo: {
-    factory: "0xDB4421c212D78bfCB4380276428f70e50881ABad", // Celo Alfajores GoalFund factory
-    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
-    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
+    factory: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
+    native: ZeroAddress,
   },
 };
 
-// Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 4202, // Lisk Sepolia
-  celo: 44787, // Celo Alfajores
+  lisk: 4202,
 };
 
 const formSchema = z.object({
@@ -44,7 +36,7 @@ const formSchema = z.object({
   targetAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n;
+        return parseEther(value) > 0n;
       } catch {
         return false;
       }
@@ -58,14 +50,14 @@ const formSchema = z.object({
     },
     { message: "Deadline date and time must be in the future" }
   ),
-  beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
+  beneficiary: z.string().refine(isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]),
   paymentMethod: z.enum(["0", "1"]),
 });
 
 export default function CreateGoalFundPage() {
   const router = useRouter();
-  const { signer, account, connect, chainId, switchNetwork, supportsGasEstimation } = useWeb3();
+  const { signer, account, connect, chainId, switchNetwork, thirdwebClient, liskSepolia, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -76,7 +68,7 @@ export default function CreateGoalFundPage() {
       name: "",
       description: "",
       targetAmount: "1",
-      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16), // 30 days from now
+      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
       beneficiary: account || "",
       fundType: "0",
       paymentMethod: "0",
@@ -91,15 +83,13 @@ export default function CreateGoalFundPage() {
     }
   }, [account, fundType, form]);
 
-  // Detect and validate network
   useEffect(() => {
+    console.log("ChainId changed:", chainId);
     if (chainId) {
       if (chainId === SUPPORTED_CHAINS.lisk) {
         setSelectedNetwork("lisk");
-      } else if (chainId === SUPPORTED_CHAINS.celo) {
-        setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia or Celo Alfajores.");
+        setError("Unsupported network. Please switch to Lisk Sepolia.");
         setSelectedNetwork(null);
       }
     } else {
@@ -107,18 +97,17 @@ export default function CreateGoalFundPage() {
     }
   }, [chainId]);
 
-  // Switch network if needed
-  const handleNetworkSwitch = async (network) => {
+  async function handleNetworkSwitch(network) {
     try {
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk Sepolia" : "Celo Alfajores"} network`);
+      toast.info(`Switched to Lisk Sepolia network`);
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
       toast.error("Failed to switch network");
     }
-  };
+  }
 
   async function onSubmit(values) {
     if (!account) {
@@ -129,124 +118,93 @@ export default function CreateGoalFundPage() {
         return;
       }
     }
-
+  
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia or Celo Alfajores)");
+      setError("Please select a supported network (Lisk Sepolia)");
       toast.error("Unsupported network");
       return;
     }
-
+  
     setError(null);
     setIsCreating(true);
-
+  
     try {
-      const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
-      // Updated to use native token address for Celo and zero address for Lisk
+      const chain = selectedNetwork === "lisk" ? liskSepolia : null;
+      if (!chain) {
+        throw new Error("Invalid chain configuration for selected network");
+      }
+  
       const tokenAddress =
         values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
+          ? CONTRACT_ADDRESSES[selectedNetwork].usdt
           : CONTRACT_ADDRESSES[selectedNetwork].native;
-
-      const factoryContract = new ethers.Contract(factoryAddress, GoalFundFactoryAbi, signer);
-
-      console.log("Creating GoalFund with values:", {
+  
+      console.log("Submitting GoalFund:", {
+        chain: JSON.stringify(chain, null, 2),
+        chainId: SUPPORTED_CHAINS[selectedNetwork],
         name: values.name,
         description: values.description,
-        targetAmount: ethers.parseEther(values.targetAmount).toString(),
+        targetAmount: values.targetAmount,
+        deadline: values.deadline,
+        beneficiary: values.beneficiary,
+        paymentMethod: values.paymentMethod,
+        tokenAddress,
+        fundType: values.fundType,
+        walletType,
+        account,
+      });
+  
+      const { receipt, newContractAddress } = await createGoalFund({
+        client: thirdwebClient,
+        chain,
+        chainId: SUPPORTED_CHAINS[selectedNetwork],
+        name: values.name,
+        description: values.description,
+        targetAmount: parseEther(values.targetAmount),
         deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
         beneficiary: values.beneficiary,
         paymentMethod: Number(values.paymentMethod),
         tokenAddress,
         fundType: Number(values.fundType),
+        account: signer,
+        walletType,
       });
-
-      let tx;
-      if (supportsGasEstimation) {
-        const estimatedGas = await factoryContract.createGoalFund.estimateGas(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType)
-        );
-        const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-        tx = await factoryContract.createGoalFund(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType),
-          { gasLimit }
-        );
-      } else {
-        tx = await factoryContract.createGoalFund(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType)
-        );
-      }
-
-      console.log("Transaction sent:", tx.hash);
-      const receipt = await tx.wait();
-      console.log("Transaction confirmed:", receipt);
-
-      const goalFundCreatedEvent = receipt.logs.find(
-        (log) => {
-          try {
-            const parsedLog = factoryContract.interface.parseLog(log);
-            return parsedLog?.name === "GoalFundCreated";
-          } catch {
-            return false;
-          }
-        }
-      );
-
-      if (!goalFundCreatedEvent) {
-        throw new Error("Could not find GoalFundCreated event in transaction receipt");
-      }
-
-      const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
-      const newContractAddress = parsedLog.args.goalFundAddress;
-
-      if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from GoalFundCreated event");
-      }
-
+  
+      console.log("Transaction receipt:", {
+        transactionHash: receipt.transactionHash,
+        walletType,
+        logs: receipt.logs || "No logs available",
+        events: receipt.events || "No events available",
+      });
+  
       toast.success("GoalFund created successfully!");
-      setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
-      }, 500);
+      router.push(`/pools?created=true`);
     } catch (error) {
       console.error("Error creating GoalFund:", error);
-      let message = "Transaction failed. Please try again.";
-      if (error.code === 4001) {
-        message = "Transaction rejected by wallet";
-      } else if (error.code === 4100) {
-        message = "Wallet authorization needed";
-      } else if (error.code === -32603) {
-        message = "Insufficient funds for gas or contract error";
-      } else if (error.reason) {
-        message = error.reason;
+      let message = "Failed to create GoalFund. Please try again.";
+      if (error.message.includes("invalid chain")) {
+        message = "Invalid chain configuration. Ensure Lisk Sepolia is selected.";
+      } else if (error.message.includes("UserOp failed")) {
+        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient ETH for gas.";
+      } else if (error.message.includes("invalid token address")) {
+        message = "Invalid token address. Please check the payment method.";
+      } else if (error.message.includes("deadline")) {
+        message = "Deadline must be in the future.";
+      } else if (error.message.includes("insufficient funds")) {
+        message = "Insufficient funds for gas or token approval.";
+      } else if (error.message.includes("USER_REJECTED")) {
+        message = "Transaction rejected by wallet.";
+      } else if (error.message.includes("missing logs or events")) {
+        message = `Failed to parse transaction receipt for ${walletType} wallet. Please try with a different wallet or contact support.`;
       } else if (error.message.includes("GoalFundCreated event")) {
-        message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
-      } else if (error.message.includes("UNSUPPORTED_OPERATION") && error.operation === "estimateGas") {
-        message = "Gas estimation not supported for this wallet. Please try again.";
+        message = "GoalFund created successfully!";
+        toast.success(message);
+        router.push(`/pools?created=true`);
+        return;
       }
-      setError(`Error: ${message}`);
-      toast.error(`Error: ${message}`);
+      setError(message);
+      toast.error(message);
+      router.push(`/pools?created=true`);
     } finally {
       setIsCreating(false);
     }
@@ -285,15 +243,8 @@ export default function CreateGoalFundPage() {
             >
               Lisk Sepolia
             </Button>
-            <Button
-              variant={selectedNetwork === "celo" ? "default" : "outline"}
-              onClick={() => handleNetworkSwitch("celo")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
-            >
-              Celo Alfajores
-            </Button>
           </div>
-          {error && !selectedNetwork && (
+          {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
@@ -376,7 +327,7 @@ export default function CreateGoalFundPage() {
                           <Input
                             type="datetime-local"
                             {...field}
-                            min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                            min={new Date().toISOString().slice(0, 16)}
                           />
                         </FormControl>
                         <FormDescription className="text-xs sm:text-sm">
@@ -432,11 +383,7 @@ export default function CreateGoalFundPage() {
                     <FormItem>
                       <FormLabel>Beneficiary</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="0x..."
-                          {...field}
-                          disabled={fundType === "1"}
-                        />
+                        <Input placeholder="0x..." {...field} disabled={fundType === "1"} />
                       </FormControl>
                       <FormDescription className="text-xs sm:text-sm">
                         {fundType === "1"
@@ -464,7 +411,7 @@ export default function CreateGoalFundPage() {
                               <RadioGroupItem value="0" />
                             </FormControl>
                             <FormLabel className="font-normal">
-                              {selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO"}
+                              {selectedNetwork === "lisk" ? "Ether (ETH)" : "Celo (CELO)"}
                             </FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">

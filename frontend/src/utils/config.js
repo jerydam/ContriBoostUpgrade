@@ -1,23 +1,24 @@
-import { ethers } from "ethers";
+import { isAddress } from "ethers";
 
 const validateContractAddress = (address) => {
-  if (!ethers.isAddress(address)) {
+  if (!isAddress(address)) {
     throw new Error(`Invalid contract address: ${address}`);
   }
   return address;
 };
 
-export const CONTRACTS = {
-  LISK_SEPOLIA: {
-    ContriboostFactory: validateContractAddress("0xF122b07B2730c6056114a5507FA1A776808Bf0A4"),
-    GoalFundFactory: validateContractAddress("0x3D6D20896b945E947b962a8c043E09c522504079"),
-    USDT: validateContractAddress("0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd"),
+export const CONTRACT_ADDRESSES = {
+  lisk: {
+    factoryContriboost: validateContractAddress("0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8"),
+    factoryGoalFund: validateContractAddress("0x5842c184b44aca1D165E990af522f2a164F2abe1"),
+    usdt: validateContractAddress("0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd"),
+    native: "0x0000000000000000000000000000000000000000", // ZeroAddress for Lisk ETH
   },
-  CELO_ALFAJORES: {
-    // Add addresses for Celo Alfajores if deployed
-    ContriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    GoalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    cUSD: validateContractAddress("0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8"),
+  celo: {
+    factoryContriboost: validateContractAddress("0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c"),
+    factoryGoalFund: validateContractAddress("0xDB4421c212D78bfCB4380276428f70e50881ABad"),
+    cusd: validateContractAddress("0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8"),
+    native: validateContractAddress("0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9"), // Celo native token
   },
 };
 

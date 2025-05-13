@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import {
@@ -44,21 +44,11 @@ const NETWORKS = {
     chainId: 4202,
     name: "Lisk Sepolia",
     rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
+    contriboostFactory: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
+    goalFundFactory: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
     tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
-  },
-  celo: {
-    chainId: 44787,
-    name: "Celo Alfajores",
-    rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
-    tokenSymbol: "cUSD",
-    nativeSymbol: "CELO",
   },
 };
 
@@ -72,14 +62,21 @@ export default function PoolsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [fetchErrors, setFetchErrors] = useState([]);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Initialize providers for both networks
+  // Initialize provider for Lisk Sepolia
   const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
-  const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
 
   useEffect(() => {
-    fetchPools();
-  }, []);
+    // Check if navigated from pool creation
+    const created = searchParams.get("created");
+    if (created === "true") {
+      toast.success("Pool created successfully!");
+      fetchPools();
+    } else {
+      fetchPools();
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     filterPools();
@@ -108,27 +105,13 @@ export default function PoolsPage() {
       setFetchErrors((prev) => [...prev, `Lisk Sepolia GoalFund: ${error.message}`]);
     }
 
-    // Fetch Celo Alfajores Contriboost pools
-    try {
-      const celoContriboostPools = await fetchContriboostPools("celo", celoProvider, ContriboostFactoryAbi);
-      allPools.push(...celoContriboostPools);
-    } catch (error) {
-      console.error("Error fetching Celo Alfajores Contriboost pools:", error);
-      setFetchErrors((prev) => [...prev, `Celo Alfajores Contriboost: ${error.message}`]);
-    }
-
-    // Fetch Celo Alfajores GoalFund pools
-    try {
-      const celoGoalFundPools = await fetchGoalFundPools("celo", celoProvider);
-      allPools.push(...celoGoalFundPools);
-    } catch (error) {
-      console.error("Error fetching Celo Alfajores GoalFund pools:", error);
-      setFetchErrors((prev) => [...prev, `Celo Alfajores GoalFund: ${error.message}`]);
-    }
-
-    // Deduplicate by contractAddress and network
+    // Deduplicate by contractAddress and network, validate addresses
     const seen = new Set();
     const deduplicatedPools = allPools.filter((pool) => {
+      if (!pool || !pool.contractAddress || !ethers.isAddress(pool.contractAddress)) {
+        console.warn(`Invalid pool address detected:`, pool);
+        return false;
+      }
       const key = `${pool.contractAddress}-${pool.network}`;
       if (seen.has(key)) {
         console.warn(`Duplicate pool found: ${key}`);
@@ -143,6 +126,10 @@ export default function PoolsPage() {
 
     if (fetchErrors.length > 0) {
       toast.error("Some pools failed to load. Check console for details.");
+    } else if (deduplicatedPools.length === 0) {
+      toast.warn("No valid pools found. Try creating a new pool.");
+    } else {
+      toast.success("Pools loaded successfully!");
     }
   }
 
@@ -160,12 +147,16 @@ export default function PoolsPage() {
       contriboostAddresses = await contriboostFactory.getContriboosts();
       console.log(`Contriboost addresses for ${config.name}:`, contriboostAddresses);
     } catch (error) {
-      console.warn(`Failed to fetch Contriboost addresses for ${config.name}:`, error);
-      contriboostAddresses = [];
+      console.error(`Failed to fetch Contriboost addresses for ${config.name}:`, error);
+      return [];
     }
 
     const contriboostDetails = await Promise.all(
       contriboostAddresses.map(async (address) => {
+        if (!ethers.isAddress(address)) {
+          console.warn(`Invalid Contriboost address: ${address} on ${config.name}`);
+          return null;
+        }
         try {
           const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
           if (!detailsArray || !detailsArray[0]) {
@@ -173,6 +164,12 @@ export default function PoolsPage() {
             return null;
           }
           const details = detailsArray[0];
+
+          // Validate contractAddress
+          if (!ethers.isAddress(details.contractAddress)) {
+            console.warn(`Invalid contract address in details for ${address} on ${config.name}:`, details.contractAddress);
+            return null;
+          }
 
           const contract = new ethers.Contract(address, ContriboostAbi, provider);
           let participants = [];
@@ -260,12 +257,16 @@ export default function PoolsPage() {
       goalFundDetailsRaw = await goalFundFactory.getAllGoalFundsDetails();
       console.log(`Raw GoalFund data for ${config.name}:`, goalFundDetailsRaw);
     } catch (error) {
-      console.warn(`Failed to fetch GoalFund details for ${config.name}:`, error);
-      goalFundDetailsRaw = [];
+      console.error(`Failed to fetch GoalFund details for ${config.name}:`, error);
+      return [];
     }
 
     return Promise.all(
       goalFundDetailsRaw.map(async (pool) => {
+        if (!pool || !ethers.isAddress(pool.contractAddress)) {
+          console.warn(`Invalid GoalFund contract address on ${config.name}:`, pool?.contractAddress);
+          return null;
+        }
         try {
           if (pool.fundType === 1) return null; // Skip personal GoalFunds
 
@@ -296,7 +297,7 @@ export default function PoolsPage() {
             } catch (err) {
               console.warn(`Failed to fetch contribution for ${pool.contractAddress} on ${config.name}:`, err);
             }
-          } 
+          }
 
           return {
             type: "GoalFund",
@@ -350,10 +351,10 @@ export default function PoolsPage() {
     if (chainId !== poolChainId) {
       try {
         await switchNetwork(poolChainId);
-        toast.success(`Switched to ${NETWORKS[poolChainId === NETWORKS.lisk.chainId ? "lisk" : "celo"].name}`);
+        toast.success(`Switched to ${NETWORKS[poolChainId === NETWORKS.lisk.chainId ? "lisk" : "unknown"].name}`);
         return true;
       } catch (error) {
-        toast.error(`Failed to switch to ${NETWORKS[poolChainId === NETWORKS.lisk.chainId ? "lisk" : "celo"].name}: ${error.message}`);
+        toast.error(`Failed to switch to ${NETWORKS[poolChainId === NETWORKS.lisk.chainId ? "lisk" : "unknown"].name}: ${error.message}`);
         return false;
       }
     }
@@ -362,49 +363,104 @@ export default function PoolsPage() {
 
   async function joinContriboost(pool) {
     if (!(await ensureCorrectNetwork(pool.chainId))) return;
+    if (pool.userStatus.isParticipant) {
+      toast.error("You are already a participant in this pool");
+      return;
+    }
+    if (pool.status === "full" || pool.status === "completed") {
+      toast.error(`Cannot join: Pool is ${pool.status}`);
+      return;
+    }
+    if (pool.currentParticipants >= pool.expectedNumber) {
+      toast.error("Pool has reached maximum participants");
+      return;
+    }
 
     try {
       const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join();
+      console.log("Joining Contriboost:", {
+        contractAddress: pool.contractAddress,
+        account,
+        poolStatus: pool.status,
+        currentParticipants: pool.currentParticipants,
+        expectedNumber: pool.expectedNumber,
+      });
+      const tx = await contract.join({ gasLimit: 200000 });
       await tx.wait();
       await fetchPools();
       toast.success("Successfully joined the Contriboost pool!");
     } catch (error) {
       console.error("Error joining Contriboost:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to join"}`);
+      let message = error.reason || error.message || "Failed to join";
+      if (error.code === "CALL_EXCEPTION") {
+        message = `Contract call failed: ${message}`;
+      }
+      toast.error(`Error: ${message}`);
     }
   }
 
   async function contributeGoalFund(pool, amount = ethers.parseEther("0.01")) {
     if (!(await ensureCorrectNetwork(pool.chainId))) return;
+    if (pool.status !== "active" || pool.status === "achieved") {
+      toast.error("Contributions are only allowed for active, non-achieved GoalFunds");
+      return;
+    }
 
     try {
       const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
       const isNative = pool.tokenAddress === ethers.ZeroAddress;
+      console.log("Contributing to GoalFund:", {
+        contractAddress: pool.contractAddress,
+        amount: ethers.formatEther(amount),
+        tokenSymbol: pool.tokenSymbol,
+        account,
+        poolStatus: pool.status,
+      });
       const tx = isNative
-        ? await contract.contribute({ value: amount })
-        : await contract.contribute(amount);
+        ? await contract.contribute({ value: amount, gasLimit: 300000 })
+        : await contract.contribute(amount, { gasLimit: 300000 });
       await tx.wait();
       await fetchPools();
       toast.success("Contribution successful!");
     } catch (error) {
       console.error("Error contributing to GoalFund:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to contribute"}`);
+      let message = error.reason || error.message || "Failed to contribute";
+      if (error.code === "CALL_EXCEPTION") {
+        message = `Contract call failed: ${message}`;
+      }
+      toast.error(`Error: ${message}`);
     }
   }
 
   async function exitContriboost(pool) {
     if (!(await ensureCorrectNetwork(pool.chainId))) return;
+    if (!pool.userStatus.isParticipant) {
+      toast.error("You are not a participant in this pool");
+      return;
+    }
+    if (pool.status !== "not-started") {
+      toast.error("You can only exit before the pool starts");
+      return;
+    }
 
     try {
       const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+      console.log("Exiting Contriboost:", {
+        contractAddress: pool.contractAddress,
+        account,
+        poolStatus: pool.status,
+      });
       const tx = await contract.exitContriboost({ gasLimit: 200000 });
       await tx.wait();
       await fetchPools();
       toast.success("Successfully exited the Contriboost pool!");
     } catch (error) {
       console.error("Error exiting Contriboost:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to exit"}`);
+      let message = error.reason || error.message || "Failed to exit";
+      if (error.code === "CALL_EXCEPTION") {
+        message = `Contract call failed: ${message}`;
+      }
+      toast.error(`Error: ${message}`);
     }
   }
 
@@ -532,7 +588,7 @@ export default function PoolsPage() {
       {isLoading ? (
         <div className="flex justify-center items-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2">Loading pools...</span>
+          <span className="ml-2 text-lg">Fetching pools...</span>
         </div>
       ) : filteredPools.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-muted/50">
@@ -692,7 +748,73 @@ export default function PoolsPage() {
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Participants</span>
                           <span className="font-medium flex items-center">
-                            <Users className="h-3.5 w-3.5 mr-1" />
+                            <Users className="h-3#pragma once
+
+#include <string>
+#include <vector>
+
+using namespace std;
+
+class Trie {
+private:
+    struct TrieNode {
+        vector<TrieNode*> children;
+        bool isEndOfWord;
+
+        TrieNode() : children(26, nullptr), isEndOfWord(false) {}
+        ~TrieNode() {
+            for (TrieNode* child : children) {
+                delete child;
+            }
+        }
+    };
+
+    TrieNode* root;
+
+public:
+    Trie() : root(new TrieNode()) {}
+
+    ~Trie() {
+        delete root;
+    }
+
+    void insert(const string& word) {
+        TrieNode* current = root;
+        for (char c : word) {
+            int index = c - 'a';
+            if (index < 0 || index >= 26) continue; // Skip non-lowercase letters
+            if (!current->children[index]) {
+                current->children[index] = new TrieNode();
+            }
+            current = current->children[index];
+        }
+        current->isEndOfWord = true;
+    }
+
+    bool search(const string& word) {
+        TrieNode* node = searchNode(word);
+        return node && node->isEndOfWord;
+    }
+
+    bool startsWith(const string& prefix) {
+        return searchNode(prefix) != nullptr;
+    }
+
+private:
+    TrieNode* searchNode(const string& str) {
+        TrieNode* current = root;
+        for (char c : str) {
+            int index = c - 'a';
+            if (index < 0 || index >= 26) return nullptr; // Invalid character
+            if (!current->children[index]) {
+                return nullptr;
+            }
+            current = current->children[index];
+        }
+        return current;
+    }
+};
+.5 w-3.5 mr-1" />
                             {pool.currentParticipants}/{pool.expectedNumber}
                           </span>
                         </div>
@@ -764,7 +886,7 @@ export default function PoolsPage() {
                     </Button>
                   )}
                   <Button variant="outline" className="flex-1" asChild>
-                    <Link href={`/pools/details/${pool.contractAddress}?network=${pool.network}`}>
+                    <Link href={`/pools/details/${encodeURIComponent(pool.contractAddress)}?network=${pool.network}`}>
                       View Details
                     </Link>
                   </Button>

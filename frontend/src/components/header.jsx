@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -21,12 +29,12 @@ import "react-toastify/dist/ReactToastify.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Header() {
-  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting, balance } = useWeb3();
+  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, switchNetwork, isConnecting, balance } = useWeb3();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
-  const [authState, setAuthState] = useState(null); // null, "email_verify", "phone_verify"
+  const [authState, setAuthState] = useState(null);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
@@ -36,6 +44,31 @@ export default function Header() {
     { name: "Contriboost Pools", href: "/pools" },
     { name: "My Account", href: "/account" },
   ];
+
+  const SUPPORTED_CHAINS = {
+    4202: {
+      chainId: "0x106A",
+      chainName: "Lisk Sepolia",
+      rpcUrls: ["https://rpc.sepolia-api.lisk.com"],
+      nativeCurrency: {
+        name: "Lisk",
+        symbol: "LSK",
+        decimals: 18,
+      },
+      blockExplorerUrls: ["https://sepolia-blockscout.lisk.com"],
+    },
+    // 44787: {
+    //   chainId: "0xAEF3",
+    //   chainName: "Celo Alfajores",
+    //   rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
+    //   nativeCurrency: {
+    //     name: "Celo",
+    //     symbol: "CELO",
+    //     decimals: 18,
+    //   },
+    //   blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
+    // },
+  };
 
   const isActive = (path) => path === pathname;
 
@@ -48,8 +81,8 @@ export default function Header() {
     switch (chainId) {
       case 4202:
         return "Lisk Sepolia";
-      case 44787:
-        return "Celo Alfajores";
+      // case 44787:
+      //   return "Celo Alfajores";
       default:
         return `Unknown Chain (${chainId || "Not Connected"})`;
     }
@@ -71,6 +104,10 @@ export default function Header() {
         await connect();
         setIsConnectDialogOpen(false);
       } else {
+        if (chainId === 44787) {
+          toast.error("Smart Wallet is not supported on current chain. Please switch to Lisk Sepolia or use MetaMask.");
+          return;
+        }
         if (connectorId === "phone") {
           const error = validatePhoneNumber(options.phoneNumber);
           if (error) {
@@ -92,18 +129,16 @@ export default function Header() {
         }
       }
     } catch (error) {
-      let message = error.message;
-      if (message.includes("Failed to fetch")) {
-        message = "Network error: Unable to reach authentication server. Please check your connection.";
-      } else if (message.includes("pop-up")) {
-        message = "Unable to open authentication popup. Please allow popups for this site.";
-      }
-      toast.error(`Failed to connect: ${message}`);
+      toast.error(`Failed to connect: ${error.message}`);
     }
   };
 
   const handleVerification = async () => {
     try {
+      if (chainId === 44787) {
+        toast.error("Smart Wallet is not supported on current chain. Please switch to Lisk Sepolia or use MetaMask.");
+        return;
+      }
       if (authState === "email_verify") {
         await connectInAppWallet("email", {
           email,
@@ -141,13 +176,13 @@ export default function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 sm:gap-6">
           <Link href="/" className="text-lg font-bold sm:text-xl lg:text-2xl">
-          <Image
-          src={"/contriboostb.png"}
-          alt="Contriboost Logo"
-          width={500}
-          height={500}
-          className="h-auto w-auto sm:h-10 lg:h-12 bg-amber-50"
-          />
+            <Image
+              src={"/contriboostb.png"}
+              alt="Contriboost Logo"
+              width={500}
+              height={500}
+              className="h-auto w-auto sm:h-10 lg:h-12 bg-amber-50"
+            />
           </Link>
           <nav className="hidden md:flex">
             <ul className="flex items-center gap-4 sm:gap-6">
@@ -170,12 +205,12 @@ export default function Header() {
         <div className="flex items-center gap-2 sm:gap-4">
           <ThemeToggle />
           {account ? (
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center w-full gap-2 sm:gap-4">
               <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="hidden text-xs sm:text-sm md:inline-flex max-w-[200px] truncate hover:bg-accent"
+                    className="hidden text-xs sm:text-sm md:inline-flex max-w-full truncate hover:bg-accent"
                   >
                     {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
                   </Button>
@@ -209,14 +244,27 @@ export default function Header() {
                       </p>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">Wallet Type</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        {walletType === "eoa" ? "MetaMask (EOA)" : "Smart Wallet (AA)"}
-                      </p>
-                    </div>
-                    <div>
                       <h3 className="text-sm font-medium">Network</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{getChainName(chainId)}</p>
+                      <Select
+                        onValueChange={(value) => switchNetwork(Number(value))}
+                        defaultValue={chainId?.toString()}
+                      >
+                        <SelectTrigger className="w-full text-xs sm:text-sm h-9 sm:h-10">
+                          <SelectValue placeholder="Select Network" />
+                        </SelectTrigger>
+                        <SelectContent className="w-[var(--radix-select-trigger-width)] max-h-[50vh] overflow-y-auto bg-[#101b31] text-white border border-gray-700 rounded-md">
+                          {Object.entries(SUPPORTED_CHAINS).map(([chainId, chain]) => (
+                            <SelectItem
+                              key={chainId}
+                              value={chainId}
+                              className="text-xs sm:text-sm px-3 py-2 hover:bg-gray-700 focus:bg-gray-700 cursor-pointer"
+                              disabled={walletType === "smart" || walletType === "eoa" && chainId === "44787"}
+                            >
+                              {chain.chainName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </DialogContent>
@@ -320,7 +368,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("google")}
-                      disabled={isConnecting}
+                      disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -339,7 +387,7 @@ export default function Header() {
                             />
                             <path
                               fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3 guida.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                             />
                           </svg>
                         </div>
@@ -353,7 +401,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("email", { email })}
-                      disabled={isConnecting || !email}
+                      disabled={isConnecting || !email || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -376,7 +424,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("phone", { phoneNumber: phone })}
-                      disabled={isConnecting || !phone || !!phoneError}
+                      disabled={isConnecting || !phone || !!phoneError || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -403,145 +451,146 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("passkey")}
-                      disabled={isConnecting}
+                      disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
-                          <Key className="h-5 w-5 sm:h-6 sm:w-6" />
+                        <div className="bg-primary/ Indy/10/10 sm:gap-4">
+                          <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
+                            <Key className="h-5 w-5 sm:h-6 sm:w-6" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-medium">Passkey</h3>
+                            <p className="text-xs text-muted-foreground">Sign in with passkey (Gasless)</p>
+                          </div>
                         </div>
-                        <div className="text-left">
-                          <h3 className="font-medium">Passkey</h3>
-                          <p className="text-xs text-muted-foreground">Sign in with passkey (Gasless)</p>
                         </div>
-                      </div>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
-                      onClick={() => handleConnect("guest")}
-                      disabled={isConnecting}
-                    >
-                      <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
-                          <User className="h-5 w-5 sm:h-6 sm:w-6" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
+                        onClick={() => handleConnect("guest")}
+                        disabled={isConnecting || chainId === 44787}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-4">
+                          <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
+                            <User className="h-5 w-5 sm:h-6 sm:w-6" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-medium">Guest</h3>
+                            <p className="text-xs text-muted-foreground">Connect as a guest (Gasless)</p>
+                          </div>
                         </div>
-                        <div className="text-left">
-                          <h3 className="font-medium">Guest</h3>
-                          <p className="text-xs text-muted-foreground">Connect as a guest (Gasless)</p>
-                        </div>
-                      </div>
-                    </Button>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
-          )}
-          <button
-            onClick={toggleMobileMenu}
-            className="ml-2 rounded-md p-2 text-muted-foreground hover:bg-accent md:hidden transition-colors"
-            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="transition-transform duration-200"
-            >
-              {isMobileMenuOpen ? (
-                <path d="M18 6 6 18M6 6l12 12" />
-              ) : (
-                <path d="M3 12h18M3 6h18M3 18h18" />
-              )}
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 bg-background/95 backdrop-blur-sm z-40 transition-opacity duration-300">
-          <div className="container mx-auto px-4 py-4 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <Link href="/" className="text-lg font-bold sm:text-xl">
-              <Image
-                  src="/contriboostb.png"
-                  alt="Contriboost Logo"
-                  width={100}
-                  height={100}
-                  className="h-auto w-auto sm:h-10 bg-amber-50"
-                />
-              </Link>
-              <button
-                onClick={toggleMobileMenu}
-                className="rounded-md p-2 text-muted-foreground hover:bg-accent transition-colors"
-                aria-label="Close menu"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <nav className="flex-1">
-              <ul className="flex flex-col gap-4">
-                {navLinks.map((link) => (
-                  <li key={link.name}>
-                    <Link
-                      href={link.href}
-                      className={`block p-2 text-base font-medium transition-colors hover:text-primary ${
-                        isActive(link.href) ? "text-primary" : "text-muted-foreground"
-                      }`}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
-                {account && (
-                  <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
-                    <Button
-                      variant="ghost"
-                      className="text-left w-full truncate"
-                      onClick={() => setIsWalletDialogOpen(true)}
-                    >
-                      {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
-                    </Button>
-                  </li>
-                )}
-              </ul>
-            </nav>
-            {account && (
-              <div className="mt-auto pb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={disconnect}
-                  disabled={isConnecting}
-                  className="w-full text-sm"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Disconnect
-                </Button>
-              </div>
+                      </Button>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             )}
+            <button
+              onClick={toggleMobileMenu}
+              className="ml-2 rounded-md p-2 text-muted-foreground hover:bg-accent md:hidden transition-colors"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="transition-transform duration-200"
+              >
+                {isMobileMenuOpen ? (
+                  <path d="M18 6 6 18M6 6l12 12" />
+                ) : (
+                  <path d="M3 12h18M3 6h18M3 18h18" />
+                )}
+              </svg>
+            </button>
           </div>
         </div>
-      )}
-     
-    </header>
-  );
+
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 bg-background/95 backdrop-blur-sm z-40 transition-opacity duration-300">
+            <div className="container mx-auto px-4 py-4 h-full flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <Link href="/" className="text-lg font-bold sm:text-xl">
+                  <Image
+                    src="/contriboostb.png"
+                    alt="Contriboost Logo"
+                    width={100}
+                    height={100}
+                    className="h-auto w-auto sm:h-10 bg-amber-50"
+                  />
+                </Link>
+                <button
+                  onClick={toggleMobileMenu}
+                  className="rounded-md p-2 text-muted-foreground hover:bg-accent transition-colors"
+                  aria-label="Close menu"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <nav className="flex-1">
+                <ul className="flex flex-col gap-4">
+                  {navLinks.map((link) => (
+                    <li key={link.name}>
+                      <Link
+                        href={link.href}
+                        className={`block p-2 text-base font-medium transition-colors hover:text-primary ${
+                          isActive(link.href) ? "text-primary" : "text-muted-foreground"
+                        }`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {link.name}
+                      </Link>
+                    </li>
+                  ))}
+                  {account && (
+                    <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
+                      <Button
+                        variant="ghost"
+                        className="text-left w-full truncate"
+                        onClick={() => setIsWalletDialogOpen(true)}
+                      >
+                        {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                      </Button>
+                    </li>
+                  )}
+                </ul>
+              </nav>
+              {account && (
+                <div className="mt-auto pb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={disconnect}
+                    disabled={isConnecting}
+                    className="w-full text-sm"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Disconnect
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+    );
 }

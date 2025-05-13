@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ethers } from "ethers";
+import { formatEther, parseEther, ZeroAddress } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi } from "@/lib/contractabi";
+import { createContriboost } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,24 +19,16 @@ import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-// Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4", // Placeholder; replace with Lisk Sepolia factory address
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin address
-    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
-  },
-  celo: {
-    factory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c", // Celo Alfajores Contriboost factory
-    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
-    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
+    factory: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
+    native: ZeroAddress,
   },
 };
 
-// Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 4202, // Lisk Sepolia
-  celo: 44787, // Celo Alfajores
+  lisk: 4202,
 };
 
 const formSchema = z.object({
@@ -47,7 +39,7 @@ const formSchema = z.object({
   contributionAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n;
+        return parseEther(value) > 0n;
       } catch {
         return false;
       }
@@ -68,7 +60,7 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account, connect, supportsGasEstimation, chainId, switchNetwork } = useWeb3();
+  const { signer, account, connect, chainId, switchNetwork, thirdwebClient, liskSepolia, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -84,19 +76,16 @@ export default function CreateContriboostPage() {
       paymentMethod: "0",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16), // 1 day from now
+      startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     },
   });
 
-  // Detect and validate network
   useEffect(() => {
     if (chainId) {
       if (chainId === SUPPORTED_CHAINS.lisk) {
         setSelectedNetwork("lisk");
-      } else if (chainId === SUPPORTED_CHAINS.celo) {
-        setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia or Celo Alfajores.");
+        setError("Unsupported network. Please switch to Lisk Sepolia.");
         setSelectedNetwork(null);
       }
     } else {
@@ -104,18 +93,17 @@ export default function CreateContriboostPage() {
     }
   }, [chainId]);
 
-  // Switch network if needed
-  const handleNetworkSwitch = async (network) => {
+  async function handleNetworkSwitch(network) {
     try {
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk Sepolia" : "Celo Alfajores"} network`);
+      toast.info(`Switched to Lisk Sepolia network`);
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
       toast.error("Failed to switch network");
     }
-  };
+  }
 
   async function onSubmit(values) {
     if (!account) {
@@ -126,113 +114,96 @@ export default function CreateContriboostPage() {
         return;
       }
     }
-
+  
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia or Celo Alfajores)");
+      setError("Please select a supported network (Lisk Sepolia)");
       toast.error("Unsupported network");
       return;
     }
-
+  
     setError(null);
     setIsCreating(true);
-
+  
     try {
-      const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
-      // Updated to use native token address for Celo and zero address for Lisk
+      const chain = selectedNetwork === "lisk" ? liskSepolia : null;
+      if (!chain) {
+        throw new Error("Invalid chain configuration for selected network");
+      }
+  
       const tokenAddress =
         values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
+          ? CONTRACT_ADDRESSES[selectedNetwork].usdt
           : CONTRACT_ADDRESSES[selectedNetwork].native;
-
-      const factoryContract = new ethers.Contract(factoryAddress, ContriboostFactoryAbi, signer);
+  
       const config = {
         dayRange: values.dayRange,
         expectedNumber: values.expectedNumber,
-        contributionAmount: ethers.parseEther(values.contributionAmount),
+        contributionAmount: parseEther(values.contributionAmount),
         hostFeePercentage: values.hostFeePercentage * 100,
         platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
         paymentMethod: Number(values.paymentMethod),
       };
-
-      console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
-
-      let tx;
-      if (supportsGasEstimation) {
-        const estimatedGas = await factoryContract.createContriboost.estimateGas(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
-        const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress,
-          { gasLimit }
-        );
-      } else {
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
-      }
-
-      console.log("Transaction sent:", tx.hash);
-      const receipt = await tx.wait();
-      console.log("Transaction confirmed:", receipt);
-
-      const contriboostCreatedEvent = receipt.logs.find(
-        (log) => {
-          try {
-            const parsedLog = factoryContract.interface.parseLog(log);
-            return parsedLog?.name === "ContriboostCreated";
-          } catch {
-            return false;
-          }
-        }
-      );
-
-      if (!contriboostCreatedEvent) {
-        throw new Error("Could not find ContriboostCreated event in transaction receipt");
-      }
-
-      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      const newContractAddress = parsedLog.args.contriboostAddress;
-
-      if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from ContriboostCreated event");
-      }
-
+  
+      console.log("Submitting Contriboost:", {
+        chain: JSON.stringify(chain, null, 2),
+        chainId: SUPPORTED_CHAINS[selectedNetwork],
+        config,
+        name: values.name,
+        description: values.description,
+        tokenAddress,
+        walletType,
+        account,
+      });
+  
+      const { receipt, newContractAddress } = await createContriboost({
+        client: thirdwebClient,
+        chain,
+        chainId: SUPPORTED_CHAINS[selectedNetwork],
+        config,
+        name: values.name,
+        description: values.description,
+        tokenAddress,
+        account: signer,
+        walletType,
+      });
+  
+      console.log("Transaction receipt:", {
+        transactionHash: receipt.transactionHash,
+        walletType,
+        logs: receipt.logs || "No logs available",
+        events: receipt.events || "No events available",
+      });
+  
       toast.success("Contriboost pool created successfully!");
-      setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
-      }, 500);
+      router.push(`/pools?created=true`);
     } catch (error) {
       console.error("Error creating Contriboost:", error);
-      let message = "Transaction failed. Please try again.";
-      if (error.code === 4001) {
-        message = "Transaction rejected by wallet";
-      } else if (error.code === 4100) {
-        message = "Wallet authorization needed";
-      } else if (error.code === -32603) {
-        message = "Insufficient funds for gas or contract error";
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.message.includes("ContriboostCreated event")) {
-        message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
-      } else if (error.message.includes("UNSUPPORTED_OPERATION") && error.operation === "estimateGas") {
-        message = "Gas estimation not supported for this wallet. Please try again.";
+      let message = "Failed to create Contriboost pool. Please try again.";
+      if (error.message.includes("Failed to fetch ContriboostCreated event")) {
+        message = "Contriboost pool created successfully";
+        toast.success(message);
+        router.push(`/pools?created=true`);
+        return;
+      } else if (error.message.includes("invalid chain")) {
+        message = "Invalid chain configuration. Ensure Lisk Sepolia is selected.";
+      } else if (error.message.includes("invalid token address")) {
+        message = "Invalid token address. Please check the payment method.";
+      } else if (error.message.includes("startTimestamp")) {
+        message = "Start date must be in the future.";
+      } else if (error.message.includes("insufficient funds")) {
+        message = "Insufficient funds for gas or token approval.";
+      } else if (error.message.includes("USER_REJECTED")) {
+        message = "Transaction rejected by wallet.";
+      } else if (error.message.includes("Could not find ContriboostCreated event")) {
+        message = "Failed to parse contract creation event. Please check the transaction details.";
+      } else if (error.message.includes("UserOp failed")) {
+        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient ETH for gas.";
       }
-      setError(`Error: ${message}`);
-      toast.error(`Error: ${message}`);
+      setError(message);
+      toast.error(message);
+      router.push(`/pools?created=true`);
     } finally {
       setIsCreating(false);
     }
@@ -269,15 +240,8 @@ export default function CreateContriboostPage() {
             >
               Lisk Sepolia
             </Button>
-            <Button
-              variant={selectedNetwork === "celo" ? "default" : "outline"}
-              onClick={() => handleNetworkSwitch("celo")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
-            >
-              Celo Alfajores
-            </Button>
           </div>
-          {error && !selectedNetwork && (
+          {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
@@ -352,7 +316,6 @@ export default function CreateContriboostPage() {
                       </FormItem>
                     )}
                   />
-                
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
@@ -365,7 +328,8 @@ export default function CreateContriboostPage() {
                           <Input placeholder="0.1" {...field} />
                         </FormControl>
                         <FormDescription>
-                          Amount each participant contributes per cycle (in {selectedNetwork === "lisk" ? "ETH or USDT" : "CELO or cUSD"})
+                          Amount each participant contributes per cycle (in{" "}
+                          {selectedNetwork === "lisk" ? "ETH or USDT" : "CELO or cUSD"})
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -387,13 +351,17 @@ export default function CreateContriboostPage() {
                               <FormControl>
                                 <RadioGroupItem value="0" />
                               </FormControl>
-                              <FormLabel className="font-normal">{selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO"}</FormLabel>
+                              <FormLabel className="font-normal">
+                                {selectedNetwork === "lisk" ? "Ether (ETH)" : "Celo (CELO)"}
+                              </FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
                                 <RadioGroupItem value="1" />
                               </FormControl>
-                              <FormLabel className="font-normal">{selectedNetwork === "lisk" ? "USDT" : "cUSD"}</FormLabel>
+                              <FormLabel className="font-normal">
+                                {selectedNetwork === "lisk" ? "USDT" : "cUSD"}
+                              </FormLabel>
                             </FormItem>
                           </RadioGroup>
                         </FormControl>
@@ -458,7 +426,7 @@ export default function CreateContriboostPage() {
                         <Input
                           type="datetime-local"
                           {...field}
-                          min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                          min={new Date().toISOString().slice(0, 16)}
                         />
                       </FormControl>
                       <FormDescription>When the first cycle will begin</FormDescription>

@@ -885,13 +885,17 @@ export default function PoolDetailsPage() {
         abi: GoalFundAbi,
       });
   
-      const amount = ethers.parseEther(contributeAmount);
+      const decimals = poolDetails.tokenAddress === ethers.ZeroAddress ? 18 : 6; // ETH: 18, USDT: 6
+      const amount = ethers.parseUnits(contributeAmount, decimals);
   
       console.log("Contributing to GoalFund:", {
         contractAddress,
-        amount: contributeAmount,
+        amount: amount.toString(),
+        contributeAmount,
         tokenAddress: poolDetails.tokenAddress,
+        tokenSymbol: poolDetails.tokenSymbol,
         user: account,
+        walletType,
       });
   
       // Check balance and allowance
@@ -907,7 +911,7 @@ export default function PoolDetailsPage() {
         const tokenBalance = await tokenContract.balanceOf(account);
         if (BigInt(tokenBalance) < amount) {
           throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
+            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatUnits(tokenBalance, decimals)} available`
           );
         }
   
@@ -934,13 +938,20 @@ export default function PoolDetailsPage() {
         }
       }
   
-      // Prepare transaction based on payment type
+      // Prepare transaction with amount parameter
       const transaction = await prepareContractCall({
         contract,
         method: "contribute",
-        params: poolDetails.tokenAddress === ethers.ZeroAddress ? [] : [amount],
+        params: [amount],
         value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
         gas: 300000n,
+      });
+  
+      console.log("Prepared transaction:", {
+        method: transaction.method,
+        params: transaction.params,
+        value: transaction.value?.toString(),
+        gas: transaction.gas?.toString(),
       });
   
       let receipt;
@@ -977,19 +988,18 @@ export default function PoolDetailsPage() {
         message = "Insufficient funds for contribution and gas fees";
       } else if (error.message?.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
         message = error.message;
-      } else if (error.message?.includes("invalid BigNumberish value")) {
-        message = "Contract call failed: Invalid transaction parameters";
+      } else if (error.message?.includes("The number of parameters and values must match")) {
+        message = "Contract call failed: Invalid number of parameters";
       } else if (error.reason) {
         message = error.reason;
       } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check fund status or deadline";
+        message = "Contract call failed: Check fund status, deadline, or amount";
       }
       toast.error(`Error: ${message}`);
     } finally {
       setIsProcessing(false);
     }
   }
-
   async function withdrawGoalFund() {
     if (!(await ensureCorrectNetwork())) return;
     if (!userStatus?.isBeneficiary && !userStatus?.isOwner) {

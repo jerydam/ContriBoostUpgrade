@@ -17,12 +17,6 @@ const CONTRACT_ADDRESSES = {
     usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
     native: ZeroAddress,
   },
-  44787: {
-    factoryContriboost: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    factoryGoalFund: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
-    native: ZeroAddress,
-  },
 };
 
 export async function createContriboost({ client, chain, chainId, config, name, description, tokenAddress, account, walletType }) {

@@ -106,7 +106,7 @@ contract GoalFund is ReentrancyGuard, Ownable() {
         _;
     }
 
-    function _contribute(address contributor, uint amount) internal {
+  function _contribute(address contributor, uint256 amount) internal {
         if (contributions[contributor] == 0) {
             contributors.push(contributor);
         }
@@ -121,18 +121,21 @@ contract GoalFund is ReentrancyGuard, Ownable() {
         }
     }
 
-    function contribute() external payable nonReentrant onlyBeforeDeadline {
-        uint amount;
+    function contribute(uint256 amount) external payable nonReentrant onlyBeforeDeadline {
+        require(amount > 0, "Contribution amount must be greater than zero");
+
         if (paymentMethod == PaymentMethod.Ether) {
-            require(msg.value > 0, "Must send Ether");
-            amount = msg.value;
+            require(msg.value == amount, "Sent Ether must equal specified amount");
+            _contribute(msg.sender, amount);
         } else {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
-            amount = getTokenContribution();
+            require(token.allowance(msg.sender, address(this)) >= amount, "Insufficient token allowance");
+            require(token.balanceOf(msg.sender) >= amount, "Insufficient token balance");
+            bool success = token.transferFrom(msg.sender, address(this), amount);
+            require(success, "Token transfer failed");
+            _contribute(msg.sender, amount);
         }
-        _contribute(msg.sender, amount);
     }
-
     function getTokenContribution() internal returns (uint) {
         uint allowance = token.allowance(msg.sender, address(this));
         uint balance = token.balanceOf(msg.sender);

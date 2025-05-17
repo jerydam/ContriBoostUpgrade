@@ -6,7 +6,6 @@ import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "./goalFund.sol";
 
-
 contract GoalFundFactory is ReentrancyGuard, Ownable {
     address[] public allGoalFunds;
     mapping(address => address[]) public userGoalFunds;

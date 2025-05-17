@@ -1,4 +1,4 @@
-import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
+import { getContract, prepareContractCall, sendTransaction, readContract, waitForReceipt } from "thirdweb";
 import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
 import { isAddress, ZeroAddress } from "ethers";
 
@@ -25,31 +25,23 @@ export async function createContriboost({ client, chain, chainId, config, name, 
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    if (walletType === "smart" && chainId === 44787) {
-      throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
-    }
-
     if (!isAddress(tokenAddress)) {
       throw new Error(`Invalid token address: ${tokenAddress}`);
     }
 
-    const { paymentMethod } = config;
+    const { paymentMethod, dayRange, expectedNumber, contributionAmount, hostFeePercentage, platformFeePercentage, maxMissedDeposits, startTimestamp } = config;
     if (paymentMethod === 0 && tokenAddress !== ZeroAddress) {
       throw new Error("Token address must be ZeroAddress for native payment (paymentMethod: 0)");
     }
     if (paymentMethod === 1 && tokenAddress === ZeroAddress) {
       throw new Error("Token address must be a valid ERC-20 address for token payment (paymentMethod: 1)");
     }
-
     if (!name || typeof name !== "string" || name.length < 3) {
       throw new Error("Name must be a string with at least 3 characters");
     }
-
     if (!description || typeof description !== "string" || description.length < 10) {
       throw new Error("Description must be a string with at least 10 characters");
     }
-
-    const { dayRange, expectedNumber, contributionAmount, hostFeePercentage, platformFeePercentage, maxMissedDeposits, startTimestamp } = config;
     if (!Number.isInteger(dayRange) || dayRange < 1) {
       throw new Error("dayRange must be an integer >= 1");
     }
@@ -75,7 +67,15 @@ export async function createContriboost({ client, chain, chainId, config, name, 
       throw new Error("paymentMethod must be 0 (native) or 1 (token)");
     }
 
-    console.log("createContriboost inputs:", { chainId, config, name, description, tokenAddress, walletType });
+    console.log("createContriboost inputs:", {
+      chainId,
+      config: JSON.stringify(config, bigintReplacer, 2),
+      name,
+      description,
+      tokenAddress,
+      walletType,
+      account,
+    });
 
     const contract = getContract({
       client,
@@ -88,49 +88,79 @@ export async function createContriboost({ client, chain, chainId, config, name, 
       contract,
       method: "createContriboost",
       params: [config, name, description, tokenAddress],
+      gasless: walletType === "smart" ? { enable: true } : undefined, // Explicitly enable gasless for smart wallets
     });
 
     let receipt;
     let transactionHash;
     try {
-      receipt = await sendTransaction({
+      console.log("Sending transaction with account:", account.address);
+      const result = await sendTransaction({
         transaction,
         account,
       });
-      transactionHash = receipt.transactionHash;
+      transactionHash = result.transactionHash;
+      console.log("Transaction sent, waiting for receipt:", transactionHash);
+      
+      // Wait for the transaction to be mined
+      receipt = await waitForReceipt({
+        client,
+        chain,
+        transactionHash,
+      });
     } catch (sendError) {
-      console.error("Error sending transaction:", sendError.message, sendError);
+      console.error("Error sending transaction:", sendError.message, sendError.stack);
       if (walletType === "smart" && sendError.message.includes("eth_sendUserOperation")) {
         console.warn("UserOp failed, attempting to recover transaction receipt...");
         if (sendError.transactionHash) {
           transactionHash = sendError.transactionHash;
-          receipt = await client.getTransactionReceipt({ hash: transactionHash });
-          console.log("Recovered receipt:", JSON.stringify(receipt, bigintReplacer, 2));
+          try {
+            receipt = await waitForReceipt({
+              client,
+              chain,
+              transactionHash,
+            });
+            console.log("Recovered receipt:", JSON.stringify(receipt, bigintReplacer, 2));
+          } catch (recoveryError) {
+            throw new Error(`Failed to recover UserOp receipt: ${recoveryError.message}`);
+          }
         } else {
-          throw new Error(`UserOp failed: ${sendError.message}`);
+          throw new Error(`UserOp failed: ${sendError.message}. Check Biconomy paymaster funding and configuration.`);
         }
+      } else if (sendError.message.includes("paymaster")) {
+        throw new Error(`Paymaster error: ${sendError.message}. Ensure Biconomy paymaster is funded and policies are correctly set.`);
       } else {
-        throw sendError;
+        throw new Error(`Transaction failed: ${sendError.message}`);
       }
     }
 
     console.log("createContriboost receipt:", {
       transactionHash,
       walletType,
+      status: receipt.status,
       logs: receipt.logs || "No logs available",
-      events: receipt.events || "No events available",
       rawReceipt: JSON.stringify(receipt, bigintReplacer, 2),
     });
 
+    // Check if transaction was successful
+    if (receipt.status !== "success") {
+      const error = new Error("Transaction reverted. Check contract parameters or paymaster settings.");
+      error.receipt = receipt;
+      error.transactionHash = transactionHash;
+      throw error;
+    }
+
+    // Parse ContriboostCreated event
     let event;
-    if (walletType === "eoa" || walletType === "smart") {
+    try {
       if (receipt.logs && Array.isArray(receipt.logs)) {
-        event = receipt.logs.find((log) => log.eventName === "ContriboostCreated");
-      } else if (receipt.events && Array.isArray(receipt.events)) {
-        event = receipt.events.find((e) => e.eventName === "ContriboostCreated");
+        event = receipt.logs.find((log) => log.topics[0] === contract.interface.getEventTopic("ContriboostCreated"));
+        if (event) {
+          event = contract.interface.parseLog(event);
+        }
       }
-    } else {
-      throw new Error(`Unsupported walletType: ${walletType}`);
+    } catch (parseError) {
+      console.warn("Failed to parse logs directly:", parseError.message);
     }
 
     if (!event) {
@@ -143,15 +173,15 @@ export async function createContriboost({ client, chain, chainId, config, name, 
         });
         event = events.find((e) => e.transactionHash === transactionHash);
         if (!event) {
-          console.error("ContriboostCreated event not found in contract events:", events);
+          console.error("ContriboostCreated event not found in contract events:", JSON.stringify(events, bigintReplacer, 2));
           const error = new Error("Could not find ContriboostCreated event in transaction receipt or contract events");
           error.receipt = receipt;
           error.transactionHash = transactionHash;
           throw error;
         }
       } catch (fetchError) {
-        console.error("Failed to fetch events from contract:", fetchError);
-        const error = new Error("Failed to fetch ContriboostCreated event: " + fetchError.message);
+        console.error("Failed to fetch events from contract:", fetchError.message);
+        const error = new Error(`Failed to fetch ContriboostCreated event: ${fetchError.message}`);
         error.receipt = receipt;
         error.transactionHash = transactionHash;
         throw error;
@@ -159,7 +189,7 @@ export async function createContriboost({ client, chain, chainId, config, name, 
     }
 
     if (!event.args || !event.args.contriboostAddress) {
-      console.error("ContriboostCreated event missing args:", event);
+      console.error("ContriboostCreated event missing args:", JSON.stringify(event, bigintReplacer, 2));
       const error = new Error("ContriboostCreated event missing contriboostAddress");
       error.receipt = receipt;
       error.transactionHash = transactionHash;
@@ -174,7 +204,8 @@ export async function createContriboost({ client, chain, chainId, config, name, 
       throw error;
     }
 
-    return { receipt, newContractAddress };
+    console.log("Contriboost created successfully:", { newContractAddress, transactionHash });
+    return { receipt, newContractAddress, transactionHash };
   } catch (error) {
     console.error("Error in createContriboost:", error.message, error.stack);
     const wrappedError = new Error(`Failed to create Contriboost: ${error.message}`);
@@ -202,10 +233,6 @@ export async function createGoalFund({
   try {
     if (!CONTRACT_ADDRESSES[chainId]) {
       throw new Error(`Unsupported chain ID: ${chainId}`);
-    }
-
-    if (walletType === "smart" && chainId === 44787) {
-      throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
     }
 
     if (!isAddress(beneficiary)) {
@@ -258,6 +285,7 @@ export async function createGoalFund({
       tokenAddress,
       fundType,
       walletType,
+      account,
     });
 
     const contract = getContract({
@@ -280,49 +308,79 @@ export async function createGoalFund({
         tokenAddress,
         fundType,
       ],
+      gasless: walletType === "smart" ? { enable: true } : undefined, // Explicitly enable gasless for smart wallets
     });
 
     let receipt;
     let transactionHash;
     try {
-      receipt = await sendTransaction({
+      console.log("Sending transaction with account:", account.address);
+      const result = await sendTransaction({
         transaction,
         account,
       });
-      transactionHash = receipt.transactionHash;
+      transactionHash = result.transactionHash;
+      console.log("Transaction sent, waiting for receipt:", transactionHash);
+      
+      // Wait for the transaction to be mined
+      receipt = await waitForReceipt({
+        client,
+        chain,
+        transactionHash,
+      });
     } catch (sendError) {
-      console.error("Error sending transaction:", sendError.message, sendError);
+      console.error("Error sending transaction:", sendError.message, sendError.stack);
       if (walletType === "smart" && sendError.message.includes("eth_sendUserOperation")) {
         console.warn("UserOp failed, attempting to recover transaction receipt...");
         if (sendError.transactionHash) {
           transactionHash = sendError.transactionHash;
-          receipt = await client.getTransactionReceipt({ hash: transactionHash });
-          console.log("Recovered receipt:", JSON.stringify(receipt, bigintReplacer, 2));
+          try {
+            receipt = await waitForReceipt({
+              client,
+              chain,
+              transactionHash,
+            });
+            console.log("Recovered receipt:", JSON.stringify(receipt, bigintReplacer, 2));
+          } catch (recoveryError) {
+            throw new Error(`Failed to recover UserOp receipt: ${recoveryError.message}`);
+          }
         } else {
-          throw new Error(`UserOp failed: ${sendError.message}`);
+          throw new Error(`UserOp failed: ${sendError.message}. Check Biconomy paymaster funding and configuration.`);
         }
+      } else if (sendError.message.includes("paymaster")) {
+        throw new Error(`Paymaster error: ${sendError.message}. Ensure Biconomy paymaster is funded and policies are correctly set.`);
       } else {
-        throw sendError;
+        throw new Error(`Transaction failed: ${sendError.message}`);
       }
     }
 
     console.log("createGoalFund receipt:", {
       transactionHash,
       walletType,
+      status: receipt.status,
       logs: receipt.logs || "No logs available",
-      events: receipt.events || "No events available",
       rawReceipt: JSON.stringify(receipt, bigintReplacer, 2),
     });
 
+    // Check if transaction was successful
+    if (receipt.status !== "success") {
+      const error = new Error("Transaction reverted. Check contract parameters or paymaster settings.");
+      error.receipt = receipt;
+      error.transactionHash = transactionHash;
+      throw error;
+    }
+
+    // Parse GoalFundCreated event
     let event;
-    if (walletType === "eoa" || walletType === "smart") {
+    try {
       if (receipt.logs && Array.isArray(receipt.logs)) {
-        event = receipt.logs.find((log) => log.eventName === "GoalFundCreated");
-      } else if (receipt.events && Array.isArray(receipt.events)) {
-        event = receipt.events.find((e) => e.eventName === "GoalFundCreated");
+        event = receipt.logs.find((log) => log.topics[0] === contract.interface.getEventTopic("GoalFundCreated"));
+        if (event) {
+          event = contract.interface.parseLog(event);
+        }
       }
-    } else {
-      throw new Error(`Unsupported walletType: ${walletType}`);
+    } catch (parseError) {
+      console.warn("Failed to parse logs directly:", parseError.message);
     }
 
     if (!event) {
@@ -335,15 +393,15 @@ export async function createGoalFund({
         });
         event = events.find((e) => e.transactionHash === transactionHash);
         if (!event) {
-          console.error("GoalFundCreated event not found in contract events:", events);
+          console.error("GoalFundCreated event not found in contract events:", JSON.stringify(events, bigintReplacer, 2));
           const error = new Error("Could not find GoalFundCreated event in transaction receipt or contract events");
           error.receipt = receipt;
           error.transactionHash = transactionHash;
           throw error;
         }
       } catch (fetchError) {
-        console.error("Failed to fetch events from contract:", fetchError);
-        const error = new Error("Failed to fetch GoalFundCreated event: " + fetchError.message);
+        console.error("Failed to fetch events from contract:", fetchError.message);
+        const error = new Error(`Failed to fetch GoalFundCreated event: ${fetchError.message}`);
         error.receipt = receipt;
         error.transactionHash = transactionHash;
         throw error;
@@ -351,7 +409,7 @@ export async function createGoalFund({
     }
 
     if (!event.args || !event.args.goalFundAddress) {
-      console.error("GoalFundCreated event missing args:", event);
+      console.error("GoalFundCreated event missing args:", JSON.stringify(event, bigintReplacer, 2));
       const error = new Error("GoalFundCreated event missing goalFundAddress");
       error.receipt = receipt;
       error.transactionHash = transactionHash;
@@ -366,7 +424,8 @@ export async function createGoalFund({
       throw error;
     }
 
-    return { receipt, newContractAddress };
+    console.log("GoalFund created successfully:", { newContractAddress, transactionHash });
+    return { receipt, newContractAddress, transactionHash };
   } catch (error) {
     console.error("Error in createGoalFund:", error.message, error.stack);
     const wrappedError = new Error(`Failed to create GoalFund: ${error.message}`);
@@ -375,4 +434,3 @@ export async function createGoalFund({
     throw wrappedError;
   }
 }
-

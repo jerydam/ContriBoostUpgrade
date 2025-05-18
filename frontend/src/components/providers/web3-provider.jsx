@@ -8,19 +8,17 @@ import { debounce } from "lodash";
 import { toast } from "react-toastify";
 import { SUPPORTED_CHAINS } from "@/utils/config";
 
-// Thirdweb client with Biconomy gasless configuration
 const thirdwebClient = createThirdwebClient({
   clientId: "b81c12c8d9ae57479a26c52be1d198eb",
   // Add Biconomy gasless configuration
   gasless: {
     biconomy: {
-      apiKey: "UbGM93GXD.5c8c0042-2058-40d4-a819-42d03de6a37c", // Replace with your Biconomy API key
-      apiId: "195e5b4a-a001-4d8b-8931-1eefb5c93f1f",   // Replace with your Biconomy API ID
-      url: `https://paymaster.biconomy.io/api/v1/4202/${apiKey}`, // Lisk Sepolia paymaster URL
+      apiKey: process.env.API_KEY, // Replace with your Biconomy API key
+      apiId: process.env.API_ID,   // Replace with your Biconomy API ID
+      url: `https://paymaster.biconomy.io/api/v1/4202/${process.env.API_KEY}`, // Lisk Sepolia paymaster URL
     },
   },
 });
-
 // Define custom chains
 const liskSepolia = defineChain({
   id: 4202,
@@ -30,6 +28,15 @@ const liskSepolia = defineChain({
   blockExplorers: [{ name: "Lisk Explorer", url: "https://sepolia-blockscout.lisk.com" }],
   testnet: true,
 });
+
+// const celoAlfajores = defineChain({
+//   id: 44787,
+//   name: "Celo Alfajores Testnet",
+//   nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+//   rpc: ["https://alfajores-forno.celo-testnet.org"],
+//   blockExplorers: [{ name: "Celo Explorer", url: "https://alfajores-blockscout.celo-testnet.org" }],
+//   testnet: true,
+// });
 
 // Custom storage with security warning
 const myStorage = {
@@ -61,8 +68,8 @@ const Web3Context = createContext({
   switchNetwork: async () => { throw new Error("switchNetwork not implemented"); },
   thirdwebClient: null,
   liskSepolia: null,
+  // celoAlfajores: null,
 });
-
 export function Web3Provider({ children }) {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -80,11 +87,13 @@ export function Web3Provider({ children }) {
   // Map chain IDs to Thirdweb chain configurations
   const chainConfigs = {
     4202: liskSepolia,
+    // 44787: celoAlfajores,
   };
 
   // Map chain IDs to ethers provider RPC URLs
   const rpcUrls = {
     4202: "https://rpc.sepolia-api.lisk.com",
+    // 44787: "https://alfajores-forno.celo-testnet.org",
   };
 
   // Retry logic for network requests
@@ -113,7 +122,7 @@ export function Web3Provider({ children }) {
       if (currentBlock !== lastBlockNumber) {
         const balanceWei = await providerInstance.getBalance(accountAddress);
         const balanceEther = ethers.formatEther(balanceWei);
-        const symbol = "ETH"; // Lisk Sepolia uses ETH
+        const symbol = chainId === 44787 ? "CELO" : "ETH";
         setBalance(`${parseFloat(balanceEther).toFixed(4)} ${symbol}`);
         setLastBlockNumber(currentBlock);
       }
@@ -123,14 +132,13 @@ export function Web3Provider({ children }) {
     }
   }, 1000);
 
-  // Initialize inAppWallet for Lisk Sepolia with Biconomy
+  // Initialize inAppWallet for Lisk Sepolia only
   useEffect(() => {
     const newWallet = inAppWallet({
       smartAccount: {
-        chain: liskSepolia,
-        sponsorGas: true, // Enable gasless transactions
-        // Optional: Specify Biconomy-specific options if needed
-        factoryAddress: "0x<your-custom-factory-address>", // Replace with your custom factory address if using one
+        chain: liskSepolia, // Always use Lisk Sepolia for Smart Wallet
+        sponsorGas: true,
+        factoryAddress: "0x08961E32D1D33F8aBE115Af988401De5dC81d93b",
       },
       auth: {
         mode: "popup",
@@ -138,7 +146,7 @@ export function Web3Provider({ children }) {
         defaultSmsCountryCode: "+1",
         passkeyDomain: typeof window !== "undefined" ? window.location.hostname : "localhost",
       },
-      hidePrivateKeyExport: true,
+      hidePrivateKeyExport: false,
       metadata: {
         image: {
           src: "favicon.png",
@@ -161,7 +169,7 @@ export function Web3Provider({ children }) {
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
-          chain: liskSepolia,
+          chain: liskSepolia, // Always Lisk Sepolia for Smart Wallet
           strategy,
         })
       );
@@ -170,7 +178,7 @@ export function Web3Provider({ children }) {
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(4202); // Lisk Sepolia
       setWalletType("smart");
       await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
     } catch (error) {
@@ -180,7 +188,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error(`Error connecting with ${strategy}:`, error.message, error.stack);
       setConnectionError(message);
@@ -228,7 +236,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error("Error connecting with email:", error.message, error.stack);
       setConnectionError(message);
@@ -276,7 +284,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error("Error connecting with phone:", error.message, error.stack);
       setConnectionError(message);
@@ -324,7 +332,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error("Error connecting with passkey:", error.message, error.stack);
       setConnectionError(message);
@@ -360,7 +368,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error("Error connecting as guest:", error.message, error.stack);
       setConnectionError(message);
@@ -398,7 +406,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Ensure paymaster is funded.`;
+        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
       }
       console.error("Error connecting with SIWE:", error.message, error.stack);
       setConnectionError(message);
@@ -521,8 +529,8 @@ export function Web3Provider({ children }) {
     setConnectionError(null);
 
     try {
-      if (walletType === "smart" && targetChainId !== 4202) {
-        throw new Error("Smart Wallet is only supported on Lisk Sepolia for now.");
+      if (walletType === "smart" && targetChainId === 44787) {
+        throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
       }
 
       if (walletType === "eoa" && typeof window !== "undefined" && window.ethereum) {
@@ -645,7 +653,7 @@ export function Web3Provider({ children }) {
         }
       } else {
         disconnect();
-        toast.error("Unsupported network detected. Please switch to Lisk Sepolia.");
+        toast.error("Unsupported network detected. Please switch to Lisk Sepolia or Celo Alfajores.");
       }
     };
 
@@ -712,6 +720,7 @@ export function Web3Provider({ children }) {
         switchNetwork,
         thirdwebClient,
         liskSepolia,
+        // celoAlfajores,
       }}
     >
       {children}

@@ -6,39 +6,27 @@ import { inAppWallet, preAuthenticate, authenticate, createWallet } from "thirdw
 import { createThirdwebClient, defineChain } from "thirdweb";
 import { debounce } from "lodash";
 import { toast } from "react-toastify";
-import { SUPPORTED_CHAINS } from "@/utils/config";
 
 const thirdwebClient = createThirdwebClient({
-  clientId: "b81c12c8d9ae57479a26c52be1d198eb",
-  // Add Biconomy gasless configuration
+  clientId: "6e1030a6daf38282ebfbe2b7e42ee6a6",
   gasless: {
     biconomy: {
-      apiKey: process.env.API_KEY, // Replace with your Biconomy API key
-      apiId: process.env.API_ID,   // Replace with your Biconomy API ID
-      url: `https://paymaster.biconomy.io/api/v1/4202/${process.env.API_KEY}`, // Lisk Sepolia paymaster URL
+      apiKey: process.env.API_KEY,
+      apiId: process.env.API_ID,
+      url: `https://paymaster.biconomy.io/api/v1/44787/${process.env.API_KEY}`,
     },
   },
 });
-// Define custom chains
-const liskSepolia = defineChain({
-  id: 4202,
-  name: "Lisk Sepolia Testnet",
-  nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
-  rpc: ["https://rpc.sepolia-api.lisk.com"],
-  blockExplorers: [{ name: "Lisk Explorer", url: "https://sepolia-blockscout.lisk.com" }],
+
+const celoAlfajores = defineChain({
+  id: 44787,
+  name: "Celo Alfajores Testnet",
+  nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+  rpc: ["https://alfajores-forno.celo-testnet.org"],
+  blockExplorers: [{ name: "Celo Explorer", url: "https://alfajores-blockscout.celo-testnet.org" }],
   testnet: true,
 });
 
-// const celoAlfajores = defineChain({
-//   id: 44787,
-//   name: "Celo Alfajores Testnet",
-//   nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
-//   rpc: ["https://alfajores-forno.celo-testnet.org"],
-//   blockExplorers: [{ name: "Celo Explorer", url: "https://alfajores-blockscout.celo-testnet.org" }],
-//   testnet: true,
-// });
-
-// Custom storage with security warning
 const myStorage = {
   getItem: async (key) => {
     console.warn("Using localStorage for wallet data. Ensure this is secure for your use case.");
@@ -67,9 +55,9 @@ const Web3Context = createContext({
   isInitialized: false,
   switchNetwork: async () => { throw new Error("switchNetwork not implemented"); },
   thirdwebClient: null,
-  liskSepolia: null,
-  // celoAlfajores: null,
+  celoAlfajores: null,
 });
+
 export function Web3Provider({ children }) {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -84,20 +72,15 @@ export function Web3Provider({ children }) {
   const [connectionStrategy, setConnectionStrategy] = useState(null);
   const [wallet, setWallet] = useState(null);
 
-  // Map chain IDs to Thirdweb chain configurations
   const chainConfigs = {
-    4202: liskSepolia,
-    // 44787: celoAlfajores,
+    44787: celoAlfajores,
   };
 
-  // Map chain IDs to ethers provider RPC URLs
   const rpcUrls = {
-    4202: "https://rpc.sepolia-api.lisk.com",
-    // 44787: "https://alfajores-forno.celo-testnet.org",
+    44787: "https://alfajores-forno.celo-testnet.org",
   };
 
-  // Retry logic for network requests
-  async function withRetry(fn, maxRetries = 3, delay = 1000) {
+  async function withRetry(fn, maxRetries = 2, delay = 1000) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await fn();
@@ -111,7 +94,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Debounced balance fetching
   const debouncedFetchBalance = debounce(async (accountAddress, providerInstance, chainId) => {
     if (!accountAddress || !providerInstance) {
       setBalance(null);
@@ -122,8 +104,7 @@ export function Web3Provider({ children }) {
       if (currentBlock !== lastBlockNumber) {
         const balanceWei = await providerInstance.getBalance(accountAddress);
         const balanceEther = ethers.formatEther(balanceWei);
-        const symbol = chainId === 44787 ? "CELO" : "ETH";
-        setBalance(`${parseFloat(balanceEther).toFixed(4)} ${symbol}`);
+        setBalance(`${parseFloat(balanceEther).toFixed(4)} CELO`);
         setLastBlockNumber(currentBlock);
       }
     } catch (error) {
@@ -132,13 +113,12 @@ export function Web3Provider({ children }) {
     }
   }, 1000);
 
-  // Initialize inAppWallet for Lisk Sepolia only
   useEffect(() => {
     const newWallet = inAppWallet({
       smartAccount: {
-        chain: liskSepolia, // Always use Lisk Sepolia for Smart Wallet
+        chain: celoAlfajores,
         sponsorGas: true,
-        factoryAddress: "0x08961E32D1D33F8aBE115Af988401De5dC81d93b",
+        factoryAddress: "0xYOUR_FACTORY_ADDRESS_HERE",
       },
       auth: {
         mode: "popup",
@@ -160,43 +140,96 @@ export function Web3Provider({ children }) {
     setWallet(newWallet);
   }, []);
 
-  // Login with Socials (e.g., Google)
-  async function connectWithSocials(strategy) {
-    if (!wallet) {
-      throw new Error("Wallet not initialized. Please try again.");
+  async function connect() {
+    if (typeof window === "undefined" || !window.ethereum) {
+      const errorMsg = "MetaMask is not installed or not available. Please install MetaMask.";
+      setConnectionError(errorMsg);
+      toast.error(errorMsg);
+      throw new Error(errorMsg);
     }
+
+    if (!window.ethereum.isMetaMask) {
+      const errorMsg = "Detected wallet is not MetaMask. Please ensure MetaMask is active.";
+      setConnectionError(errorMsg);
+      toast.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    setIsConnecting(true);
+    setConnectionError(null);
+
     try {
-      const walletAccount = await withRetry(() =>
-        wallet.connect({
-          client: thirdwebClient,
-          chain: liskSepolia, // Always Lisk Sepolia for Smart Wallet
-          strategy,
-        })
-      );
-      const rpcUrl = liskSepolia.rpc[0];
-      const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
-      setProvider(jsonRpcProvider);
-      setSigner(walletAccount);
-      setAccount(walletAccount.address);
-      setChainId(4202); // Lisk Sepolia
-      setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
-    } catch (error) {
-      let message = error.message.includes("pop-up")
-        ? "Please allow popups for this site."
-        : error.message.includes("Failed to fetch")
-        ? "Network error. Check your internet connection."
-        : error.message;
-      if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      if (!accounts || accounts.length === 0) {
+        const errorMsg = "No accounts found. Please unlock MetaMask or connect an account.";
+        setConnectionError(errorMsg);
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
-      console.error(`Error connecting with ${strategy}:`, error.message, error.stack);
-      setConnectionError(message);
-      throw new Error(message);
+
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const network = await withRetry(() => browserProvider.getNetwork());
+      const currentChainId = Number(network.chainId);
+
+      if (currentChainId !== 44787) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${(44787).toString(16)}` }],
+          });
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: `0x${(44787).toString(16)}`,
+                    chainName: "Celo Alfajores Testnet",
+                    nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+                    rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
+                    blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
+                  },
+                ],
+              });
+            } catch (addError) {
+              const errorMsg = `Failed to add Celo Alfajores network: ${addError.message}`;
+              setConnectionError(errorMsg);
+              toast.error(errorMsg);
+              throw new Error(errorMsg);
+            }
+          } else {
+            const errorMsg = "Failed to switch to Celo Alfajores. Please switch manually in MetaMask.";
+            setConnectionError(errorMsg);
+            toast.error(errorMsg);
+            throw new Error(errorMsg);
+          }
+        }
+        const newNetwork = await browserProvider.getNetwork();
+        setChainId(Number(newNetwork.chainId));
+      } else {
+        setChainId(currentChainId);
+      }
+
+      const userSigner = await browserProvider.getSigner();
+      setProvider(browserProvider);
+      setSigner(userSigner);
+      setAccount(accounts[0]);
+      setWalletType("eoa");
+      setConnectionStrategy("metamask");
+      await debouncedFetchBalance(accounts[0], browserProvider, currentChainId);
+      toast.success("Connected to MetaMask");
+    } catch (error) {
+      console.error("Error connecting to MetaMask:", error);
+      const errorMsg = error.message || "Failed to connect to MetaMask.";
+      setConnectionError(errorMsg);
+      toast.error(errorMsg);
+      throw error;
+    } finally {
+      setIsConnecting(false);
     }
   }
 
-  // Login with Email
   async function connectWithEmail(email, verificationCode = null) {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");
@@ -215,20 +248,20 @@ export function Web3Provider({ children }) {
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
-          chain: liskSepolia,
+          chain: celoAlfajores,
           strategy: "email",
           email,
           verificationCode,
         })
       );
-      const rpcUrl = liskSepolia.rpc[0];
+      const rpcUrl = celoAlfajores.rpc[0];
       const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(44787);
       setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
     } catch (error) {
       let message = error.message.includes("pop-up")
         ? "Please allow popups for this site."
@@ -236,7 +269,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
       }
       console.error("Error connecting with email:", error.message, error.stack);
       setConnectionError(message);
@@ -244,7 +277,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Login with Phone Number
   async function connectWithPhone(phoneNumber, verificationCode = null) {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");
@@ -263,20 +295,20 @@ export function Web3Provider({ children }) {
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
-          chain: liskSepolia,
+          chain: celoAlfajores,
           strategy: "phone",
           phoneNumber,
           verificationCode,
         })
       );
-      const rpcUrl = liskSepolia.rpc[0];
+      const rpcUrl = celoAlfajores.rpc[0];
       const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(44787);
       setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
     } catch (error) {
       let message = error.message.includes("pop-up")
         ? "Please allow popups for this site."
@@ -284,7 +316,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
       }
       console.error("Error connecting with phone:", error.message, error.stack);
       setConnectionError(message);
@@ -292,7 +324,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Login with Passkey
   async function connectWithPasskey() {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");
@@ -317,14 +348,14 @@ export function Web3Provider({ children }) {
           })
         );
       }
-      const rpcUrl = liskSepolia.rpc[0];
+      const rpcUrl = celoAlfajores.rpc[0];
       const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(44787);
       setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
     } catch (error) {
       let message = error.message.includes("pop-up")
         ? "Please allow popups for this site."
@@ -332,7 +363,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
       }
       console.error("Error connecting with passkey:", error.message, error.stack);
       setConnectionError(message);
@@ -340,7 +371,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Connect to a Guest Account
   async function connectAsGuest() {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");
@@ -349,18 +379,18 @@ export function Web3Provider({ children }) {
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
-          chain: liskSepolia,
+          chain: celoAlfajores,
           strategy: "guest",
         })
       );
-      const rpcUrl = liskSepolia.rpc[0];
+      const rpcUrl = celoAlfajores.rpc[0];
       const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(44787);
       setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
     } catch (error) {
       let message = error.message.includes("pop-up")
         ? "Please allow popups for this site."
@@ -368,7 +398,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
       }
       console.error("Error connecting as guest:", error.message, error.stack);
       setConnectionError(message);
@@ -376,7 +406,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Login with SIWE (e.g., Rabby)
   async function connectWithSIWE() {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");
@@ -386,19 +415,19 @@ export function Web3Provider({ children }) {
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
-          chain: liskSepolia,
+          chain: celoAlfajores,
           strategy: "wallet",
           wallet: rabby,
         })
       );
-      const rpcUrl = liskSepolia.rpc[0];
+      const rpcUrl = celoAlfajores.rpc[0];
       const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       setProvider(jsonRpcProvider);
       setSigner(walletAccount);
       setAccount(walletAccount.address);
-      setChainId(4202);
+      setChainId(44787);
       setWalletType("smart");
-      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 4202);
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
     } catch (error) {
       let message = error.message.includes("pop-up")
         ? "Please allow popups for this site."
@@ -406,7 +435,7 @@ export function Web3Provider({ children }) {
         ? "Network error. Check your internet connection."
         : error.message;
       if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
-        message = `Failed to deploy wallet on Lisk Sepolia. Insufficient gas funds (requires ETH).`;
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
       }
       console.error("Error connecting with SIWE:", error.message, error.stack);
       setConnectionError(message);
@@ -414,7 +443,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Unified connectInAppWallet function
   async function connectInAppWallet(strategy, options = {}) {
     setIsConnecting(true);
     setConnectionError(null);
@@ -447,90 +475,23 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // MetaMask connect function
-  async function connect() {
-    if (typeof window === "undefined" || !window.ethereum) {
-      setConnectionError("Please install MetaMask to use this app.");
-      toast.error("Please install MetaMask to use this app.");
-      throw new Error("Please install MetaMask to use this app.");
-    }
-
-    setIsConnecting(true);
-    setConnectionError(null);
-    try {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts found. Please unlock MetaMask.");
-      }
-
-      const browserProvider = new ethers.BrowserProvider(window.ethereum);
-      const network = await browserProvider.getNetwork();
-      const currentChainId = Number(network.chainId);
-
-      if (!SUPPORTED_CHAINS[currentChainId]) {
-        const defaultChainId = 4202;
-        try {
-          await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: `0x${defaultChainId.toString(16)}` }],
-          });
-        } catch (switchError) {
-          if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: `0x${defaultChainId.toString(16)}`,
-                  chainName: SUPPORTED_CHAINS[defaultChainId].chainName,
-                  nativeCurrency: SUPPORTED_CHAINS[defaultChainId].nativeCurrency,
-                  rpcUrls: SUPPORTED_CHAINS[defaultChainId].rpcUrls,
-                  blockExplorerUrls: SUPPORTED_CHAINS[defaultChainId].blockExplorerUrls,
-                },
-              ],
-            });
-          } else {
-            setConnectionError("Failed to switch to a supported network. Please switch manually.");
-            toast.error("Please switch to Lisk Sepolia");
-            throw new Error("Failed to switch network.");
-          }
-        }
-        const newNetwork = await browserProvider.getNetwork();
-        setChainId(Number(newNetwork.chainId));
-      } else {
-        setChainId(currentChainId);
-      }
-
-      const userSigner = await browserProvider.getSigner();
-
-      setProvider(browserProvider);
-      setSigner(userSigner);
-      setAccount(accounts[0]);
-      setWalletType("eoa");
-      setConnectionStrategy("metamask");
-      await debouncedFetchBalance(accounts[0], browserProvider, currentChainId);
-      toast.success("Connected to MetaMask");
-    } catch (error) {
-      console.error("Error connecting to MetaMask:", error);
-      setConnectionError(error.message || "Failed to connect to MetaMask.");
-      toast.error(error.message || "Failed to connect to MetaMask.");
-      throw error;
-    } finally {
-      setIsConnecting(false);
-    }
-  }
-
-  // Switch network function
   async function switchNetwork(targetChainId) {
-    if (!SUPPORTED_CHAINS[targetChainId]) {
-      throw new Error(`Unsupported chain ID: ${targetChainId}`);
+    if (targetChainId !== 44787) {
+      throw new Error("Only Celo Alfajores (chain ID 44787) is supported");
     }
 
     setIsConnecting(true);
     setConnectionError(null);
 
     try {
-      if (walletType === "smart" && targetChainId === 44787) {
-        throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
+      if (!account) {
+        await connect();
+        if (!account) {
+          const errorMsg = "No wallet connected. Please connect a wallet first.";
+          setConnectionError(errorMsg);
+          toast.warning(errorMsg);
+          throw new Error(errorMsg);
+        }
       }
 
       if (walletType === "eoa" && typeof window !== "undefined" && window.ethereum) {
@@ -546,10 +507,10 @@ export function Web3Provider({ children }) {
               params: [
                 {
                   chainId: `0x${targetChainId.toString(16)}`,
-                  chainName: SUPPORTED_CHAINS[targetChainId].chainName,
-                  nativeCurrency: SUPPORTED_CHAINS[targetChainId].nativeCurrency,
-                  rpcUrls: SUPPORTED_CHAINS[targetChainId].rpcUrls,
-                  blockExplorerUrls: SUPPORTED_CHAINS[targetChainId].blockExplorerUrls,
+                  chainName: "Celo Alfajores Testnet",
+                  nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
+                  rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
+                  blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
                 },
               ],
             });
@@ -567,32 +528,21 @@ export function Web3Provider({ children }) {
         setAccount(accounts[0]);
         setChainId(targetChainId);
         await debouncedFetchBalance(accounts[0], browserProvider, targetChainId);
-        toast.success(`Switched to ${SUPPORTED_CHAINS[targetChainId].chainName}`);
-      } else if (walletType === "smart") {
-        const targetChain = chainConfigs[targetChainId];
-        if (!targetChain) {
-          throw new Error(`No chain configuration found for chain ID: ${targetChainId}`);
-        }
-
-        if (!wallet) {
-          throw new Error("Wallet not initialized. Please reconnect.");
-        }
-
-        const walletAccount = await wallet.connect({
-          client: thirdwebClient,
-          chain: targetChain,
-          strategy: connectionStrategy || "wallet",
-        });
-
-        const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrls[targetChainId]);
+        toast.success("Switched to Celo Alfajores");
+      } else if (walletType === "smart" && wallet) {
+        // For smart wallets, ensure the chain is set via Thirdweb
+        await wallet.switchChain(celoAlfajores);
+        const walletAccount = await wallet.getAccount();
+        const rpcUrl = celoAlfajores.rpc[0];
+        const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
         setProvider(jsonRpcProvider);
         setSigner(walletAccount);
         setAccount(walletAccount.address);
         setChainId(targetChainId);
         await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, targetChainId);
-        toast.success(`Switched to ${SUPPORTED_CHAINS[targetChainId].chainName}`);
+        toast.success("Switched to Celo Alfajores");
       } else {
-        throw new Error("No wallet connected. Please connect a wallet first.");
+        throw new Error("Unsupported wallet type. Please connect a MetaMask or in-app wallet.");
       }
     } catch (error) {
       console.error("Error switching network:", error);
@@ -604,7 +554,6 @@ export function Web3Provider({ children }) {
     }
   }
 
-  // Disconnect function
   function disconnect() {
     setProvider(null);
     setSigner(null);
@@ -620,7 +569,6 @@ export function Web3Provider({ children }) {
     toast.info("Disconnected from wallet");
   }
 
-  // Effect for MetaMask account and chain changes
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) return;
 
@@ -634,7 +582,7 @@ export function Web3Provider({ children }) {
 
     const handleChainChanged = async (newChainIdHex) => {
       const newChainId = parseInt(newChainIdHex, 16);
-      if (SUPPORTED_CHAINS[newChainId] && walletType === "eoa") {
+      if (newChainId === 44787 && walletType === "eoa") {
         try {
           const browserProvider = new ethers.BrowserProvider(window.ethereum);
           const userSigner = await browserProvider.getSigner();
@@ -645,7 +593,7 @@ export function Web3Provider({ children }) {
           setAccount(accounts[0]);
           setChainId(newChainId);
           await debouncedFetchBalance(accounts[0], browserProvider, newChainId);
-          toast.info(`Network changed to ${SUPPORTED_CHAINS[newChainId].chainName}`);
+          toast.info("Network changed to Celo Alfajores");
         } catch (error) {
           console.error("Error handling chain change:", error);
           setConnectionError(error.message);
@@ -653,7 +601,7 @@ export function Web3Provider({ children }) {
         }
       } else {
         disconnect();
-        toast.error("Unsupported network detected. Please switch to Lisk Sepolia or Celo Alfajores.");
+        toast.error("Unsupported network detected. Please switch to Celo Alfajores.");
       }
     };
 
@@ -668,18 +616,15 @@ export function Web3Provider({ children }) {
     };
   }, [account, walletType]);
 
-  // Effect to refetch balance on account or chainId change
   useEffect(() => {
     debouncedFetchBalance(account, provider, chainId);
     return () => debouncedFetchBalance.cancel();
   }, [account, chainId, provider]);
 
-  // Set initialized after component mounts
   useEffect(() => {
     setIsInitialized(true);
   }, []);
 
-  // Log context value for debugging
   useEffect(() => {
     console.log("Web3Context value:", {
       provider: !!provider,
@@ -695,10 +640,10 @@ export function Web3Provider({ children }) {
       isConnecting,
       isInitialized,
       thirdwebClient: !!thirdwebClient,
+      celoAlfajores: !!celoAlfajores,
     });
   }, [provider, signer, account, chainId, walletType, balance, isConnecting, isInitialized]);
 
-  // Fallback UI if not initialized
   if (!isInitialized) {
     return <div className="flex justify-center items-center h-screen">Loading Web3 Provider...</div>;
   }
@@ -719,8 +664,7 @@ export function Web3Provider({ children }) {
         isInitialized,
         switchNetwork,
         thirdwebClient,
-        liskSepolia,
-        // celoAlfajores,
+        celoAlfajores,
       }}
     >
       {children}
@@ -734,14 +678,4 @@ export function useWeb3() {
     throw new Error("useWeb3 must be used within an initialized Web3Provider");
   }
   return context;
-}
-
-// Helper to get chain name for error messages
-function getChainName(chainId) {
-  switch (chainId) {
-    case 4202:
-      return "Lisk Sepolia";
-    default:
-      return `Unknown Chain (${chainId || "Not Connected"})`;
-  }
 }

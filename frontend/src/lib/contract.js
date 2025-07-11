@@ -1,8 +1,7 @@
 import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
 import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
-import { isAddress, ZeroAddress } from "ethers";
+import { isAddress } from "ethers";
 
-// Custom replacer function to handle BigInt serialization
 const bigintReplacer = (key, value) => {
   if (typeof value === "bigint") {
     return value.toString();
@@ -11,21 +10,21 @@ const bigintReplacer = (key, value) => {
 };
 
 const CONTRACT_ADDRESSES = {
-  4202: {
-    factoryContriboost: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
-    factoryGoalFund: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
-    native: ZeroAddress,
+  44787: {
+    factoryContriboost: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    factoryGoalFund: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },
 };
 
 export async function createContriboost({ client, chain, chainId, config, name, description, tokenAddress, account, walletType }) {
   try {
-    if (!CONTRACT_ADDRESSES[chainId]) {
-      throw new Error(`Unsupported chain ID: ${chainId}`);
+    if (chainId !== 44787) {
+      throw new Error("Only Celo Alfajores (chain ID 44787) is supported");
     }
 
-    if (walletType === "smart" && chainId === 44787) {
+    if (walletType === "smart") {
       throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
     }
 
@@ -34,11 +33,15 @@ export async function createContriboost({ client, chain, chainId, config, name, 
     }
 
     const { paymentMethod } = config;
-    if (paymentMethod === 0 && tokenAddress !== ZeroAddress) {
-      throw new Error("Token address must be ZeroAddress for native payment (paymentMethod: 0)");
+    // Removed Ether payment logic as it’s not used; only ERC20 tokens (CELO or cUSD) are supported
+    // if (paymentMethod === 0 && tokenAddress !== ZeroAddress) {
+    //   throw new Error("Token address must be zero for Ether payment");
+    // }
+    if (paymentMethod !== 1) {
+      throw new Error("Only paymentMethod 1 (ERC20 tokens) is supported");
     }
-    if (paymentMethod === 1 && tokenAddress === ZeroAddress) {
-      throw new Error("Token address must be a valid ERC-20 address for token payment (paymentMethod: 1)");
+    if (paymentMethod === 1 && ![CONTRACT_ADDRESSES[chainId].celo, CONTRACT_ADDRESSES[chainId].cusd].includes(tokenAddress)) {
+      throw new Error("Token address must be either the CELO or cUSD ERC20 address for paymentMethod 1");
     }
 
     if (!name || typeof name !== "string" || name.length < 3) {
@@ -70,9 +73,6 @@ export async function createContriboost({ client, chain, chainId, config, name, 
     }
     if (!Number.isInteger(startTimestamp) || startTimestamp < Math.floor(Date.now() / 1000)) {
       throw new Error("startTimestamp must be in the future");
-    }
-    if (![0, 1].includes(paymentMethod)) {
-      throw new Error("paymentMethod must be 0 (native) or 1 (token)");
     }
 
     console.log("createContriboost inputs:", { chainId, config, name, description, tokenAddress, walletType });
@@ -122,89 +122,51 @@ export async function createContriboost({ client, chain, chainId, config, name, 
       rawReceipt: JSON.stringify(receipt, bigintReplacer, 2),
     });
 
-    let event;
-    if (walletType === "eoa" || walletType === "smart") {
-      if (receipt.logs && Array.isArray(receipt.logs)) {
-        event = receipt.logs.find((log) => log.eventName === "ContriboostCreated");
-      } else if (receipt.events && Array.isArray(receipt.events)) {
-        event = receipt.events.find((e) => e.eventName === "ContriboostCreated");
-      }
-    } else {
-      throw new Error(`Unsupported walletType: ${walletType}`);
-    }
-
-    if (!event) {
-      console.warn("ContriboostCreated event not found in receipt, fetching from contract...");
-      try {
-        const events = await readContract({
-          contract,
-          method: "getPastEvents",
-          params: ["ContriboostCreated", { fromBlock: receipt.blockNumber - 10, toBlock: receipt.blockNumber }],
-        });
-        event = events.find((e) => e.transactionHash === transactionHash);
-        if (!event) {
-          console.error("ContriboostCreated event not found in contract events:", events);
-          const error = new Error("Could not find ContriboostCreated event in transaction receipt or contract events");
-          error.receipt = receipt;
-          error.transactionHash = transactionHash;
-          throw error;
+    let newContractAddress;
+    if (receipt.logs) {
+      const event = receipt.logs.find(log => {
+        try {
+          const parsedLog = contract.interface.parseLog(log);
+          return parsedLog.name === "ContriboostCreated";
+        } catch {
+          return false;
         }
-      } catch (fetchError) {
-        console.error("Failed to fetch events from contract:", fetchError);
-        const error = new Error("Failed to fetch ContriboostCreated event: " + fetchError.message);
-        error.receipt = receipt;
-        error.transactionHash = transactionHash;
-        throw error;
+      });
+
+      if (event) {
+        const parsedLog = contract.interface.parseLog(event);
+        newContractAddress = parsedLog.args.contriboost;
       }
     }
 
-    if (!event.args || !event.args.contriboostAddress) {
-      console.error("ContriboostCreated event missing args:", event);
-      const error = new Error("ContriboostCreated event missing contriboostAddress");
-      error.receipt = receipt;
-      error.transactionHash = transactionHash;
-      throw error;
-    }
-
-    const newContractAddress = event.args.contriboostAddress;
-    if (!isAddress(newContractAddress)) {
-      const error = new Error("Invalid contract address received from ContriboostCreated event");
-      error.receipt = receipt;
-      error.transactionHash = transactionHash;
-      throw error;
+    if (!newContractAddress) {
+      console.warn("Could not find ContriboostCreated event in logs, attempting to fetch from contract");
+      try {
+        newContractAddress = await readContract({
+          contract,
+          method: "getContriboostByIndex",
+          params: [(await readContract({ contract, method: "getContriboostCount" })) - 1n],
+        });
+      } catch (fetchError) {
+        console.error("Failed to fetch ContriboostCreated event:", fetchError);
+        throw new Error(`Failed to fetch ContriboostCreated event: ${fetchError.message}`);
+      }
     }
 
     return { receipt, newContractAddress };
   } catch (error) {
-    console.error("Error in createContriboost:", error.message, error.stack);
-    const wrappedError = new Error(`Failed to create Contriboost: ${error.message}`);
-    wrappedError.receipt = error.receipt || null;
-    wrappedError.transactionHash = error.transactionHash || null;
-    throw wrappedError;
+    console.error("Error in createContriboost:", error);
+    throw new Error(`Error creating Contriboost: ${error.message}`);
   }
 }
 
-export async function createGoalFund({
-  client,
-  chain,
-  chainId,
-  name,
-  description,
-  targetAmount,
-  deadline,
-  beneficiary,
-  paymentMethod,
-  tokenAddress,
-  fundType,
-  account,
-  walletType,
-}) {
+export async function createGoalFund({ client, chain, chainId, name, description, targetAmount, deadline, beneficiary, paymentMethod, tokenAddress, fundType, account, walletType }) {
   try {
-    if (!CONTRACT_ADDRESSES[chainId]) {
-      throw new Error(`Unsupported chain ID: ${chainId}`);
+    if (chainId !== 44787) {
+      throw new Error("Only Celo Alfajores (chain ID 44787) is supported");
     }
 
-    if (walletType === "smart" && chainId === 44787) {
+    if (walletType === "smart") {
       throw new Error("Smart Wallet is not supported on Celo Alfajores for now.");
     }
 
@@ -216,11 +178,15 @@ export async function createGoalFund({
       throw new Error(`Invalid token address: ${tokenAddress}`);
     }
 
-    if (paymentMethod === 0 && tokenAddress !== ZeroAddress) {
-      throw new Error("Token address must be ZeroAddress for native payment (paymentMethod: 0)");
+    // Removed Ether payment logic as it’s not used; only ERC20 tokens (CELO or cUSD) are supported
+    // if (paymentMethod === 0 && tokenAddress !== ZeroAddress) {
+    //   throw new Error("Token address must be zero for Ether payment");
+    // }
+    if (paymentMethod !== 1) {
+      throw new Error("Only paymentMethod 1 (ERC20 tokens) is supported");
     }
-    if (paymentMethod === 1 && tokenAddress === ZeroAddress) {
-      throw new Error("Token address must be a valid ERC-20 address for token payment (paymentMethod: 1)");
+    if (paymentMethod === 1 && ![CONTRACT_ADDRESSES[chainId].celo, CONTRACT_ADDRESSES[chainId].cusd].includes(tokenAddress)) {
+      throw new Error("Token address must be either the CELO or cUSD ERC20 address for paymentMethod 1");
     }
 
     if (!name || typeof name !== "string" || name.length < 3) {
@@ -239,11 +205,7 @@ export async function createGoalFund({
       throw new Error("deadline must be in the future");
     }
 
-    if (![0, 1].includes(paymentMethod)) {
-      throw new Error("paymentMethod must be 0 (native) or 1 (token)");
-    }
-
-    if (![0, 1].includes(fundType)) {
+    if (![0, 1].includes(Number(fundType))) {
       throw new Error("fundType must be 0 (group) or 1 (personal)");
     }
 
@@ -271,14 +233,16 @@ export async function createGoalFund({
       contract,
       method: "createGoalFund",
       params: [
-        name,
-        description,
-        targetAmount,
-        deadline,
-        beneficiary,
-        paymentMethod,
-        tokenAddress,
-        fundType,
+        {
+          name,
+          description,
+          targetAmount,
+          deadline,
+          beneficiary,
+          paymentMethod,
+          tokenAddress,
+          fundType: Number(fundType),
+        },
       ],
     });
 
@@ -292,18 +256,7 @@ export async function createGoalFund({
       transactionHash = receipt.transactionHash;
     } catch (sendError) {
       console.error("Error sending transaction:", sendError.message, sendError);
-      if (walletType === "smart" && sendError.message.includes("eth_sendUserOperation")) {
-        console.warn("UserOp failed, attempting to recover transaction receipt...");
-        if (sendError.transactionHash) {
-          transactionHash = sendError.transactionHash;
-          receipt = await client.getTransactionReceipt({ hash: transactionHash });
-          console.log("Recovered receipt:", JSON.stringify(receipt, bigintReplacer, 2));
-        } else {
-          throw new Error(`UserOp failed: ${sendError.message}`);
-        }
-      } else {
-        throw sendError;
-      }
+      throw new Error(`Error sending transaction: ${sendError.message}`);
     }
 
     console.log("createGoalFund receipt:", {
@@ -314,64 +267,30 @@ export async function createGoalFund({
       rawReceipt: JSON.stringify(receipt, bigintReplacer, 2),
     });
 
-    let event;
-    if (walletType === "eoa" || walletType === "smart") {
-      if (receipt.logs && Array.isArray(receipt.logs)) {
-        event = receipt.logs.find((log) => log.eventName === "GoalFundCreated");
-      } else if (receipt.events && Array.isArray(receipt.events)) {
-        event = receipt.events.find((e) => e.eventName === "GoalFundCreated");
-      }
-    } else {
-      throw new Error(`Unsupported walletType: ${walletType}`);
-    }
-
-    if (!event) {
-      console.warn("GoalFundCreated event not found in receipt, fetching from contract...");
-      try {
-        const events = await readContract({
-          contract,
-          method: "getPastEvents",
-          params: ["GoalFundCreated", { fromBlock: receipt.blockNumber - 10, toBlock: receipt.blockNumber }],
-        });
-        event = events.find((e) => e.transactionHash === transactionHash);
-        if (!event) {
-          console.error("GoalFundCreated event not found in contract events:", events);
-          const error = new Error("Could not find GoalFundCreated event in transaction receipt or contract events");
-          error.receipt = receipt;
-          error.transactionHash = transactionHash;
-          throw error;
+    let newContractAddress;
+    if (receipt.logs) {
+      const event = receipt.logs.find(log => {
+        try {
+          const parsedLog = contract.interface.parseLog(log);
+          return parsedLog.name === "GoalFundCreated";
+        } catch {
+          return false;
         }
-      } catch (fetchError) {
-        console.error("Failed to fetch events from contract:", fetchError);
-        const error = new Error("Failed to fetch GoalFundCreated event: " + fetchError.message);
-        error.receipt = receipt;
-        error.transactionHash = transactionHash;
-        throw error;
+      });
+
+      if (event) {
+        const parsedLog = contract.interface.parseLog(event);
+        newContractAddress = parsedLog.args.goalFund;
       }
     }
 
-    if (!event.args || !event.args.goalFundAddress) {
-      console.error("GoalFundCreated event missing args:", event);
-      const error = new Error("GoalFundCreated event missing goalFundAddress");
-      error.receipt = receipt;
-      error.transactionHash = transactionHash;
-      throw error;
-    }
-
-    const newContractAddress = event.args.goalFundAddress;
-    if (!isAddress(newContractAddress)) {
-      const error = new Error("Invalid contract address received from GoalFundCreated event");
-      error.receipt = receipt;
-      error.transactionHash = transactionHash;
-      throw error;
+    if (!newContractAddress) {
+      throw new Error("GoalFundCreated event not found in transaction receipt");
     }
 
     return { receipt, newContractAddress };
   } catch (error) {
-    console.error("Error in createGoalFund:", error.message, error.stack);
-    const wrappedError = new Error(`Failed to create GoalFund: ${error.message}`);
-    wrappedError.receipt = error.receipt || null;
-    wrappedError.transactionHash = error.transactionHash || null;
-    throw wrappedError;
+    console.error("Error in createGoalFund:", error);
+    throw new Error(`Error creating GoalFund: ${error.message}`);
   }
 }

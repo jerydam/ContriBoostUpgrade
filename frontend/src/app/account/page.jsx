@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,42 +11,29 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, AlertCircle, Globe } from "lucide-react";
 
-// Network configurations
 const NETWORKS = {
-  lisk: {
-    chainId: 4202,
-    name: "Lisk Sepolia",
-    rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
-    goalFundFactory: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
-    tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
-    tokenSymbol: "USDT",
-    nativeSymbol: "ETH",
+  celo: {
+    chainId: 44787,
+    name: "Celo Alfajores",
+    rpcUrl: "https://alfajores-forno.celo-testnet.org",
+    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
+    tokenSymbol: "cUSD",
+    nativeSymbol: "CELO",
   },
-  // celo: {
-  //   chainId: 44787,
-  //   name: "Celo Alfajores",
-  //   rpcUrl: "https://alfajores-forno.celo-testnet.org",
-  //   contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-  //   goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-  //   tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
-  //   tokenSymbol: "cUSD",
-  //   nativeSymbol: "CELO",
-  // },
 };
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
-  const [balance, setBalance] = useState({ lisk: "0" });
+  const [balance, setBalance] = useState({ celo: "0" });
   const [userPools, setUserPools] = useState([]);
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
 
-  // Initialize providers
-  const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
-  // const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
+  const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
 
   useEffect(() => {
     if (account) {
@@ -64,26 +50,14 @@ export default function AccountPage() {
     setError(null);
     const fetchedPools = [];
     const fetchedFunds = [];
-    const newBalance = { lisk: "0", 
-      // celo: "0" 
-    };
+    const newBalance = { celo: "0" };
 
-
-    // Fetch data from Lisk Sepolia
     try {
-      await fetchNetworkData("lisk", liskProvider, account, fetchedPools, fetchedFunds, newBalance);
+      await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
     } catch (e) {
-      console.error("Error fetching Lisk Sepolia data:", e);
-      setError((prev) => prev ? `${prev}; Lisk Sepolia: ${e.message}` : `Lisk Sepolia: ${e.message}`);
+      console.error("Error fetching Celo Alfajores data:", e);
+      setError(`Celo Alfajores: ${e.message}`);
     }
-
-    // // Fetch data from Celo Alfajores
-    // try {
-    //   await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
-    // } catch (e) {
-    //   console.error("Error fetching Celo Alfajores data:", e);
-    //   setError((prev) => prev ? `${prev}; Celo Alfajores: ${e.message}` : `Celo Alfajores: ${e.message}`);
-    // }
 
     setBalance(newBalance);
     setUserPools(fetchedPools);
@@ -94,7 +68,6 @@ export default function AccountPage() {
   async function fetchNetworkData(network, provider, account, fetchedPools, fetchedFunds, newBalance) {
     const networkConfig = NETWORKS[network];
 
-    // Fetch account balance
     try {
       const accountBalance = await provider.getBalance(account);
       newBalance[network] = ethers.formatEther(accountBalance);
@@ -103,7 +76,6 @@ export default function AccountPage() {
       newBalance[network] = "0";
     }
 
-    // Fetch user's Contriboost pools
     const contriboostFactory = new ethers.Contract(
       networkConfig.contriboostFactory,
       ContriboostFactoryAbi,
@@ -121,20 +93,16 @@ export default function AccountPage() {
       userContriboostAddresses.map(async (address) => {
         try {
           const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
-          if (!detailsArray || !detailsArray[0]) {
-            console.warn(`No details returned for Contriboost at ${address} on ${network}`);
-            return null;
-          }
+          if (!detailsArray || !detailsArray[0]) return null;
           const details = detailsArray[0];
 
-          // Fetch current participants from the Contriboost contract
           const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
           let currentParticipants = 0;
           try {
             const activeParticipants = await contriboostContract.getActiveParticipants();
             currentParticipants = activeParticipants.length;
           } catch (err) {
-            console.warn(`Failed to fetch active participants for ${address} on ${network}:`, err);
+            console.warn(`Failed to fetch active participants for ${address}:`, err);
           }
 
           return {
@@ -145,19 +113,18 @@ export default function AccountPage() {
             contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
             hostFeePercentage: Number(details.hostFeePercentage || 0),
             currentParticipants,
-            network, // Add network to identify source
+            network,
             tokenSymbol: details.tokenAddress === ethers.ZeroAddress
               ? networkConfig.nativeSymbol
               : networkConfig.tokenSymbol,
           };
         } catch (err) {
-          console.error(`Error processing Contriboost at ${address} on ${network}:`, err);
+          console.error(`Error processing Contriboost at ${address}:`, err);
           return null;
         }
       })
     );
 
-    // Fetch user's GoalFunds
     const goalFundFactory = new ethers.Contract(
       networkConfig.goalFundFactory,
       GoalFundFactoryAbi,
@@ -175,10 +142,7 @@ export default function AccountPage() {
       userGoalFundAddresses.map(async (address) => {
         try {
           const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
-          if (!detailsArray || !detailsArray[0]) {
-            console.warn(`No details returned for GoalFund at ${address} on ${network}`);
-            return null;
-          }
+          if (!detailsArray || !detailsArray[0]) return null;
           const details = detailsArray[0];
           return {
             contractAddress: details.contractAddress,
@@ -190,13 +154,13 @@ export default function AccountPage() {
             tokenAddress: details.tokenAddress || ethers.ZeroAddress,
             fundType: Number(details.fundType || 0),
             platformFeePercentage: Number(details.platformFeePercentage || 0),
-            network, // Add network to identify source
+            network,
             tokenSymbol: details.tokenAddress === ethers.ZeroAddress
               ? networkConfig.nativeSymbol
               : networkConfig.tokenSymbol,
           };
         } catch (err) {
-          console.error(`Error processing GoalFund at ${address} on ${network}:`, err);
+          console.error(`Error processing GoalFund at ${address}:`, err);
           return null;
         }
       })
@@ -221,6 +185,8 @@ export default function AccountPage() {
   function formatAddress(address) {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "N/A";
   }
+
+  
 
   if (!account) {
     return (
@@ -286,11 +252,8 @@ export default function AccountPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
                 <p className="text-sm font-medium">
-                  Lisk Sepolia: {parseFloat(balance.lisk).toFixed(4)} {NETWORKS.lisk.nativeSymbol}
-                </p>
-                {/* <p className="text-sm font-medium">
                   Celo Alfajores: {parseFloat(balance.celo).toFixed(4)} {NETWORKS.celo.nativeSymbol}
-                </p> */}
+                </p>
               </div>
             </div>
           </div>
@@ -450,9 +413,9 @@ export default function AccountPage() {
                         View Details
                       </Link>
                     </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+                    </CardFooter>
+                  </Card>
+                ))}
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">

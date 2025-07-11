@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { formatEther, parseEther, ZeroAddress } from "ethers";
+import { parseEther } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { createContriboost } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
@@ -20,15 +20,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
 const CONTRACT_ADDRESSES = {
-  lisk: {
-    factory: "0x4D7D68789cbc93D33dFaFCBc87a2F6E872A5b1f8",
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
-    native: ZeroAddress,
+  celo: {
+    factory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },
 };
 
 const SUPPORTED_CHAINS = {
-  lisk: 4202,
+  celo: 44787,
 };
 
 const formSchema = z.object({
@@ -46,7 +46,7 @@ const formSchema = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  paymentMethod: z.enum(["0", "1"]),
+  tokenType: z.enum(["0", "1"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -60,7 +60,7 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account, connect, chainId, switchNetwork, thirdwebClient, liskSepolia, walletType } = useWeb3();
+  const { signer, account, connect, connectInAppWallet, chainId, switchNetwork, thirdwebClient, celoAlfajores, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -70,22 +70,22 @@ export default function CreateContriboostPage() {
     defaultValues: {
       name: "",
       description: "",
-      dayRange: 7,
-      expectedNumber: 10,
+      dayRange: "7",
+      expectedNumber: "10",
       contributionAmount: "0.1",
-      paymentMethod: "0",
-      hostFeePercentage: 2,
-      maxMissedDeposits: 2,
+      tokenType: "0",
+      hostFeePercentage: "2",
+      maxMissedDeposits: "2",
       startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     },
   });
 
   useEffect(() => {
     if (chainId) {
-      if (chainId === SUPPORTED_CHAINS.lisk) {
-        setSelectedNetwork("lisk");
+      if (chainId === SUPPORTED_CHAINS.celo) {
+        setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia.");
+        setError("Unsupported network. Please switch to Celo Alfajores.");
         setSelectedNetwork(null);
       }
     } else {
@@ -95,13 +95,44 @@ export default function CreateContriboostPage() {
 
   async function handleNetworkSwitch(network) {
     try {
+      if (!account) {
+        await connect();
+        if (!account) {
+          setError("Please connect your wallet to switch networks.");
+          try {
+            toast.warning("Please connect your wallet to switch networks.");
+          } catch (toastError) {
+            console.error("Toast error:", toastError);
+          }
+          return;
+        }
+      }
+
+      if (walletType === "smart") {
+        setError("Smart wallets do not require manual network switching on Celo Alfajores.");
+        try {
+          toast.info("Smart wallets are already configured for Celo Alfajores.");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
+        return;
+      }
+
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to Lisk Sepolia network`);
+      try {
+        toast.info(`Switched to Celo Alfajores network`);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
-      toast.error("Failed to switch network");
+      try {
+        toast.error("Failed to switch network: " + err.message);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     }
   }
 
@@ -110,42 +141,50 @@ export default function CreateContriboostPage() {
       await connect();
       if (!account) {
         setError("Please connect your wallet first");
-        toast.warning("Please connect your wallet first");
+        try {
+          toast.warning("Please connect your wallet first");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
         return;
       }
     }
-  
+
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia)");
-      toast.error("Unsupported network");
+      setError("Please select a supported network (Celo Alfajores)");
+      try {
+        toast.error("Select a supported network");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       return;
     }
-  
+
     setError(null);
     setIsCreating(true);
-  
+
     try {
-      const chain = selectedNetwork === "lisk" ? liskSepolia : null;
+      const chain = selectedNetwork === "celo" ? celoAlfajores : null;
       if (!chain) {
         throw new Error("Invalid chain configuration for selected network");
       }
-  
+
       const tokenAddress =
-        values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork].usdt
-          : CONTRACT_ADDRESSES[selectedNetwork].native;
-  
+        values.tokenType === "1"
+          ? CONTRACT_ADDRESSES[selectedNetwork].cusd
+          : CONTRACT_ADDRESSES[selectedNetwork].celo;
+
       const config = {
-        dayRange: values.dayRange,
-        expectedNumber: values.expectedNumber,
+        dayRange: Number(values.dayRange),
+        expectedNumber: Number(values.expectedNumber),
         contributionAmount: parseEther(values.contributionAmount),
-        hostFeePercentage: values.hostFeePercentage * 100,
-        platformFeePercentage: 50,
-        maxMissedDeposits: values.maxMissedDeposits,
+        hostFeePercentage: Number(values.hostFeePercentage) * 100,
+        platformFeePercentage: 100,
+        maxMissedDeposits: Number(values.maxMissedDeposits),
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
-        paymentMethod: Number(values.paymentMethod),
+        paymentMethod: 1,
       };
-  
+
       console.log("Submitting Contriboost:", {
         chain: JSON.stringify(chain, null, 2),
         chainId: SUPPORTED_CHAINS[selectedNetwork],
@@ -156,7 +195,7 @@ export default function CreateContriboostPage() {
         walletType,
         account,
       });
-  
+
       const { receipt, newContractAddress } = await createContriboost({
         client: thirdwebClient,
         chain,
@@ -168,28 +207,27 @@ export default function CreateContriboostPage() {
         account: signer,
         walletType,
       });
-  
+
       console.log("Transaction receipt:", {
         transactionHash: receipt.transactionHash,
         walletType,
         logs: receipt.logs || "No logs available",
         events: receipt.events || "No events available",
       });
-  
-      toast.success("Contriboost pool created successfully!");
+
+      try {
+        toast.success("Contriboost pool created successfully!");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       router.push(`/pools?created=true`);
     } catch (error) {
       console.error("Error creating Contriboost:", error);
       let message = "Failed to create Contriboost pool. Please try again.";
-      if (error.message.includes("Failed to fetch ContriboostCreated event")) {
-        message = "Contriboost pool created successfully";
-        toast.success(message);
-        router.push(`/pools?created=true`);
-        return;
-      } else if (error.message.includes("invalid chain")) {
-        message = "Invalid chain configuration. Ensure Lisk Sepolia is selected.";
+      if (error.message.includes("invalid chain")) {
+        message = "Invalid chain configuration. Ensure Celo Alfajores is selected.";
       } else if (error.message.includes("invalid token address")) {
-        message = "Invalid token address. Please check the payment method.";
+        message = "Invalid token address. Please select CELO or cUSD.";
       } else if (error.message.includes("startTimestamp")) {
         message = "Start date must be in the future.";
       } else if (error.message.includes("insufficient funds")) {
@@ -199,10 +237,14 @@ export default function CreateContriboostPage() {
       } else if (error.message.includes("Could not find ContriboostCreated event")) {
         message = "Failed to parse contract creation event. Please check the transaction details.";
       } else if (error.message.includes("UserOp failed")) {
-        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient ETH for gas.";
+        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient CELO for gas.";
       }
       setError(message);
-      toast.error(message);
+      try {
+        toast.error(message);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       router.push(`/pools?created=true`);
     } finally {
       setIsCreating(false);
@@ -214,6 +256,12 @@ export default function CreateContriboostPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
+        <Button onClick={connect} className="mr-4">
+          Connect MetaMask
+        </Button>
+        <Button onClick={() => connectInAppWallet("guest")} className="mr-4">
+          Connect as Guest
+        </Button>
         <Button variant="outline" asChild>
           <a href="/">Go Home</a>
         </Button>
@@ -224,7 +272,7 @@ export default function CreateContriboostPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
-      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
+      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community on Celo Alfajores</p>
 
       <Card className="mb-6">
         <CardHeader>
@@ -234,11 +282,11 @@ export default function CreateContriboostPage() {
         <CardContent>
           <div className="flex gap-4">
             <Button
-              variant={selectedNetwork === "lisk" ? "default" : "outline"}
-              onClick={() => handleNetworkSwitch("lisk")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
+              variant={selectedNetwork === "celo" ? "default" : "outline"}
+              onClick={() => handleNetworkSwitch("celo")}
+              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo || !account || walletType === "smart"}
             >
-              Lisk Sepolia
+              Celo Alfajores
             </Button>
           </div>
           {error && (
@@ -299,152 +347,150 @@ export default function CreateContriboostPage() {
                         </FormControl>
                         <FormDescription>Number of days in each distribution cycle</FormDescription>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="expectedNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected Participants</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="2" {...field} />
-                        </FormControl>
-                        <FormDescription>Maximum number of participants in the pool</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="contributionAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contribution Amount</FormLabel>
-                        <FormControl>
-                          <Input placeholder="0.1" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Amount each participant contributes per cycle (in{" "}
-                          {selectedNetwork === "lisk" ? "ETH or USDT" : "CELO or cUSD"})
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="paymentMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Payment Method</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex flex-col space-y-1"
-                          >
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="0" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {selectedNetwork === "lisk" ? "Ether (ETH)" : "Celo (CELO)"}
-                              </FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="1" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {selectedNetwork === "lisk" ? "USDT" : "cUSD"}
-                              </FormLabel>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="hostFeePercentage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2">
-                          <FormLabel>Host Fee Percentage</FormLabel>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="w-[200px] text-xs">
-                                  The percentage fee you receive as the host of this pool. Max 5%.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <FormControl>
-                          <Input type="number" min="0" max="5" step="0.1" {...field} />
-                        </FormControl>
-                        <FormDescription>Your fee for hosting (0-5%)</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="maxMissedDeposits"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Missed Deposits</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="0" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          How many deposits a participant can miss before becoming inactive
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
-                  name="startTimestamp"
+                  name="expectedNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Date</FormLabel>
+                      <FormLabel>Expected Participants</FormLabel>
                       <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                          min={new Date().toISOString().slice(0, 16)}
-                        />
+                        <Input type="number" min="2" {...field} />
                       </FormControl>
-                      <FormDescription>When the first cycle will begin</FormDescription>
+                      <FormDescription>Maximum number of participants in the pool</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <CardFooter className="flex justify-end px-0">
-                  <Button variant="outline" type="submit" disabled={isCreating || !selectedNetwork}>
-                    {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Create Pool
-                  </Button>
-                </CardFooter>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="contributionAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contribution Amount</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Amount each participant contributes per cycle (in CELO or cUSD ERC20 tokens)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tokenType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Token Type</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex flex-col space-y-1"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="0" />
+                            </FormControl>
+                            <FormLabel className="font-normal">CELO (ERC20)</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="1" />
+                            </FormControl>
+                            <FormLabel className="font-normal">cUSD (ERC20)</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormDescription className="text-xs sm:text-sm">
+                        Select the ERC20 token for contributions
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="hostFeePercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Host Fee Percentage</FormLabel>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="w-[200px] text-xs">
+                                The percentage fee you receive as the host of this pool. Max 5%.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <FormControl>
+                        <Input type="number" min="0" max="5" step="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>Your fee for hosting (0-5%)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxMissedDeposits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Missed Deposits</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        How many deposits a participant can miss before becoming inactive
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="startTimestamp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="datetime-local"
+                        {...field}
+                        min={new Date().toISOString().slice(0, 16)}
+                      />
+                    </FormControl>
+                    <FormDescription>When the first cycle will begin</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <CardFooter className="flex justify-end px-0">
+                <Button variant="outline" type="submit" disabled={isCreating || !selectedNetwork}>
+                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Pool
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    )}
     </div>
   );
 }

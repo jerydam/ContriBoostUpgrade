@@ -46,28 +46,17 @@ export default function Header() {
   ];
 
   const SUPPORTED_CHAINS = {
-    4202: {
-      chainId: "0x106A",
-      chainName: "Lisk Sepolia",
-      rpcUrls: ["https://rpc.sepolia-api.lisk.com"],
+    44787: {
+      chainId: "0xAEF3",
+      chainName: "Celo Alfajores",
+      rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
       nativeCurrency: {
-        name: "Lisk",
-        symbol: "LSK",
+        name: "Celo",
+        symbol: "CELO",
         decimals: 18,
       },
-      blockExplorerUrls: ["https://sepolia-blockscout.lisk.com"],
+      blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
     },
-    // 44787: {
-    //   chainId: "0xAEF3",
-    //   chainName: "Celo Alfajores",
-    //   rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
-    //   nativeCurrency: {
-    //     name: "Celo",
-    //     symbol: "CELO",
-    //     decimals: 18,
-    //   },
-    //   blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
-    // },
   };
 
   const isActive = (path) => path === pathname;
@@ -79,10 +68,8 @@ export default function Header() {
 
   const getChainName = (chainId) => {
     switch (chainId) {
-      case 4202:
-        return "Lisk Sepolia";
-      // case 44787:
-      //   return "Celo Alfajores";
+      case 44787:
+        return "Celo Alfajores";
       default:
         return `Unknown Chain (${chainId || "Not Connected"})`;
     }
@@ -375,19 +362,19 @@ export default function Header() {
                           <svg className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24">
                             <path
                               fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                              d="M22.56 12.25c0-.78-.07-1.53-.20-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                             />
                             <path
                               fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
+                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04 .69-2.37 1.10-3.71 1.10-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
                             />
                             <path
                               fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43 .35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22 .81-.62z"
                             />
                             <path
                               fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3 guida.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                              d="M12 5.38c1.62 0 3.06 .56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c .87-2.60 3.30-4.53 6.16-4.53z"
                             />
                           </svg>
                         </div>
@@ -454,143 +441,141 @@ export default function Header() {
                       disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="bg-primary/ Indy/10/10 sm:gap-4">
-                          <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
-                            <Key className="h-5 w-5 sm:h-6 sm:w-6" />
-                          </div>
-                          <div className="text-left">
-                            <h3 className="font-medium">Passkey</h3>
-                            <p className="text-xs text-muted-foreground">Sign in with passkey (Gasless)</p>
-                          </div>
+                        <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
+                          <Key className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
+                        <div className="text-left">
+                          <h3 className="font-medium">Passkey</h3>
+                          <p className="text-xs text-muted-foreground">Sign in with passkey (Gasless)</p>
                         </div>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
-                        onClick={() => handleConnect("guest")}
-                        disabled={isConnecting || chainId === 44787}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
-                            <User className="h-5 w-5 sm:h-6 sm:w-6" />
-                          </div>
-                          <div className="text-left">
-                            <h3 className="font-medium">Guest</h3>
-                            <p className="text-xs text-muted-foreground">Connect as a guest (Gasless)</p>
-                          </div>
+                      </div>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
+                      onClick={() => handleConnect("guest")}
+                      disabled={isConnecting || chainId === 44787}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
+                          <User className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
-                      </Button>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
-            )}
-            <button
-              onClick={toggleMobileMenu}
-              className="ml-2 rounded-md p-2 text-muted-foreground hover:bg-accent md:hidden transition-colors"
-              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-transform duration-200"
-              >
-                {isMobileMenuOpen ? (
-                  <path d="M18 6 6 18M6 6l12 12" />
-                ) : (
-                  <path d="M3 12h18M3 6h18M3 18h18" />
+                        <div className="text-left">
+                          <h3 className="font-medium">Guest</h3>
+                          <p className="text-xs text-muted-foreground">Connect as a guest (Gasless)</p>
+                        </div>
+                      </div>
+                    </Button>
+                  </div>
                 )}
-              </svg>
-            </button>
+              </DialogContent>
+            </Dialog>
+          )}
+          <button
+            onClick={toggleMobileMenu}
+            className="ml-2 rounded-md p-2 text-muted-foreground hover:bg-accent md:hidden transition-colors"
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="transition-transform duration-200"
+            >
+              {isMobileMenuOpen ? (
+                <path d="M18 6 6 18M6 6l12 12" />
+              ) : (
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              )}
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 bg-background/95 backdrop-blur-sm z-40 transition-opacity duration-300">
+          <div className="container mx-auto px-4 py-4 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <Link href="/" className="text-lg font-bold sm:text-xl">
+                <Image
+                  src="/contriboostb.png"
+                  alt="Contriboost Logo"
+                  width={100}
+                  height={100}
+                  className="h-auto w-auto sm:h-10 bg-amber-50"
+                />
+              </Link>
+              <button
+                onClick={toggleMobileMenu}
+                className="rounded-md p-2 text-muted-foreground hover:bg-accent transition-colors"
+                aria-label="Close menu"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <nav className="flex-1">
+              <ul className="flex flex-col gap-4">
+                {navLinks.map((link) => (
+                  <li key={link.name}>
+                    <Link
+                      href={link.href}
+                      className={`block p-2 text-base font-medium transition-colors hover:text-primary ${
+                        isActive(link.href) ? "text-primary" : "text-muted-foreground"
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      {link.name}
+                    </Link>
+                  </li>
+                ))}
+                {account && (
+                  <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
+                    <Button
+                      variant="ghost"
+                      className="text-left w-full truncate"
+                      onClick={() => setIsWalletDialogOpen(true)}
+                    >
+                      {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                    </Button>
+                  </li>
+                )}
+              </ul>
+            </nav>
+            {account && (
+              <div className="mt-auto pb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnect}
+                  disabled={isConnecting}
+                  className="w-full text-sm"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Disconnect
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-
-        {isMobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 bg-background/95 backdrop-blur-sm z-40 transition-opacity duration-300">
-            <div className="container mx-auto px-4 py-4 h-full flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <Link href="/" className="text-lg font-bold sm:text-xl">
-                  <Image
-                    src="/contriboostb.png"
-                    alt="Contriboost Logo"
-                    width={100}
-                    height={100}
-                    className="h-auto w-auto sm:h-10 bg-amber-50"
-                  />
-                </Link>
-                <button
-                  onClick={toggleMobileMenu}
-                  className="rounded-md p-2 text-muted-foreground hover:bg-accent transition-colors"
-                  aria-label="Close menu"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <nav className="flex-1">
-                <ul className="flex flex-col gap-4">
-                  {navLinks.map((link) => (
-                    <li key={link.name}>
-                      <Link
-                        href={link.href}
-                        className={`block p-2 text-base font-medium transition-colors hover:text-primary ${
-                          isActive(link.href) ? "text-primary" : "text-muted-foreground"
-                        }`}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        {link.name}
-                      </Link>
-                    </li>
-                  ))}
-                  {account && (
-                    <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
-                      <Button
-                        variant="ghost"
-                        className="text-left w-full truncate"
-                        onClick={() => setIsWalletDialogOpen(true)}
-                      >
-                        {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
-                      </Button>
-                    </li>
-                  )}
-                </ul>
-              </nav>
-              {account && (
-                <div className="mt-auto pb-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={disconnect}
-                    disabled={isConnecting}
-                    className="w-full text-sm"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Disconnect
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
-    );
+      )}
+    </header>
+  );
 }

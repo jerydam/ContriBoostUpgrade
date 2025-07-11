@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isAddress, parseEther, ZeroAddress } from "ethers";
+import { isAddress, parseEther } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { createGoalFund } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
@@ -19,15 +19,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
 const CONTRACT_ADDRESSES = {
-  lisk: {
-    factory: "0x5842c184b44aca1D165E990af522f2a164F2abe1",
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
-    native: ZeroAddress,
+  celo: {
+    factory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },
 };
 
 const SUPPORTED_CHAINS = {
-  lisk: 4202,
+  celo: 44787,
 };
 
 const formSchema = z.object({
@@ -52,12 +52,12 @@ const formSchema = z.object({
   ),
   beneficiary: z.string().refine(isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]),
-  paymentMethod: z.enum(["0", "1"]),
+  tokenType: z.enum(["celo", "cusd"]),
 });
 
 export default function CreateGoalFundPage() {
   const router = useRouter();
-  const { signer, account, connect, chainId, switchNetwork, thirdwebClient, liskSepolia, walletType } = useWeb3();
+  const { signer, account, connect, connectInAppWallet, chainId, switchNetwork, thirdwebClient, celoAlfajores, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -71,7 +71,7 @@ export default function CreateGoalFundPage() {
       deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
       beneficiary: account || "",
       fundType: "0",
-      paymentMethod: "0",
+      tokenType: "celo",
     },
   });
 
@@ -86,10 +86,10 @@ export default function CreateGoalFundPage() {
   useEffect(() => {
     console.log("ChainId changed:", chainId);
     if (chainId) {
-      if (chainId === SUPPORTED_CHAINS.lisk) {
-        setSelectedNetwork("lisk");
+      if (chainId === SUPPORTED_CHAINS.celo) {
+        setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia.");
+        setError("Unsupported network. Please switch to Celo Alfajores.");
         setSelectedNetwork(null);
       }
     } else {
@@ -99,13 +99,44 @@ export default function CreateGoalFundPage() {
 
   async function handleNetworkSwitch(network) {
     try {
+      if (!account) {
+        await connect();
+        if (!account) {
+          setError("Please connect your wallet to switch networks.");
+          try {
+            toast.warning("Please connect your wallet to switch networks.");
+          } catch (toastError) {
+            console.error("Toast error:", toastError);
+          }
+          return;
+        }
+      }
+
+      if (walletType === "smart") {
+        setError("Smart wallets do not require manual network switching on Celo Alfajores.");
+        try {
+          toast.info("Smart wallets are already configured for Celo Alfajores.");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
+        return;
+      }
+
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to Lisk Sepolia network`);
+      try {
+        toast.info(`Switched to Celo Alfajores network`);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
-      toast.error("Failed to switch network");
+      try {
+        toast.error("Failed to switch network: " + err.message);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     }
   }
 
@@ -114,31 +145,39 @@ export default function CreateGoalFundPage() {
       await connect();
       if (!account) {
         setError("Please connect your wallet first");
-        toast.warning("Please connect your wallet first");
+        try {
+          toast.warning("Please connect your wallet first");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
         return;
       }
     }
-  
+
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia)");
-      toast.error("Unsupported network");
+      setError("Please select a supported network (Celo Alfajores)");
+      try {
+        toast.error("Unsupported network");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       return;
     }
-  
+
     setError(null);
     setIsCreating(true);
-  
+
     try {
-      const chain = selectedNetwork === "lisk" ? liskSepolia : null;
+      const chain = selectedNetwork === "celo" ? celoAlfajores : null;
       if (!chain) {
         throw new Error("Invalid chain configuration for selected network");
       }
-  
+
       const tokenAddress =
-        values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork].usdt
-          : CONTRACT_ADDRESSES[selectedNetwork].native;
-  
+        values.tokenType === "cusd"
+          ? CONTRACT_ADDRESSES[selectedNetwork].cusd
+          : CONTRACT_ADDRESSES[selectedNetwork].celo;
+
       console.log("Submitting GoalFund:", {
         chain: JSON.stringify(chain, null, 2),
         chainId: SUPPORTED_CHAINS[selectedNetwork],
@@ -147,13 +186,13 @@ export default function CreateGoalFundPage() {
         targetAmount: values.targetAmount,
         deadline: values.deadline,
         beneficiary: values.beneficiary,
-        paymentMethod: values.paymentMethod,
+        paymentMethod: 1,
         tokenAddress,
         fundType: values.fundType,
         walletType,
         account,
       });
-  
+
       const { receipt, newContractAddress } = await createGoalFund({
         client: thirdwebClient,
         chain,
@@ -163,31 +202,35 @@ export default function CreateGoalFundPage() {
         targetAmount: parseEther(values.targetAmount),
         deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
         beneficiary: values.beneficiary,
-        paymentMethod: Number(values.paymentMethod),
+        paymentMethod: 1,
         tokenAddress,
         fundType: Number(values.fundType),
         account: signer,
         walletType,
       });
-  
+
       console.log("Transaction receipt:", {
         transactionHash: receipt.transactionHash,
         walletType,
         logs: receipt.logs || "No logs available",
         events: receipt.events || "No events available",
       });
-  
-      toast.success("GoalFund created successfully!");
+
+      try {
+        toast.success("GoalFund created successfully!");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       router.push(`/pools?created=true`);
     } catch (error) {
       console.error("Error creating GoalFund:", error);
       let message = "Failed to create GoalFund. Please try again.";
       if (error.message.includes("invalid chain")) {
-        message = "Invalid chain configuration. Ensure Lisk Sepolia is selected.";
+        message = "Invalid chain configuration. Ensure Celo Alfajores is selected.";
       } else if (error.message.includes("UserOp failed")) {
-        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient ETH for gas.";
+        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient CELO for gas.";
       } else if (error.message.includes("invalid token address")) {
-        message = "Invalid token address. Please check the payment method.";
+        message = "Invalid token address. Please select CELO or cUSD.";
       } else if (error.message.includes("deadline")) {
         message = "Deadline must be in the future.";
       } else if (error.message.includes("insufficient funds")) {
@@ -196,14 +239,13 @@ export default function CreateGoalFundPage() {
         message = "Transaction rejected by wallet.";
       } else if (error.message.includes("missing logs or events")) {
         message = `Failed to parse transaction receipt for ${walletType} wallet. Please try with a different wallet or contact support.`;
-      } else if (error.message.includes("GoalFundCreated event")) {
-        message = "GoalFund created successfully!";
-        toast.success(message);
-        router.push(`/pools?created=true`);
-        return;
       }
       setError(message);
-      toast.error(message);
+      try {
+        toast.error(message);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
       router.push(`/pools?created=true`);
     } finally {
       setIsCreating(false);
@@ -215,6 +257,12 @@ export default function CreateGoalFundPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-2xl sm:text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a GoalFund</p>
+        <Button onClick={connect} className="mr-4">
+          Connect MetaMask
+        </Button>
+        <Button onClick={() => connectInAppWallet("guest")} className="mr-4">
+          Connect as Guest
+        </Button>
         <Button variant="outline" asChild>
           <a href="/">Go Home</a>
         </Button>
@@ -226,7 +274,7 @@ export default function CreateGoalFundPage() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create GoalFund</h1>
       <p className="text-muted-foreground mb-8 text-sm sm:text-base">
-        Deploy a new goal-based funding campaign
+        Deploy a new goal-based funding campaign on Celo Alfajores
       </p>
 
       <Card className="mb-6">
@@ -237,11 +285,11 @@ export default function CreateGoalFundPage() {
         <CardContent>
           <div className="flex gap-4">
             <Button
-              variant={selectedNetwork === "lisk" ? "default" : "outline"}
-              onClick={() => handleNetworkSwitch("lisk")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
+              variant={selectedNetwork === "celo" ? "default" : "outline"}
+              onClick={() => handleNetworkSwitch("celo")}
+              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo || !account || walletType === "smart"}
             >
-              Lisk Sepolia
+              Celo Alfajores
             </Button>
           </div>
           {error && (
@@ -311,7 +359,7 @@ export default function CreateGoalFundPage() {
                           <Input placeholder="1" {...field} />
                         </FormControl>
                         <FormDescription className="text-xs sm:text-sm">
-                          Amount you aim to raise (in {selectedNetwork === "lisk" ? "ETH or USDT" : "CELO or cUSD"})
+                          Amount you aim to raise (in CELO or cUSD ERC20 tokens)
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -396,10 +444,10 @@ export default function CreateGoalFundPage() {
                 />
                 <FormField
                   control={form.control}
-                  name="paymentMethod"
+                  name="tokenType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Payment Method</FormLabel>
+                      <FormLabel>Token Type</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -408,22 +456,21 @@ export default function CreateGoalFundPage() {
                         >
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="0" />
+                              <RadioGroupItem value="celo" />
                             </FormControl>
-                            <FormLabel className="font-normal">
-                              {selectedNetwork === "lisk" ? "Ether (ETH)" : "Celo (CELO)"}
-                            </FormLabel>
+                            <FormLabel className="font-normal">CELO (ERC20)</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="1" />
+                              <RadioGroupItem value="cusd" />
                             </FormControl>
-                            <FormLabel className="font-normal">
-                              {selectedNetwork === "lisk" ? "USDT" : "cUSD"}
-                            </FormLabel>
+                            <FormLabel className="font-normal">cUSD (ERC20)</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
+                      <FormDescription className="text-xs sm:text-sm">
+                        Select the ERC20 token for contributions
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

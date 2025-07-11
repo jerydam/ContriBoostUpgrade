@@ -20,13 +20,14 @@ import { ArrowRight, ChevronRight, Coins, Wallet, Loader2 } from "lucide-react";
 
 // Network configurations
 const NETWORKS = {
-  lisk: {
-    chainId: 4202,
-    name: "Lisk Sepolia",
-    rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0x4d7d68789cbc93d33dfafcbc87a2f6e872a5b1f8",
-    goalFundFactory: "0x5842c184b44aca1d165e990af522f2a164f2abe1",
-    tokenAddress: "0x46d96167da9e15aad148c8c68aa1042466ba6eed", // USDT
+  celoAlfajores: {
+    chainId: 44787,
+    name: "celoAlfajores",
+    rpcUrl: "https://alfajores-forno.celo-testnet.org",
+    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
+    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // USDT
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
@@ -34,8 +35,8 @@ const NETWORKS = {
 
 // Static conversion rates
 const CONVERSION_RATES = {
-  ETH_TO_USD: 2500, // 1 ETH = $2500
-  USDT_TO_USD: 0.9, // 1 USDT = $0.9
+  CELO_TO_USD: 0.38, // 1 ETH = $2500
+  CUSD_TO_USD: 0.9, // 1 USDT = $0.9
 };
 
 // Cache configuration
@@ -99,19 +100,19 @@ export default function LandingPage() {
 
     try {
       console.log("[STATS] Initializing stats fetch...");
-      const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
+      const celoAlfajoresProvider = new ethers.JsonRpcProvider(NETWORKS.celoAlfajores.rpcUrl);
       let goalFundDeposits = 0;
       let contriboostDeposits = 0;
       let totalUSDAmount = 0;
       const uniqueUsers = new Set();
 
       // Normalize addresses
-      const contriboostFactoryAddress = ethers.getAddress(NETWORKS.lisk.contriboostFactory);
-      const goalFundFactoryAddress = ethers.getAddress(NETWORKS.lisk.goalFundFactory);
-      const usdtTokenAddress = ethers.getAddress(NETWORKS.lisk.tokenAddress);
+      const contriboostFactoryAddress = ethers.getAddress(NETWORKS.celoAlfajores.contriboostFactory);
+      const goalFundFactoryAddress = ethers.getAddress(NETWORKS.celoAlfajores.goalFundFactory);
+      const usdtTokenAddress = ethers.getAddress(NETWORKS.celoAlfajores.tokenAddress);
 
       // Fetch latest block
-      const latestBlock = await retry(() => liskProvider.getBlockNumber());
+      const latestBlock = await retry(() => celoAlfajoresProvider.getBlockNumber());
       console.log("[STATS] Latest block:", latestBlock);
 
       // Fetch Contriboost contracts
@@ -119,7 +120,7 @@ export default function LandingPage() {
       const contriboostFactory = new ethers.Contract(
         contriboostFactoryAddress,
         ContriboostFactoryAbi,
-        liskProvider
+        celoAlfajoresProvider
       );
       const contriboostAddresses = await retry(() => contriboostFactory.getContriboosts());
       console.log("[STATS] Contriboost contracts:", contriboostAddresses);
@@ -127,7 +128,7 @@ export default function LandingPage() {
       // Process Contriboost contracts
       for (const address of contriboostAddresses) {
         console.log(`[STATS] Processing Contriboost contract: ${address}`);
-        const contriboostContract = new ethers.Contract(address, ContriboostAbi, liskProvider);
+        const contriboostContract = new ethers.Contract(address, ContriboostAbi, celoAlfajoresProvider);
         // Fetch token address
         let tokenAddress;
         try {
@@ -153,8 +154,8 @@ export default function LandingPage() {
             const user = event.args.participant.toLowerCase();
             uniqueUsers.add(user);
             const usdValue = isUSDT
-              ? Number(ethers.formatUnits(amount, 6)) * CONVERSION_RATES.USDT_TO_USD
-              : Number(ethers.formatEther(amount)) * CONVERSION_RATES.ETH_TO_USD;
+              ? Number(ethers.formatUnits(amount, 6)) * CONVERSION_RATES.CUSD_TO_USD
+              : Number(ethers.formatEther(amount)) * CONVERSION_RATES.CELO_TO_USD;
             totalUSDAmount += usdValue;
             console.log(
               `[STATS] Deposit event: user=${user}, amount=${
@@ -175,7 +176,7 @@ export default function LandingPage() {
       const goalFundFactory = new ethers.Contract(
         goalFundFactoryAddress,
         GoalFundFactoryAbi,
-        liskProvider
+        celoAlfajoresProvider
       );
       const goalFundAddresses = await retry(() => goalFundFactory.getGoalFunds());
       console.log("[STATS] GoalFund contracts:", goalFundAddresses);
@@ -183,7 +184,7 @@ export default function LandingPage() {
       // Process GoalFund contracts
       for (const address of goalFundAddresses) {
         console.log(`[STATS] Processing GoalFund contract: ${address}`);
-        const goalFundContract = new ethers.Contract(address, GoalFundAbi, liskProvider);
+        const goalFundContract = new ethers.Contract(address, GoalFundAbi, celoAlfajoresProvider);
         // Fetch token address
         let tokenAddress;
         try {
@@ -209,8 +210,8 @@ export default function LandingPage() {
             const user = event.args.contributor.toLowerCase();
             uniqueUsers.add(user);
             const usdValue = isUSDT
-              ? Number(ethers.formatUnits(amount, 6)) * CONVERSION_RATES.USDT_TO_USD
-              : Number(ethers.formatEther(amount)) * CONVERSION_RATES.ETH_TO_USD;
+              ? Number(ethers.formatUnits(amount, 6)) * CONVERSION_RATES.CUSD_TO_USD
+              : Number(ethers.formatEther(amount)) * CONVERSION_RATES.CELO_TO_USD;
             totalUSDAmount += usdValue;
             console.log(
               `[STATS] Contribution event: contributor=${user}, amount=${

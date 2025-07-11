@@ -1626,8 +1626,85 @@ export const GoalFundAbi =[
 		"type": "event"
 	},
 	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "contributor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "RewardIssued",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "contributor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "accumulatedReward",
+				"type": "uint256"
+			}
+		],
+		"name": "RewardUpdated",
+		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "MINIMUM_CUSD",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "PERCENTAGE_BASE",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "REWARD_INTERVAL",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "REWARD_RATE",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1697,6 +1774,19 @@ export const GoalFundAbi =[
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "fundGoodDollarRewards",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "fundType",
 		"outputs": [
@@ -1704,6 +1794,25 @@ export const GoalFundAbi =[
 				"internalType": "enum GoalFund.FundType",
 				"name": "",
 				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "contributor",
+				"type": "address"
+			}
+		],
+		"name": "getAccumulatedRewards",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -1725,6 +1834,19 @@ export const GoalFundAbi =[
 	{
 		"inputs": [],
 		"name": "getContributorCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getGoodDollarBalance",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1777,6 +1899,19 @@ export const GoalFundAbi =[
 			{
 				"internalType": "address payable",
 				"name": "beneficiary",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "goodDollarToken",
+		"outputs": [
+			{
+				"internalType": "contract IERC20",
+				"name": "",
 				"type": "address"
 			}
 		],
@@ -1847,6 +1982,30 @@ export const GoalFundAbi =[
 		"name": "renounceOwnership",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "rewards",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "lastUpdateTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "accumulatedReward",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{

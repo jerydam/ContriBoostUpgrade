@@ -15,8 +15,8 @@ export const CONTRACT_ADDRESSES = {
     native: "0x0000000000000000000000000000000000000000", // ZeroAddress for Lisk ETH
   },
   celo: {
-    factoryContriboost: validateContractAddress("0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c"),
-    factoryGoalFund: validateContractAddress("0xDB4421c212D78bfCB4380276428f70e50881ABad"),
+    factoryContriboost: validateContractAddress("0x4C9118aBffa2aCCa4a16d08eC1222634eb744748"),
+    factoryGoalFund: validateContractAddress("0x64547A48C57583C8f595D97639543E2f1b6db4a6"),
     cusd: validateContractAddress("0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8"),
     native: validateContractAddress("0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9"), // Celo native token
   },

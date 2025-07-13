@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowRight, ChevronRight, Coins, Wallet, Loader2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Coins, Wallet, Loader2, CheckCircle } from "lucide-react";
 
 // Network configurations
 const NETWORKS = {
@@ -35,8 +35,8 @@ const NETWORKS = {
 
 // Static conversion rates
 const CONVERSION_RATES = {
-  CELO_TO_USD: 0.38, // 1 ETH = $2500
-  CUSD_TO_USD: 0.9, // 1 USDT = $0.9
+  CELO_TO_USD: 0.38,
+  CUSD_TO_USD: 0.9,
 };
 
 // Cache configuration
@@ -52,6 +52,8 @@ export default function LandingPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
   const [isEmailVerification, setIsEmailVerification] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const [stats, setStats] = useState({
     goalFundDeposits: 0,
     contriboostDeposits: 0,
@@ -64,16 +66,36 @@ export default function LandingPage() {
 
   useEffect(() => {
     fetchPlatformStats();
-  }, []);
+    if (account) {
+      checkVerificationStatus();
+    }
+  }, [account]);
 
-  // Utility to add delay between requests
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  async function checkVerificationStatus() {
+    if (!account) return;
+    setIsCheckingVerification(true);
+    try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      setIsVerified(data.verified);
+      if (data.verified) {
+        localStorage.setItem(`verification_${account}`, "true");
+      } else {
+        localStorage.removeItem(`verification_${account}`);
+      }
+    } catch (error) {
+      console.error("Error checking verification status:", error);
+      setIsVerified(false);
+      localStorage.removeItem(`verification_${account}`);
+    } finally {
+      setIsCheckingVerification(false);
+    }
+  }
 
   async function fetchPlatformStats() {
     setIsLoadingStats(true);
     setStatsError(null);
 
-    // Check cache
     const cachedData = localStorage.getItem(CACHE_KEY);
     if (cachedData) {
       const { data, timestamp } = JSON.parse(cachedData);
@@ -92,8 +114,7 @@ export default function LandingPage() {
         } catch (err) {
           console.warn(`[RETRY] Attempt ${i + 1} failed:`, err.message);
           if (i === retries - 1) throw err;
-          // Exponential backoff
-          await delay(delayMs * Math.pow(2, i));
+          await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, i)));
         }
       }
     };
@@ -106,17 +127,13 @@ export default function LandingPage() {
       let totalUSDAmount = 0;
       const uniqueUsers = new Set();
 
-      // Normalize addresses
       const contriboostFactoryAddress = ethers.getAddress(NETWORKS.celoAlfajores.contriboostFactory);
       const goalFundFactoryAddress = ethers.getAddress(NETWORKS.celoAlfajores.goalFundFactory);
       const usdtTokenAddress = ethers.getAddress(NETWORKS.celoAlfajores.tokenAddress);
 
-      // Fetch latest block
       const latestBlock = await retry(() => celoAlfajoresProvider.getBlockNumber());
       console.log("[STATS] Latest block:", latestBlock);
 
-      // Fetch Contriboost contracts
-      console.log("[STATS] Fetching Contriboost contracts...");
       const contriboostFactory = new ethers.Contract(
         contriboostFactoryAddress,
         ContriboostFactoryAbi,
@@ -125,23 +142,20 @@ export default function LandingPage() {
       const contriboostAddresses = await retry(() => contriboostFactory.getContriboosts());
       console.log("[STATS] Contriboost contracts:", contriboostAddresses);
 
-      // Process Contriboost contracts
       for (const address of contriboostAddresses) {
         console.log(`[STATS] Processing Contriboost contract: ${address}`);
         const contriboostContract = new ethers.Contract(address, ContriboostAbi, celoAlfajoresProvider);
-        // Fetch token address
         let tokenAddress;
         try {
           tokenAddress = await retry(() => contriboostContract.token());
         } catch (err) {
           console.warn(`[STATS] Skipping contract ${address}: Failed to fetch token`, err);
-          await delay(500);
+          await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
         }
         const isUSDT = tokenAddress.toLowerCase() === usdtTokenAddress.toLowerCase();
         console.log(`[STATS] Contriboost ${address} uses ${isUSDT ? "USDT" : "ETH"} (token: ${tokenAddress})`);
 
-        // Query Deposit events
         try {
           const depositFilter = contriboostContract.filters.Deposit(null, null);
           const depositEvents = await retry(() =>
@@ -166,13 +180,9 @@ export default function LandingPage() {
         } catch (err) {
           console.warn(`[STATS] Failed to query Deposit events for ${address}:`, err);
         }
-
-        // Delay to avoid rate limiting
-        await delay(500);
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      // Fetch GoalFund contracts
-      console.log("[STATS] Fetching GoalFund contracts...");
       const goalFundFactory = new ethers.Contract(
         goalFundFactoryAddress,
         GoalFundFactoryAbi,
@@ -181,23 +191,20 @@ export default function LandingPage() {
       const goalFundAddresses = await retry(() => goalFundFactory.getGoalFunds());
       console.log("[STATS] GoalFund contracts:", goalFundAddresses);
 
-      // Process GoalFund contracts
       for (const address of goalFundAddresses) {
         console.log(`[STATS] Processing GoalFund contract: ${address}`);
         const goalFundContract = new ethers.Contract(address, GoalFundAbi, celoAlfajoresProvider);
-        // Fetch token address
         let tokenAddress;
         try {
           tokenAddress = await retry(() => goalFundContract.token());
         } catch (err) {
           console.warn(`[STATS] Skipping contract ${address}: Failed to fetch token`, err);
-          await delay(500);
+          await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
         }
         const isUSDT = tokenAddress.toLowerCase() === usdtTokenAddress.toLowerCase();
         console.log(`[STATS] GoalFund ${address} uses ${isUSDT ? "USDT" : "ETH"} (token: ${tokenAddress})`);
 
-        // Query Contribution events
         try {
           const contributionFilter = goalFundContract.filters.Contribution(null, null);
           const contributionEvents = await retry(() =>
@@ -222,9 +229,7 @@ export default function LandingPage() {
         } catch (err) {
           console.warn(`[STATS] Failed to query Contribution events for ${address}:`, err);
         }
-
-        // Delay to avoid rate limiting
-        await delay(500);
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       const newStats = {
@@ -235,7 +240,6 @@ export default function LandingPage() {
       };
 
       console.log("[STATS] Final stats:", newStats);
-      // Cache results
       localStorage.setItem(CACHE_KEY, JSON.stringify({ data: newStats, timestamp: Date.now() }));
       setStats(newStats);
     } catch (err) {
@@ -251,6 +255,20 @@ export default function LandingPage() {
     if (!account) {
       setIsConnectDialogOpen(true);
     } else {
+      if (path.includes("/create/contribution")) {
+        try {
+          const response = await fetch(`/api/verify/status/${account}`);
+          const data = await response.json();
+          if (!data.verified) {
+            router.push("/verify");
+            return;
+          }
+        } catch (error) {
+          console.error("Error checking verification status:", error);
+          router.push("/verify");
+          return;
+        }
+      }
       router.push(path);
     }
   };
@@ -309,6 +327,11 @@ export default function LandingPage() {
       setSubscriptionStatus("error");
       setSubscriptionMessage("Failed to subscribe. Please try again.");
     }
+  };
+
+  const handleVerifyNavigation = () => {
+    setIsConnectDialogOpen(false);
+    router.push("/verify");
   };
 
   const formatAddress = (address) => {
@@ -451,19 +474,39 @@ export default function LandingPage() {
                             <Button
                               variant="outline"
                               className="w-full h-10 touch:min-h-[44px] text-sm hover:bg-[#6264c7]"
-                              disabled={isConnecting}
+                              disabled={isConnecting || isCheckingVerification}
                               aria-label="Get started with Contriboost"
                             >
-                              {isConnecting ? "Connecting..." : "Get Started"}
+                              {isCheckingVerification ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                "Get Started"
+                              )}
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="w-[90vw] max-w-[95vw] sm:max-w-md max-h-[80vh] overflow-y-auto bg-[#101b31] rounded-lg p-4">
                             <DialogHeader>
                               <DialogTitle className="text-base">
-                                {isEmailVerification ? "Verify Email" : "Connect Your Wallet"}
+                                {account && !isVerified
+                                  ? "Verify Your Identity"
+                                  : isEmailVerification
+                                  ? "Verify Email"
+                                  : "Connect Your Wallet"}
                               </DialogTitle>
                             </DialogHeader>
-                            {isEmailVerification ? (
+                            {account && !isVerified ? (
+                              <div className="grid gap-3 py-4">
+                                <p className="text-sm text-muted-foreground">
+                                  Identity verification is required to create or join Contriboost pools.
+                                </p>
+                                <Button
+                                  onClick={handleVerifyNavigation}
+                                  className="h-10 touch:min-h-[44px] text-sm"
+                                >
+                                  Verify Identity
+                                </Button>
+                              </div>
+                            ) : isEmailVerification ? (
                               <div className="grid gap-3 py-4">
                                 <Input
                                   type="email"
@@ -585,44 +628,43 @@ export default function LandingPage() {
                 </div>
               </div>
               {/* Platform Statistics */}
-              
-                  <div className="order-3 sm:order-2">
+              <div className="order-3 sm:order-2">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-[600px]">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingStats ? (
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    ) :  statsError ? (
-                      <span className="text-red-500 text-sm">Error</span>
-                    ) :  (
-                      <div>
-                        <p className="text-xl sm:text-2xl font-bold">
-                          {stats.contriboostDeposits + stats.goalFundDeposits}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Contriboost: {stats.contriboostDeposits} | GoalFund: {stats.goalFundDeposits}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingStats ? (
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    ) : statsError ? (
-                      <span className="text-red-500 text-sm">Error</span>
-                    ) : (
-                      <p className="text-xl sm:text-2xl font-bold">{stats.totalUsers}</p>
-                    )}
-                  </CardContent>
-                </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoadingStats ? (
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      ) : statsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
+                      ) : (
+                        <div>
+                          <p className="text-xl sm:text-2xl font-bold">
+                            {stats.contriboostDeposits + stats.goalFundDeposits}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Contriboost: {stats.contriboostDeposits} | GoalFund: {stats.goalFundDeposits}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoadingStats ? (
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      ) : statsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
+                      ) : (
+                        <p className="text-xl sm:text-2xl font-bold">{stats.totalUsers}</p>
+                      )}
+                    </CardContent>
+                  </Card>
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
@@ -650,6 +692,11 @@ export default function LandingPage() {
               {account && (
                 <p className="text-xs sm:text-sm text-muted-foreground order-4">
                   Connected with {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAddress(account)}
+                  {isVerified && (
+                    <span className="ml-2 text-green-600">
+                      <CheckCircle className="inline h-4 w-4" /> Verified
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -701,19 +748,39 @@ export default function LandingPage() {
                         <Button
                           variant="outline"
                           className="w-full h-10 sm:h-11 touch:min-h-[44px] text-sm sm:text-base hover:bg-[#6264c7]"
-                          disabled={isConnecting}
+                          disabled={isConnecting || isCheckingVerification}
                           aria-label="Get started with Contriboost"
                         >
-                          {isConnecting ? "Connecting..." : "Get Started"}
+                          {isCheckingVerification ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            "Get Started"
+                          )}
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="w-[90vw] max-w-[95vw] sm:max-w-md max-h-[80vh] overflow-y-auto bg-[#101b31] rounded-lg p-4 sm:p-6">
                         <DialogHeader>
                           <DialogTitle className="text-base sm:text-lg">
-                            {isEmailVerification ? "Verify Email" : "Connect Your Wallet"}
+                            {account && !isVerified
+                              ? "Verify Your Identity"
+                              : isEmailVerification
+                              ? "Verify Email"
+                              : "Connect Your Wallet"}
                           </DialogTitle>
                         </DialogHeader>
-                        {isEmailVerification ? (
+                        {account && !isVerified ? (
+                          <div className="grid gap-3 sm:gap-4 py-4">
+                            <p className="text-sm text-muted-foreground">
+                              Identity verification is required to create or join Contriboost pools.
+                            </p>
+                            <Button
+                              onClick={handleVerifyNavigation}
+                              className="h-10 sm:h-11 touch:min-h-[44px] text-sm sm:text-base"
+                            >
+                              Verify Identity
+                            </Button>
+                          </div>
+                        ) : isEmailVerification ? (
                           <div className="grid gap-3 sm:gap-4 py-4">
                             <Input
                               type="email"

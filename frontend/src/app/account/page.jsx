@@ -9,15 +9,15 @@ import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlusCircle, AlertCircle, Globe } from "lucide-react";
+import { Loader2, PlusCircle, AlertCircle, Globe, CheckCircle } from "lucide-react";
 
 const NETWORKS = {
   celo: {
     chainId: 44787,
     name: "Celo Alfajores",
     rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    contriboostFactory: "0x4C9118aBffa2aCCa4a16d08eC1222634eb744748",
+    goalFundFactory: "0x64547A48C57583C8f595D97639543E2f1b6db4a6",
     tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
@@ -31,6 +31,8 @@ export default function AccountPage() {
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isVerified, setIsVerified] = useState(false);
+  const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const router = useRouter();
 
   const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
@@ -38,10 +40,32 @@ export default function AccountPage() {
   useEffect(() => {
     if (account) {
       fetchUserData();
+      checkVerificationStatus();
     } else {
       setIsLoading(false);
     }
   }, [account]);
+
+  async function checkVerificationStatus() {
+    if (!account) return;
+    setIsCheckingVerification(true);
+    try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      setIsVerified(data.verified);
+      if (data.verified) {
+        localStorage.setItem(`verification_${account}`, "true");
+      } else {
+        localStorage.removeItem(`verification_${account}`);
+      }
+    } catch (error) {
+      console.error("Error checking verification status:", error);
+      setIsVerified(false);
+      localStorage.removeItem(`verification_${account}`);
+    } finally {
+      setIsCheckingVerification(false);
+    }
+  }
 
   async function fetchUserData() {
     if (!account) return;
@@ -175,6 +199,22 @@ export default function AccountPage() {
       await connect();
       if (!account) return;
     }
+
+    if (path.includes("/create/contribution")) {
+      try {
+        const response = await fetch(`/api/verify/status/${account}`);
+        const data = await response.json();
+        if (!data.verified) {
+          router.push("/verify");
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking verification status:", error);
+        router.push("/verify");
+        return;
+      }
+    }
+
     router.push(path);
   }
 
@@ -185,8 +225,6 @@ export default function AccountPage() {
   function formatAddress(address) {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "N/A";
   }
-
-  
 
   if (!account) {
     return (
@@ -256,6 +294,22 @@ export default function AccountPage() {
                 </p>
               </div>
             </div>
+            {isCheckingVerification ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Checking verification status...</span>
+              </div>
+            ) : isVerified ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="text-sm text-green-600 font-medium">Verified</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-yellow-600" />
+                <span className="text-sm text-yellow-600 font-medium">Not Verified</span>
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row gap-2">
@@ -287,6 +341,22 @@ export default function AccountPage() {
             )}
             Create GoalFund
           </Button>
+          {!isVerified && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => router.push("/verify")}
+              disabled={isCheckingVerification}
+            >
+              {isCheckingVerification ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-2 h-4 w-4" />
+              )}
+              Verify Identity
+            </Button>
+          )}
         </CardFooter>
       </Card>
 
@@ -413,9 +483,9 @@ export default function AccountPage() {
                         View Details
                       </Link>
                     </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
+                  </CardFooter>
+                </Card>
+              ))}
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
@@ -423,7 +493,7 @@ export default function AccountPage() {
               <p className="text-muted-foreground mb-4 text-sm">
                 You haven’t created or contributed to any GoalFunds yet
               </p>
-              <Button
+                            <Button
                 variant="outline"
                 className="text-xs sm:text-sm"
                 onClick={() => handleCreateNavigation("/create/goalfund")}

@@ -49,8 +49,8 @@ const NETWORKS = {
     chainId: 44787,
     name: "Celo Alfajores",
     rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    contriboostFactory: "0x4C9118aBffa2aCCa4a16d08eC1222634eb744748",
+    goalFundFactory: "0x64547A48C57583C8f595D97639543E2f1b6db4a6",
     tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
@@ -66,6 +66,9 @@ export default function PoolsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [fetchErrors, setFetchErrors] = useState([]);
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
+  const [rewardFundingAmount, setRewardFundingAmount] = useState("");
+  const [isFactoryOwner, setIsFactoryOwner] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -79,11 +82,31 @@ export default function PoolsPage() {
     } else {
       fetchPools();
     }
-  }, [searchParams]);
+    checkFactoryOwner();
+  }, [searchParams, account, chainId]);
 
   useEffect(() => {
     filterPools();
   }, [pools, searchQuery, statusFilter]);
+
+  async function checkFactoryOwner() {
+    if (!account || chainId !== NETWORKS.celo.chainId) {
+      setIsFactoryOwner(false);
+      return;
+    }
+    try {
+      const goalFundFactory = new ethers.Contract(
+        NETWORKS.celo.goalFundFactory,
+        GoalFundFactoryAbi,
+        celoProvider
+      );
+      const owner = await goalFundFactory.owner();
+      setIsFactoryOwner(account.toLowerCase() === owner.toLowerCase());
+    } catch (error) {
+      console.error("Error checking factory owner:", error);
+      setIsFactoryOwner(false);
+    }
+  }
 
   async function fetchPools() {
     setIsLoading(true);
@@ -246,10 +269,14 @@ export default function PoolsPage() {
 
           const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, provider);
           let goal = { achieved: false };
+          let accumulatedRewards = "0";
           try {
             goal = await contract.goal();
+            if (account && chainId === config.chainId) {
+              accumulatedRewards = ethers.formatEther(await contract.getAccumulatedRewards(account));
+            }
           } catch (err) {
-            console.warn(`Failed to fetch goal for GoalFund at ${pool.contractAddress}:`, err);
+            console.warn(`Failed to fetch goal or rewards for GoalFund at ${pool.contractAddress}:`, err);
           }
 
           const now = Math.floor(Date.now() / 1000);
@@ -260,13 +287,14 @@ export default function PoolsPage() {
             status = "achieved";
           }
 
-          let userStatus = { isParticipant: false, contributionAmount: "0" };
+          let userStatus = { isParticipant: false, contributionAmount: "0", accumulatedRewards };
           if (account && chainId === config.chainId) {
             try {
               const contribution = await contract.contributions(account);
               userStatus = {
                 isParticipant: contribution > 0,
                 contributionAmount: ethers.formatEther(contribution),
+                accumulatedRewards,
               };
             } catch (err) {
               console.warn(`Failed to fetch contribution for ${pool.contractAddress}:`, err);
@@ -289,7 +317,7 @@ export default function PoolsPage() {
             platformFeePercentage: Number(pool.platformFeePercentage || 0),
             status,
             userStatus,
-            tags: pool.fundType === 0 ? await contract.getTags().catch(() => []) : [],
+            tags: await contract.getTags().catch(() => []),
           };
         } catch (err) {
           console.error(`Error processing GoalFund pool ${pool.contractAddress}:`, err);
@@ -334,6 +362,45 @@ export default function PoolsPage() {
     return true;
   }
 
+  async function fundGoodDollarRewards() {
+    if (!(await ensureCorrectNetwork())) return;
+    if (!isFactoryOwner) {
+      toast.error("Only the factory owner can fund rewards");
+      return;
+    }
+    if (!rewardFundingAmount || isNaN(rewardFundingAmount) || Number(rewardFundingAmount) <= 0) {
+      toast.warning("Please enter a valid reward funding amount");
+      return;
+    }
+
+    try {
+      const goalFundFactory = new ethers.Contract(NETWORKS.celo.goalFundFactory, GoalFundFactoryAbi, signer);
+      const goodDollarTokenAddress = await goalFundFactory.goodDollarToken();
+      const amount = ethers.parseEther(rewardFundingAmount);
+
+      const tokenContract = new ethers.Contract(goodDollarTokenAddress, IERC20Abi, signer);
+      const balance = await tokenContract.balanceOf(account);
+      if (balance < amount) {
+        throw new Error(`Insufficient GoodDollar balance: ${ethers.formatEther(balance)} available`);
+      }
+
+      const allowance = await tokenContract.allowance(account, NETWORKS.celo.goalFundFactory);
+      if (allowance < amount) {
+        const approveTx = await tokenContract.approve(NETWORKS.celo.goalFundFactory, amount, { gasLimit: 100000 });
+        await approveTx.wait();
+      }
+
+      const tx = await goalFundFactory.fundGoodDollarRewards(amount, { gasLimit: 200000 });
+      await tx.wait();
+      toast.success(`Successfully funded ${rewardFundingAmount} GoodDollar rewards!`);
+      setRewardFundingAmount("");
+      setIsAdminDialogOpen(false);
+    } catch (error) {
+      console.error("Error funding GoodDollar rewards:", error);
+      toast.error(`Error: ${error.reason || error.message || "Failed to fund rewards"}`);
+    }
+  }
+
   async function joinContriboost(pool) {
     if (!(await ensureCorrectNetwork())) return;
     if (pool.userStatus.isParticipant) {
@@ -350,6 +417,14 @@ export default function PoolsPage() {
     }
 
     try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      if (!data.verified) {
+        toast.error("You must be verified to join a Contriboost pool");
+        router.push("/verify");
+        return;
+      }
+
       const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
       const tx = await contract.join({ gasLimit: 200000 });
       await tx.wait();
@@ -417,11 +492,26 @@ export default function PoolsPage() {
   }
 
   async function handleCreateNavigation(path) {
-    setIsCreateDialogOpen(false);
     if (!account) {
       await connect();
       if (!account) return;
     }
+
+    if (path.includes("/create/contribution")) {
+      try {
+        const response = await fetch(`/api/verify/status/${account}`);
+        const data = await response.json();
+        if (!data.verified) {
+          router.push("/verify");
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking verification status:", error);
+        router.push("/verify");
+        return;
+      }
+    }
+
     router.push(path);
   }
 
@@ -433,6 +523,45 @@ export default function PoolsPage() {
     return new Date(timestamp * 1000).toLocaleDateString();
   }
 
+  function AdminActionsDialog() {
+    return (
+      <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
+        <DialogTrigger asChild>
+          <Button disabled={isConnecting || !isFactoryOwner} className="min-w-[120px]">
+            Admin Actions
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px] bg-[#101b31]">
+          <DialogHeader>
+            <DialogTitle>Admin Actions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="rewardFundingAmount">Fund GoodDollar Rewards (G$)</Label>
+              <Input
+                id="rewardFundingAmount"
+                type="number"
+                step="0.000000000000000001"
+                min="0"
+                value={rewardFundingAmount}
+                onChange={(e) => setRewardFundingAmount(e.target.value)}
+                placeholder="Enter amount"
+              />
+              <Button
+                onClick={isCorrectNetwork ? fundGoodDollarRewards : () => switchNetwork(NETWORKS.celo.chainId)}
+                disabled={isConnecting}
+                className="w-full"
+              >
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {isCorrectNetwork ? "Fund Rewards" : `Switch to ${NETWORKS.celo.name}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -440,61 +569,64 @@ export default function PoolsPage() {
           <h1 className="text-3xl font-bold mb-2">All Pools</h1>
           <p className="text-muted-foreground">Browse Contriboost and GoalFund pools across networks</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" disabled={isConnecting}>
-              {isConnecting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
-              Create New
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-[#101b31]">
-            <DialogHeader>
-              <DialogTitle>Choose what to create</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Button
-                variant="outline"
-                className="w-full justify-start h-auto py-4"
-                onClick={() => handleCreateNavigation("/create/contribution")}
-                disabled={isConnecting}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <Wallet className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <h3 className="font-medium">Create Contriboost Pool</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Start a rotating savings pool with friends or community
-                    </p>
-                  </div>
-                  <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
-                </div>
+        <div className="flex gap-2">
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={isConnecting}>
+                {isConnecting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
+                Create New
               </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start h-auto py-4"
-                onClick={() => handleCreateNavigation("/create/goalfund")}
-                disabled={isConnecting}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <Coins className="h-6 w-6 text-primary" />
+            </DialogTrigger>
+            <DialogContent className="bg-[#101b31]">
+              <DialogHeader>
+                <DialogTitle>Choose what to create</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => handleCreateNavigation("/create/contribution")}
+                  disabled={isConnecting}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <Wallet className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-medium">Create Contriboost Pool</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Start a rotating savings pool with friends or community
+                      </p>
+                    </div>
+                    <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
                   </div>
-                  <div className="text-left">
-                    <h3 className="font-medium">Create GoalFund</h3>
-                    <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                  onClick={() => handleCreateNavigation("/create/goalfund")}
+                  disabled={isConnecting}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <Coins className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-medium">Create GoalFund</h3>
+                      <p className="text-sm text-muted-foreground">Create a goal-based funding campaign</p>
+                    </div>
+                    <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
                   </div>
-                  <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
-                </div>
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          {isFactoryOwner && <AdminActionsDialog />}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -726,6 +858,12 @@ export default function PoolsPage() {
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Beneficiary</span>
                           <span className="font-medium">{formatAddress(pool.beneficiary)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Your Rewards</span>
+                          <span className="font-medium">
+                            {parseFloat(pool.userStatus.accumulatedRewards).toFixed(4)} G$
+                          </span>
                         </div>
                       </>
                     )}

@@ -20,7 +20,7 @@ import { toast } from "react-toastify";
 
 const CONTRACT_ADDRESSES = {
   celo: {
-    factory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
+    factory: "0x64547A48C57583C8f595D97639543E2f1b6db4a6",
     cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
     celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },

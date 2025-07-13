@@ -1641,7 +1641,7 @@ export const GoalFundAbi =[
 				"type": "uint256"
 			}
 		],
-		"name": "RewardIssued",
+		"name": "RewardRequested",
 		"type": "event"
 	},
 	{
@@ -1774,16 +1774,16 @@ export const GoalFundAbi =[
 		"type": "function"
 	},
 	{
-		"inputs": [
+		"inputs": [],
+		"name": "factory",
+		"outputs": [
 			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
+				"internalType": "address",
+				"name": "",
+				"type": "address"
 			}
 		],
-		"name": "fundGoodDollarRewards",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1846,19 +1846,6 @@ export const GoalFundAbi =[
 	},
 	{
 		"inputs": [],
-		"name": "getGoodDollarBalance",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "goal",
 		"outputs": [
 			{
@@ -1899,19 +1886,6 @@ export const GoalFundAbi =[
 			{
 				"internalType": "address payable",
 				"name": "beneficiary",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "goodDollarToken",
-		"outputs": [
-			{
-				"internalType": "contract IERC20",
-				"name": "",
 				"type": "address"
 			}
 		],
@@ -2049,6 +2023,80 @@ export const GoalFundAbi =[
 
 export const GoalFundFactoryAbi =[
 	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "_description",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_targetAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_deadline",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address payable",
+				"name": "_beneficiary",
+				"type": "address"
+			},
+			{
+				"internalType": "enum GoalFund.PaymentMethod",
+				"name": "_paymentMethod",
+				"type": "uint8"
+			},
+			{
+				"internalType": "address",
+				"name": "_tokenAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "enum GoalFund.FundType",
+				"name": "_fundType",
+				"type": "uint8"
+			}
+		],
+		"name": "createGoalFund",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_tokenAddress",
+				"type": "address"
+			}
+		],
+		"name": "emergencyWithdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "fundGoodDollarRewards",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
@@ -2114,6 +2162,78 @@ export const GoalFundFactoryAbi =[
 		"type": "event"
 	},
 	{
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "goalFund",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "contributor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "RewardTransferred",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "goalFund",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "contributor",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "transferRewards",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "uint256",
@@ -2133,140 +2253,8 @@ export const GoalFundFactoryAbi =[
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "_name",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "_description",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_targetAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_deadline",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address payable",
-				"name": "_beneficiary",
-				"type": "address"
-			},
-			{
-				"internalType": "enum GoalFundFactory.PaymentMethod",
-				"name": "_paymentMethod",
-				"type": "uint8"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "enum GoalFund.FundType",
-				"name": "_fundType",
-				"type": "uint8"
-			}
-		],
-		"name": "createGoalFund",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenAddress",
-				"type": "address"
-			}
-		],
-		"name": "emergencyWithdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [],
 		"name": "getAllGoalFundsDetails",
-		"outputs": [
-			{
-				"components": [
-					{
-						"internalType": "address",
-						"name": "contractAddress",
-						"type": "address"
-					},
-					{
-						"internalType": "string",
-						"name": "name",
-						"type": "string"
-					},
-					{
-						"internalType": "uint256",
-						"name": "targetAmount",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "currentAmount",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "deadline",
-						"type": "uint256"
-					},
-					{
-						"internalType": "address",
-						"name": "beneficiary",
-						"type": "address"
-					},
-					{
-						"internalType": "address",
-						"name": "tokenAddress",
-						"type": "address"
-					},
-					{
-						"internalType": "enum GoalFund.FundType",
-						"name": "fundType",
-						"type": "uint8"
-					},
-					{
-						"internalType": "uint256",
-						"name": "platformFeePercentage",
-						"type": "uint256"
-					}
-				],
-				"internalType": "struct GoalFundFactory.GoalFundDetails[]",
-				"name": "",
-				"type": "tuple[]"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_goalFund",
-				"type": "address"
-			},
-			{
-				"internalType": "bool",
-				"name": "all",
-				"type": "bool"
-			}
-		],
-		"name": "getGoalFundDetails",
 		"outputs": [
 			{
 				"components": [
@@ -2332,6 +2320,19 @@ export const GoalFundFactoryAbi =[
 				"internalType": "address[]",
 				"name": "",
 				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getGoodDollarBalance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -2424,6 +2425,19 @@ export const GoalFundFactoryAbi =[
 	},
 	{
 		"inputs": [],
+		"name": "goodDollarToken",
+		"outputs": [
+			{
+				"internalType": "contract IERC20",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "owner",
 		"outputs": [
 			{
@@ -2462,26 +2476,6 @@ export const GoalFundFactoryAbi =[
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [
 			{
 				"internalType": "address",
@@ -2504,9 +2498,5 @@ export const GoalFundFactoryAbi =[
 		],
 		"stateMutability": "view",
 		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
 	}
 ]

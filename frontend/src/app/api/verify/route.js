@@ -1,5 +1,14 @@
-import { SelfBackendVerifier, UserIdType, ConfigMismatchError } from '@selfxyz/core';
+import { SelfBackendVerifier } from '@selfxyz/core';
 import { createClient } from '@supabase/supabase-js';
+
+// ConfigMismatchError fallback (may not be exported in current version)
+class ConfigMismatchError extends Error {
+  constructor(message, issues = []) {
+    super(message);
+    this.name = 'ConfigMismatchError';
+    this.issues = issues;
+  }
+}
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -33,7 +42,7 @@ const selfBackendVerifier = new SelfBackendVerifier(
   process.env.NODE_ENV !== 'production', // true for testing, false for production
   allowedIds,
   new SimpleConfigStorage(),
-  UserIdType.HEX // Changed to HEX since we're using wallet addresses
+  'hex' // Use 'hex' for wallet addresses, 'uuid' for traditional UUIDs
 );
 
 export default async function handler(req, res) {

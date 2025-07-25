@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from 'next/navigation';
-import Chat from '@/components/chat/chat';
+import Chat from '@/components/chat';
 import { useAccount } from 'wagmi';
 import { useWeb3 } from '@/components/providers/web3-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

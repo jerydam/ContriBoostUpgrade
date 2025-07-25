@@ -406,6 +406,41 @@ export function Web3Provider({ children }) {
     }
   }
 
+  async function connectWithSocials(strategy) {
+    if (!wallet) {
+      throw new Error("Wallet not initialized. Please try again.");
+    }
+    try {
+      const walletAccount = await withRetry(() =>
+        wallet.connect({
+          client: thirdwebClient,
+          chain: celoAlfajores,
+          strategy,
+        })
+      );
+      const rpcUrl = celoAlfajores.rpc[0];
+      const jsonRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+      setProvider(jsonRpcProvider);
+      setSigner(walletAccount);
+      setAccount(walletAccount.address);
+      setChainId(44787);
+      setWalletType("smart");
+      await debouncedFetchBalance(walletAccount.address, jsonRpcProvider, 44787);
+    } catch (error) {
+      let message = error.message.includes("pop-up")
+        ? "Please allow popups for this site."
+        : error.message.includes("Failed to fetch")
+        ? "Network error. Check your internet connection."
+        : error.message;
+      if (error.message.includes("insufficient funds") || error.message.includes("gas")) {
+        message = `Failed to deploy wallet on Celo Alfajores. Insufficient gas funds (requires CELO).`;
+      }
+      console.error(`Error connecting with ${strategy}:`, error.message, error.stack);
+      setConnectionError(message);
+      throw new Error(message);
+    }
+  }
+
   async function connectWithSIWE() {
     if (!wallet) {
       throw new Error("Wallet not initialized. Please try again.");

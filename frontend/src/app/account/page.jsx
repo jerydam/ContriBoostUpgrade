@@ -92,6 +92,7 @@ export default function AccountPage() {
   async function fetchNetworkData(network, provider, account, fetchedPools, fetchedFunds, newBalance) {
     const networkConfig = NETWORKS[network];
 
+    // Fetch account balance
     try {
       const accountBalance = await provider.getBalance(account);
       newBalance[network] = ethers.formatEther(accountBalance);
@@ -100,28 +101,41 @@ export default function AccountPage() {
       newBalance[network] = "0";
     }
 
+    // Fetch Contriboost pools
     const contriboostFactory = new ethers.Contract(
       networkConfig.contriboostFactory,
       ContriboostFactoryAbi,
       provider
     );
+    
     let userContriboostAddresses = [];
     try {
       userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
+      console.log(`Found ${userContriboostAddresses.length} user Contriboost addresses`);
     } catch (e) {
       console.warn(`Failed to fetch Contriboost addresses for ${network}:`, e);
       userContriboostAddresses = [];
     }
 
-    const contriboostDetails = await Promise.all(
-      userContriboostAddresses.map(async (address) => {
+    const contriboostDetails = await Promise.allSettled(
+      userContriboostAddresses.map(async (address, index) => {
         try {
+          if (!ethers.isAddress(address)) {
+            console.warn(`Invalid Contriboost address at index ${index}:`, address);
+            return null;
+          }
+
           const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
-          if (!detailsArray || !detailsArray[0]) return null;
+          if (!detailsArray || !detailsArray[0]) {
+            console.warn(`No details found for Contriboost ${address}`);
+            return null;
+          }
+          
           const details = detailsArray[0];
 
           const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
           let currentParticipants = 0;
+          
           try {
             const activeParticipants = await contriboostContract.getActiveParticipants();
             currentParticipants = activeParticipants.length;
@@ -149,25 +163,57 @@ export default function AccountPage() {
       })
     );
 
+    // Process Contriboost results
+    const successfulContriboostPools = contriboostDetails
+      .map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          console.error(`Promise rejected for Contriboost at index ${index}:`, result.reason);
+          return null;
+        }
+      })
+      .filter((pool) => pool !== null);
+
+    fetchedPools.push(...successfulContriboostPools);
+
+    // Fetch GoalFund pools
     const goalFundFactory = new ethers.Contract(
       networkConfig.goalFundFactory,
       GoalFundFactoryAbi,
       provider
     );
+    
     let userGoalFundAddresses = [];
     try {
       userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
+      console.log(`Found ${userGoalFundAddresses.length} user GoalFund addresses`);
     } catch (e) {
       console.warn(`Failed to fetch GoalFund addresses for ${network}:`, e);
       userGoalFundAddresses = [];
     }
 
-    const goalFundDetails = await Promise.all(
-      userGoalFundAddresses.map(async (address) => {
+    const goalFundDetails = await Promise.allSettled(
+      userGoalFundAddresses.map(async (address, index) => {
         try {
-          const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
-          if (!detailsArray || !detailsArray[0]) return null;
-          const details = detailsArray[0];
+          if (!ethers.isAddress(address)) {
+            console.warn(`Invalid GoalFund address at index ${index}:`, address);
+            return null;
+          }
+
+          // Fixed: Use getSingleGoalFundDetails instead of getGoalFundDetails
+          // and only pass the address parameter (not the second boolean parameter)
+          console.log(`Fetching details for GoalFund ${address}...`);
+          const details = await goalFundFactory.getSingleGoalFundDetails(address);
+          
+          if (!details) {
+            console.warn(`No details found for GoalFund ${address}`);
+            return null;
+          }
+          
+          // The method returns the struct directly, not wrapped in an array
+          console.log(`Successfully fetched details for GoalFund ${address}:`, details);
+          
           return {
             contractAddress: details.contractAddress,
             name: details.name || "Unnamed Fund",
@@ -190,8 +236,19 @@ export default function AccountPage() {
       })
     );
 
-    fetchedPools.push(...contriboostDetails.filter((pool) => pool !== null));
-    fetchedFunds.push(...goalFundDetails.filter((fund) => fund !== null));
+    // Process GoalFund results
+    const successfulGoalFundPools = goalFundDetails
+      .map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          console.error(`Promise rejected for GoalFund at index ${index}:`, result.reason);
+          return null;
+        }
+      })
+      .filter((fund) => fund !== null);
+
+    fetchedFunds.push(...successfulGoalFundPools);
   }
 
   async function handleCreateNavigation(path) {
@@ -364,10 +421,10 @@ export default function AccountPage() {
       <Tabs defaultValue="pools" className="w-full">
         <TabsList className="w-full mb-6 grid grid-cols-2">
           <TabsTrigger value="pools" className="text-xs sm:text-sm">
-            Contriboost Pools
+            Contriboost Pools ({userPools.length})
           </TabsTrigger>
           <TabsTrigger value="funds" className="text-xs sm:text-sm">
-            GoalFunds
+            GoalFunds ({userFunds.length})
           </TabsTrigger>
         </TabsList>
 
@@ -423,7 +480,7 @@ export default function AccountPage() {
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-base sm:text-lg mb-2">No Contriboost pools found</p>
               <p className="text-muted-foreground mb-4 text-sm">
-                You haven’t created or joined any Contriboost pools yet
+                You haven't created or joined any Contriboost pools yet
               </p>
               <Button variant="outline" asChild className="text-xs sm:text-sm">
                 <Link href="/pools">Browse Pools</Link>
@@ -491,9 +548,9 @@ export default function AccountPage() {
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-base sm:text-lg mb-2">No GoalFunds found</p>
               <p className="text-muted-foreground mb-4 text-sm">
-                You haven’t created or contributed to any GoalFunds yet
+                You haven't created or contributed to any GoalFunds yet
               </p>
-                            <Button
+              <Button
                 variant="outline"
                 className="text-xs sm:text-sm"
                 onClick={() => handleCreateNavigation("/create/goalfund")}

@@ -35,6 +35,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag, Globe } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -57,6 +59,118 @@ const NETWORKS = {
   },
 };
 
+// Debug Panel Component
+function DebugPanel({ pools, fetchErrors, isLoading, account, chainId, celoProvider }) {
+  const [showDebug, setShowDebug] = useState(false);
+  
+  if (!showDebug) {
+    return (
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={() => setShowDebug(true)}
+        className="mb-4"
+      >
+        Show Debug Info
+      </Button>
+    );
+  }
+
+  return (
+    <Card className="mb-6 border-yellow-200 bg-yellow-50">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg flex items-center justify-between">
+          Debug Information
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowDebug(false)}
+          >
+            Hide
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <h4 className="font-medium mb-2">Loading State:</h4>
+          <Badge variant={isLoading ? "default" : "secondary"}>
+            {isLoading ? "Loading..." : "Loaded"}
+          </Badge>
+        </div>
+        
+        <div>
+          <h4 className="font-medium mb-2">Pools Found:</h4>
+          <p className="text-sm">Total: {pools.length}</p>
+          <div className="flex gap-2 mt-1">
+            <Badge variant="outline">
+              Contriboost: {pools.filter(p => p.type === "Contriboost").length}
+            </Badge>
+            <Badge variant="outline">
+              GoalFund: {pools.filter(p => p.type === "GoalFund").length}
+            </Badge>
+          </div>
+        </div>
+
+        {fetchErrors.length > 0 && (
+          <div>
+            <h4 className="font-medium mb-2 text-red-600">Fetch Errors:</h4>
+            <ul className="text-sm text-red-600 space-y-1">
+              {fetchErrors.map((error, index) => (
+                <li key={index} className="p-2 bg-red-100 rounded">
+                  {error}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div>
+          <h4 className="font-medium mb-2">Network Info:</h4>
+          <div className="text-sm space-y-1">
+            <p>Current Chain ID: {chainId || "Not connected"}</p>
+            <p>Account: {account ? `${account.slice(0, 8)}...` : "Not connected"}</p>
+            <p>Provider: {celoProvider ? "Connected" : "Not connected"}</p>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="font-medium mb-2">Contract Addresses:</h4>
+          <div className="text-sm space-y-1">
+            <p>Contriboost Factory: {NETWORKS.celo.contriboostFactory}</p>
+            <p>GoalFund Factory: {NETWORKS.celo.goalFundFactory}</p>
+          </div>
+        </div>
+
+        {pools.length > 0 && (
+          <div>
+            <h4 className="font-medium mb-2">Pool Status Breakdown:</h4>
+            <div className="flex flex-wrap gap-2">
+              {["active", "full", "not-started", "completed", "achieved", "expired", "error"].map(status => {
+                const count = pools.filter(p => p.status === status).length;
+                if (count > 0) {
+                  return (
+                    <Badge key={status} variant="outline">
+                      {status}: {count}
+                    </Badge>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <h4 className="font-medium mb-2">Recent Console Logs:</h4>
+          <p className="text-xs text-gray-600">
+            Check browser console (F12) for detailed logs during pool fetching
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PoolsPage() {
   const { provider, signer, account, chainId, connect, isConnecting, switchNetwork } = useWeb3();
   const [pools, setPools] = useState([]);
@@ -77,7 +191,6 @@ export default function PoolsPage() {
   useEffect(() => {
     const created = searchParams.get("created");
     if (created === "true") {
-      toast.success("Pool created successfully!");
       fetchPools();
     } else {
       fetchPools();
@@ -109,51 +222,97 @@ export default function PoolsPage() {
   }
 
   async function fetchPools() {
+    console.log("Starting fetchPools...");
     setIsLoading(true);
     setFetchErrors([]);
     const allPools = [];
 
+    // Fetch Contriboost pools
     try {
+      console.log("Fetching Celo Alfajores Contriboost pools...");
       const celoContriboostPools = await fetchContriboostPools("celo", celoProvider);
+      console.log(`Fetched ${celoContriboostPools.length} Contriboost pools`);
       allPools.push(...celoContriboostPools);
     } catch (error) {
       console.error("Error fetching Celo Alfajores Contriboost pools:", error);
       setFetchErrors((prev) => [...prev, `Celo Alfajores Contriboost: ${error.message}`]);
     }
 
+    // Fetch GoalFund pools
     try {
+      console.log("Fetching Celo Alfajores GoalFund pools...");
       const celoGoalFundPools = await fetchGoalFundPools("celo", celoProvider);
+      console.log(`Fetched ${celoGoalFundPools.length} GoalFund pools`);
       allPools.push(...celoGoalFundPools);
     } catch (error) {
       console.error("Error fetching Celo Alfajores GoalFund pools:", error);
       setFetchErrors((prev) => [...prev, `Celo Alfajores GoalFund: ${error.message}`]);
     }
 
-    const seen = new Set();
-    const deduplicatedPools = allPools
-      .filter((pool) => {
-        if (!pool || !pool.contractAddress || !ethers.isAddress(pool.contractAddress)) {
-          console.warn(`Invalid pool address detected:`, pool);
-          return false;
-        }
-        const key = `${pool.contractAddress}-${pool.network}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a, b) => {
-        const timeA = a.type === "Contriboost" ? a.startTimestamp : a.deadline;
-        const timeB = b.type === "Contriboost" ? b.startTimestamp : b.deadline;
-        return timeB - timeA;
-      });
+    console.log(`Total pools before deduplication: ${allPools.length}`);
 
-    setPools(deduplicatedPools);
+    // Enhanced validation and deduplication
+    const seen = new Set();
+    const validPools = [];
+    
+    allPools.forEach((pool, index) => {
+      if (!pool) {
+        console.warn(`Pool at index ${index} is null or undefined`);
+        return;
+      }
+      
+      if (!pool.contractAddress) {
+        console.warn(`Pool at index ${index} missing contractAddress:`, pool);
+        return;
+      }
+      
+      if (!ethers.isAddress(pool.contractAddress)) {
+        console.warn(`Invalid address for pool at index ${index}:`, pool.contractAddress);
+        return;
+      }
+      
+      const key = `${pool.contractAddress}-${pool.network}`;
+      if (seen.has(key)) {
+        console.warn(`Duplicate pool found: ${key}`);
+        return;
+      }
+      
+      seen.add(key);
+      validPools.push(pool);
+    });
+
+    console.log(`Valid pools after deduplication: ${validPools.length}`);
+
+    // Sort pools by relevance (active first, then by timestamp)
+    const sortedPools = validPools.sort((a, b) => {
+      // Prioritize active pools
+      if (a.status === "active" && b.status !== "active") return -1;
+      if (b.status === "active" && a.status !== "active") return 1;
+      
+      // Then sort by timestamp
+      const timeA = a.type === "Contriboost" ? a.startTimestamp : a.deadline;
+      const timeB = b.type === "Contriboost" ? b.startTimestamp : b.deadline;
+      return timeB - timeA;
+    });
+
+    console.log("Final sorted pools:", sortedPools);
+    setPools(sortedPools);
     setIsLoading(false);
 
+    // Show appropriate messages
     if (fetchErrors.length > 0) {
-      toast.error("Some pools failed to load.");
-    } else if (deduplicatedPools.length === 0) {
-      toast.warn("No valid pools found.");
+      console.warn("Fetch errors occurred:", fetchErrors);
+      toast.error(`Some pools failed to load: ${fetchErrors.length} error(s)`);
+    } else if (sortedPools.length === 0) {
+      console.warn("No valid pools found");
+      toast.warn("No pools found. Try refreshing or check your network connection.");
+    } else {
+      console.log(`Successfully loaded ${sortedPools.length} pools`);
+      // Only show success toast if explicitly requested (like after creation)
+      const created = searchParams?.get("created");
+      if (created === "true") {
+        toast.success(`Pool created successfully! Loaded ${sortedPools.length} total pools.`);
+      }
     }
   }
 
@@ -163,25 +322,43 @@ export default function PoolsPage() {
 
     let contriboostAddresses = [];
     try {
+      console.log(`Fetching Contriboost addresses for ${config.name}...`);
       contriboostAddresses = await contriboostFactory.getContriboosts();
+      console.log(`Found ${contriboostAddresses.length} Contriboost addresses:`, contriboostAddresses);
     } catch (error) {
       console.error(`Failed to fetch Contriboost addresses for ${config.name}:`, error);
       return [];
     }
 
-    const contriboostDetails = await Promise.all(
-      contriboostAddresses.map(async (address) => {
-        if (!ethers.isAddress(address)) return null;
-        try {
-          const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
-          if (!detailsArray || !detailsArray[0]) return null;
-          const details = detailsArray[0];
+    if (contriboostAddresses.length === 0) {
+      console.log(`No Contriboost pools found for ${config.name}`);
+      return [];
+    }
 
+    const contriboostDetails = await Promise.allSettled(
+      contriboostAddresses.map(async (address, index) => {
+        if (!ethers.isAddress(address)) {
+          console.warn(`Invalid Contriboost address at index ${index}:`, address);
+          return null;
+        }
+        
+        try {
+          console.log(`Fetching details for Contriboost ${address}...`);
+          const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
+          
+          if (!detailsArray || !detailsArray[0]) {
+            console.warn(`No details found for Contriboost ${address}`);
+            return null;
+          }
+          
+          const details = detailsArray[0];
           const contract = new ethers.Contract(address, ContriboostAbi, provider);
+          
           let participants = [];
           let currentSegment = 0;
           let startTimestamp = 0;
           let expectedNumber = Number(details.expectedNumber || 0);
+          
           try {
             participants = await contract.getActiveParticipants();
             currentSegment = await contract.currentSegment();
@@ -192,6 +369,7 @@ export default function PoolsPage() {
 
           const now = Math.floor(Date.now() / 1000);
           let status = "not-started";
+          
           if (now < startTimestamp) {
             status = "not-started";
           } else if (currentSegment > expectedNumber) {
@@ -205,6 +383,7 @@ export default function PoolsPage() {
           }
 
           let userStatus = { isParticipant: false, isActive: false, hasReceivedFunds: false, missedDeposits: 0 };
+          
           if (account && chainId === config.chainId) {
             try {
               const participantStatus = await contract.getParticipantStatus(account);
@@ -219,7 +398,7 @@ export default function PoolsPage() {
             }
           }
 
-          return {
+          const poolData = {
             type: "Contriboost",
             network,
             chainId: config.chainId,
@@ -239,14 +418,51 @@ export default function PoolsPage() {
             status,
             userStatus,
           };
+
+          console.log(`Successfully processed Contriboost ${address}:`, poolData);
+          return poolData;
+          
         } catch (err) {
           console.error(`Error processing Contriboost at ${address}:`, err);
-          return null;
+          return {
+            type: "Contriboost",
+            network,
+            chainId: config.chainId,
+            contractAddress: address,
+            name: "Error Loading Pool",
+            dayRange: 0,
+            expectedNumber: 0,
+            contributionAmount: "0",
+            tokenAddress: ethers.ZeroAddress,
+            tokenSymbol: config.nativeSymbol,
+            hostFeePercentage: 0,
+            platformFeePercentage: 0,
+            maxMissedDeposits: 0,
+            currentParticipants: 0,
+            currentSegment: 0,
+            startTimestamp: 0,
+            status: "error",
+            userStatus: { isParticipant: false, isActive: false, hasReceivedFunds: false, missedDeposits: 0 },
+            error: err.message,
+          };
         }
       })
     );
 
-    return contriboostDetails.filter((pool) => pool !== null);
+    // Process settled results
+    const successfulPools = contriboostDetails
+      .map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          console.error(`Promise rejected for Contriboost at index ${index}:`, result.reason);
+          return null;
+        }
+      })
+      .filter((pool) => pool !== null);
+
+    console.log(`Successfully processed ${successfulPools.length} Contriboost pools out of ${contriboostAddresses.length}`);
+    return successfulPools;
   }
 
   async function fetchGoalFundPools(network, provider) {
@@ -258,25 +474,89 @@ export default function PoolsPage() {
       goalFundDetailsRaw = await goalFundFactory.getAllGoalFundsDetails();
     } catch (error) {
       console.error(`Failed to fetch GoalFund details for ${config.name}:`, error);
-      return [];
+      
+      // Fallback: try to get addresses and fetch details individually
+      try {
+        console.log("Attempting fallback method to get GoalFund addresses...");
+        const goalFundAddresses = await goalFundFactory.getGoalFunds();
+        console.log("Found GoalFund addresses:", goalFundAddresses);
+        
+        if (goalFundAddresses && goalFundAddresses.length > 0) {
+          // Fetch details for each address individually
+          goalFundDetailsRaw = await Promise.all(
+            goalFundAddresses.map(async (address) => {
+              try {
+                const details = await goalFundFactory.getGoalFundDetails(address, false);
+                return details[0]; // getGoalFundDetails returns an array
+              } catch (detailError) {
+                console.warn(`Failed to get details for GoalFund ${address}:`, detailError);
+                return null;
+              }
+            })
+          );
+          goalFundDetailsRaw = goalFundDetailsRaw.filter(detail => detail !== null);
+        }
+      } catch (fallbackError) {
+        console.error("Fallback method also failed:", fallbackError);
+        return [];
+      }
+      
+      if (goalFundDetailsRaw.length === 0) {
+        return [];
+      }
     }
 
     return Promise.all(
       goalFundDetailsRaw.map(async (pool) => {
-        if (!pool || !ethers.isAddress(pool.contractAddress)) return null;
+        if (!pool || !ethers.isAddress(pool.contractAddress)) {
+          console.warn("Invalid pool data:", pool);
+          return null;
+        }
+        
         try {
           if (pool.fundType === 1) return null; // Skip personal GoalFunds
 
           const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, provider);
+          
           let goal = { achieved: false };
           let accumulatedRewards = "0";
+          let tags = [];
+          
           try {
             goal = await contract.goal();
-            if (account && chainId === config.chainId) {
-              accumulatedRewards = ethers.formatEther(await contract.getAccumulatedRewards(account));
-            }
           } catch (err) {
-            console.warn(`Failed to fetch goal or rewards for GoalFund at ${pool.contractAddress}:`, err);
+            console.warn(`Failed to fetch goal for GoalFund at ${pool.contractAddress}:`, err);
+          }
+          
+          // Only fetch rewards if we have an account and are on the correct chain
+          if (account && chainId === config.chainId) {
+            try {
+              accumulatedRewards = ethers.formatEther(await contract.getAccumulatedRewards(account));
+            } catch (err) {
+              console.warn(`Failed to fetch rewards for GoalFund at ${pool.contractAddress}:`, err);
+            }
+          }
+
+          // Safely try to get tags - check if method exists first
+          try {
+            // Check if getTags method exists in the ABI
+            const hasGetTags = GoalFundAbi.some(item => 
+              item.type === 'function' && item.name === 'getTags'
+            );
+            
+            if (hasGetTags) {
+              tags = await contract.getTags();
+              // Ensure tags is an array
+              if (!Array.isArray(tags)) {
+                tags = [];
+              }
+            } else {
+              console.log(`getTags method not available for contract ${pool.contractAddress}`);
+              tags = [];
+            }
+          } catch (tagError) {
+            console.warn(`Failed to get tags for GoalFund at ${pool.contractAddress}:`, tagError.message);
+            tags = [];
           }
 
           const now = Math.floor(Date.now() / 1000);
@@ -317,11 +597,29 @@ export default function PoolsPage() {
             platformFeePercentage: Number(pool.platformFeePercentage || 0),
             status,
             userStatus,
-            tags: await contract.getTags().catch(() => []),
+            tags,
           };
         } catch (err) {
           console.error(`Error processing GoalFund pool ${pool.contractAddress}:`, err);
-          return null;
+          return {
+            type: "GoalFund",
+            network,
+            chainId: config.chainId,
+            contractAddress: pool.contractAddress,
+            name: pool.name || "Error Loading Fund",
+            targetAmount: "0",
+            currentAmount: "0",
+            deadline: 0,
+            beneficiary: ethers.ZeroAddress,
+            tokenAddress: ethers.ZeroAddress,
+            tokenSymbol: config.nativeSymbol,
+            fundType: "Unknown",
+            platformFeePercentage: 0,
+            status: "error",
+            userStatus: { isParticipant: false, contributionAmount: "0", accumulatedRewards: "0" },
+            tags: [],
+            error: err.message,
+          };
         }
       })
     ).then((pools) => pools.filter((pool) => pool !== null));
@@ -524,6 +822,8 @@ export default function PoolsPage() {
   }
 
   function AdminActionsDialog() {
+    const isCorrectNetwork = chainId === NETWORKS.celo.chainId;
+    
     return (
       <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
         <DialogTrigger asChild>
@@ -654,6 +954,8 @@ export default function PoolsPage() {
           </SelectContent>
         </Select>
       </div>
+
+    
 
       {fetchErrors.length > 0 && (
         <div className="mb-6 p-4 bg-red-100 text-red-800 rounded-lg">
@@ -802,6 +1104,8 @@ export default function PoolsPage() {
                           ? "bg-gray-100 text-gray-800"
                           : pool.status === "achieved"
                           ? "bg-teal-100 text-teal-800"
+                          : pool.status === "error"
+                          ? "bg-red-100 text-red-800"
                           : "bg-red-100 text-red-800"
                       }`}
                     >
@@ -815,6 +1119,8 @@ export default function PoolsPage() {
                         ? "Completed"
                         : pool.status === "achieved"
                         ? "Achieved"
+                        : pool.status === "error"
+                        ? "Error"
                         : "Expired"}
                     </div>
                   </div>

@@ -136,120 +136,159 @@ export default function CreateContriboostPage() {
     }
   }
 
-  async function onSubmit(values) {
-    if (!account) {
-      await connect();
-      if (!account) {
-        setError("Please connect your wallet first");
-        try {
-          toast.warning("Please connect your wallet first");
-        } catch (toastError) {
-          console.error("Toast error:", toastError);
-        }
-        return;
-      }
-    }
+  // Update your onSubmit function in page.jsx to handle timeouts better:
 
-    if (!selectedNetwork) {
-      setError("Please select a supported network (Celo Alfajores)");
+async function onSubmit(values) {
+  if (!account) {
+    await connect();
+    if (!account) {
+      setError("Please connect your wallet first");
       try {
-        toast.error("Select a supported network");
+        toast.warning("Please connect your wallet first");
       } catch (toastError) {
         console.error("Toast error:", toastError);
       }
       return;
     }
+  }
 
-    setError(null);
-    setIsCreating(true);
-
+  if (!selectedNetwork) {
+    setError("Please select a supported network (Celo Alfajores)");
     try {
-      const chain = selectedNetwork === "celo" ? celoAlfajores : null;
-      if (!chain) {
-        throw new Error("Invalid chain configuration for selected network");
+      toast.error("Select a supported network");
+    } catch (toastError) {
+      console.error("Toast error:", toastError);
+    }
+    return;
+  }
+
+  setError(null);
+  setIsCreating(true);
+
+  try {
+    const chain = selectedNetwork === "celo" ? celoAlfajores : null;
+    if (!chain) {
+      throw new Error("Invalid chain configuration for selected network");
+    }
+
+    const tokenAddress =
+      values.tokenType === "1"
+        ? CONTRACT_ADDRESSES[selectedNetwork].cusd
+        : CONTRACT_ADDRESSES[selectedNetwork].celo;
+
+    const config = {
+      dayRange: Number(values.dayRange),
+      expectedNumber: Number(values.expectedNumber),
+      contributionAmount: parseEther(values.contributionAmount),
+      hostFeePercentage: Number(values.hostFeePercentage) * 100,
+      platformFeePercentage: 100,
+      maxMissedDeposits: Number(values.maxMissedDeposits),
+      startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
+      paymentMethod: 1,
+    };
+
+    console.log("Submitting Contriboost:", {
+      chain: JSON.stringify(chain, null, 2),
+      chainId: SUPPORTED_CHAINS[selectedNetwork],
+      config,
+      name: values.name,
+      description: values.description,
+      tokenAddress,
+      walletType,
+      account,
+    });
+
+    const result = await createContriboost({
+      client: thirdwebClient,
+      chain,
+      chainId: SUPPORTED_CHAINS[selectedNetwork],
+      config,
+      name: values.name,
+      description: values.description,
+      tokenAddress,
+      account: signer,
+      walletType,
+    });
+
+    const { receipt, newContractAddress, transactionHash, timedOut, explorerUrl } = result;
+
+    console.log("Transaction result:", {
+      transactionHash,
+      newContractAddress,
+      timedOut,
+      walletType,
+      logs: receipt.logs || "No logs available",
+      events: receipt.events || "No events available",
+    });
+
+    if (timedOut) {
+      try {
+        toast.warning(
+          `Transaction submitted successfully but confirmation timed out. Check status manually: ${explorerUrl}`, 
+          { autoClose: 10000 }
+        );
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
       }
-
-      const tokenAddress =
-        values.tokenType === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork].cusd
-          : CONTRACT_ADDRESSES[selectedNetwork].celo;
-
-      const config = {
-        dayRange: Number(values.dayRange),
-        expectedNumber: Number(values.expectedNumber),
-        contributionAmount: parseEther(values.contributionAmount),
-        hostFeePercentage: Number(values.hostFeePercentage) * 100,
-        platformFeePercentage: 100,
-        maxMissedDeposits: Number(values.maxMissedDeposits),
-        startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
-        paymentMethod: 1,
-      };
-
-      console.log("Submitting Contriboost:", {
-        chain: JSON.stringify(chain, null, 2),
-        chainId: SUPPORTED_CHAINS[selectedNetwork],
-        config,
-        name: values.name,
-        description: values.description,
-        tokenAddress,
-        walletType,
-        account,
-      });
-
-      const { receipt, newContractAddress } = await createContriboost({
-        client: thirdwebClient,
-        chain,
-        chainId: SUPPORTED_CHAINS[selectedNetwork],
-        config,
-        name: values.name,
-        description: values.description,
-        tokenAddress,
-        account: signer,
-        walletType,
-      });
-
-      console.log("Transaction receipt:", {
-        transactionHash: receipt.transactionHash,
-        walletType,
-        logs: receipt.logs || "No logs available",
-        events: receipt.events || "No events available",
-      });
-
+      
+      // Still show success message since transaction was submitted
+      console.log("Transaction submitted successfully (timed out waiting for confirmation)");
+      
+    } else {
       try {
         toast.success("Contriboost pool created successfully!");
       } catch (toastError) {
         console.error("Toast error:", toastError);
       }
-      router.push(`/pools?created=true`);
-    } catch (error) {
-      console.error("Error creating Contriboost:", error);
-      let message = "Failed to create Contriboost pool. Please try again.";
-      if (error.message.includes("invalid chain")) {
-        message = "Invalid chain configuration. Ensure Celo Alfajores is selected.";
-      } else if (error.message.includes("invalid token address")) {
-        message = "Invalid token address. Please select CELO or cUSD.";
-      } else if (error.message.includes("startTimestamp")) {
-        message = "Start date must be in the future.";
-      } else if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for gas or token approval.";
-      } else if (error.message.includes("USER_REJECTED")) {
-        message = "Transaction rejected by wallet.";
-      } else if (error.message.includes("Could not find ContriboostCreated event")) {
-        message = "Failed to parse contract creation event. Please check the transaction details.";
-      } else if (error.message.includes("UserOp failed")) {
-        message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient CELO for gas.";
-      }
-      setError(message);
+    }
+    
+    // Always redirect to pools page
+    router.push(`/pools?created=true${transactionHash ? `&tx=${transactionHash}` : ''}`);
+    
+  } catch (error) {
+    console.error("Error creating Contriboost:", error);
+    let message = "Failed to create Contriboost pool. Please try again.";
+    
+    // Check if we have a transaction hash in the error (partial success)
+    if (error.message.includes("Transaction confirmation timeout") && error.transactionHash) {
+      message = `Transaction was submitted but confirmation timed out. Check status: https://explorer.celo.org/alfajores/tx/${error.transactionHash}`;
       try {
-        toast.error(message);
+        toast.warning(message, { autoClose: 15000 });
       } catch (toastError) {
         console.error("Toast error:", toastError);
       }
-      router.push(`/pools?created=true`);
-    } finally {
-      setIsCreating(false);
+      // Still redirect since transaction was submitted
+      router.push(`/pools?created=true&tx=${error.transactionHash}`);
+      return;
     }
+    
+    // Handle other error types
+    if (error.message.includes("invalid chain")) {
+      message = "Invalid chain configuration. Ensure Celo Alfajores is selected.";
+    } else if (error.message.includes("invalid token address")) {
+      message = "Invalid token address. Please select CELO or cUSD.";
+    } else if (error.message.includes("startTimestamp")) {
+      message = "Start date must be in the future.";
+    } else if (error.message.includes("insufficient funds")) {
+      message = "Insufficient funds for gas or token approval.";
+    } else if (error.message.includes("USER_REJECTED")) {
+      message = "Transaction rejected by wallet.";
+    } else if (error.message.includes("Could not find ContriboostCreated event")) {
+      message = "Failed to parse contract creation event. Please check the transaction details.";
+    } else if (error.message.includes("UserOp failed")) {
+      message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient CELO for gas.";
+    }
+    
+    setError(message);
+    try {
+      toast.error(message);
+    } catch (toastError) {
+      console.error("Toast error:", toastError);
+    }
+  } finally {
+    setIsCreating(false);
   }
+}
 
   if (!account) {
     return (

@@ -9,6 +9,7 @@ import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi, GoalFundAbi 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,226 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowRight, ChevronRight, Coins, Wallet, Loader2, CheckCircle } from "lucide-react";
+import { ArrowRight, ChevronRight, Coins, Wallet, Loader2, CheckCircle, Shield, AlertCircle } from "lucide-react";
+
+// Verify Button Component
+function VerifyButton({ className = "", variant = "default", size = "default", showText = true }) {
+  const { account, connect, isConnecting } = useWeb3();
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const [isCheckingVerification, setIsCheckingVerification] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (account) {
+      checkVerificationStatus();
+    } else {
+      setVerificationStatus(null);
+    }
+  }, [account]);
+
+  async function checkVerificationStatus() {
+    if (!account) return;
+    
+    setIsCheckingVerification(true);
+    try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      setVerificationStatus(data.verified);
+    } catch (error) {
+      console.error("Error checking verification status:", error);
+      setVerificationStatus(false);
+    } finally {
+      setIsCheckingVerification(false);
+    }
+  }
+
+  async function handleVerifyClick() {
+    if (!account) {
+      await connect();
+      return;
+    }
+
+    if (verificationStatus === true) {
+      return;
+    }
+
+    router.push("/verify");
+  }
+
+  // If user is not connected
+  if (!account) {
+    return (
+      <Button 
+        onClick={connect} 
+        disabled={isConnecting}
+        className={className}
+        variant={variant}
+        size={size}
+      >
+        {isConnecting ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Shield className="mr-2 h-4 w-4" />
+        )}
+        {showText && "Connect & Verify"}
+      </Button>
+    );
+  }
+
+  // If checking verification status
+  if (isCheckingVerification) {
+    return (
+      <Button disabled className={className} variant={variant} size={size}>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        {showText && "Checking..."}
+      </Button>
+    );
+  }
+
+  // If user is verified
+  if (verificationStatus === true) {
+    return (
+      <Button 
+        disabled
+        className={className}
+        variant="outline"
+        size={size}
+      >
+        <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+        {showText && "Verified"}
+      </Button>
+    );
+  }
+
+  // If user is not verified
+  return (
+    <Button 
+      onClick={handleVerifyClick}
+      className={className}
+      variant={variant}
+      size={size}
+    >
+      <Shield className="mr-2 h-4 w-4" />
+      {showText && "Get Verified"}
+    </Button>
+  );
+}
+
+// Verification Status Card Component
+function VerificationStatusCard() {
+  const { account } = useWeb3();
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const [isCheckingVerification, setIsCheckingVerification] = useState(false);
+
+  useEffect(() => {
+    if (account) {
+      checkVerificationStatus();
+    } else {
+      setVerificationStatus(null);
+    }
+  }, [account]);
+
+  async function checkVerificationStatus() {
+    if (!account) return;
+    
+    setIsCheckingVerification(true);
+    try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      setVerificationStatus(data.verified);
+    } catch (error) {
+      console.error("Error checking verification status:", error);
+      setVerificationStatus(false);
+    } finally {
+      setIsCheckingVerification(false);
+    }
+  }
+
+  if (!account) {
+    return (
+      <Card className="border-blue-200 bg-[#101B31]">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Shield className="h-5 w-5 text-blue-600" />
+            Verification Required
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Connect your wallet and get verified to access all features
+            </p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span>Join Contriboost pools</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span>Create contribution pools</span>
+              </div>
+            </div>
+            <VerifyButton className="w-full mt-4" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isCheckingVerification) {
+    return (
+      <Card className="border-gray-200">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Checking verification status...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (verificationStatus === true) {
+    return (
+      <Card className="border-green-200 bg-green-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Verified Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Your account is verified and ready to use all features
+          </p>
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Verified
+          </Badge>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-amber-200 bg-[#101B31]">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <AlertCircle className="h-5 w-5 text-amber-600" />
+          Verification Needed
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Complete verification to unlock all platform features
+          </p>
+          <VerifyButton className="w-full" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // Network configurations
 const NETWORKS = {
@@ -431,6 +651,13 @@ export default function LandingPage() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
+
+                  {/* Verify Button in Hero Actions */}
+                  <VerifyButton 
+                    size="lg"
+                    variant="outline"
+                    className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 text-sm sm:text-base font-medium border-green-200 text-green-700 hover:bg-green-50"
+                  />
                 </div>
 
                 {/* Platform Statistics */}
@@ -498,7 +725,7 @@ export default function LandingPage() {
 
                 {/* Wallet Connection Status */}
                 {account && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span>Connected: {formatAddress(account)}</span>
                     {isVerified && (
                       <div className="flex items-center gap-1 text-green-600">
@@ -521,10 +748,17 @@ export default function LandingPage() {
                 )}
               </div>
 
-              {/* How It Works Card */}
+              {/* How It Works Card - Now includes Verification Status */}
               <div className="flex items-center justify-center lg:justify-end">
-                <div className="relative w-full max-w-md">
+                <div className="relative w-full max-w-md space-y-4">
                   <div className="absolute -top-8 -right-8 h-32 w-32 sm:h-48 sm:w-48 lg:h-64 lg:w-64 bg-primary/20 rounded-full blur-3xl" />
+                  
+                  {/* Verification Status Card */}
+                  <div className="relative z-10">
+                    <VerificationStatusCard />
+                  </div>
+
+                  {/* How it works card */}
                   <div className="relative z-10 bg-card border rounded-2xl shadow-xl p-6 sm:p-8">
                     <div className="space-y-6">
                       <h3 className="text-xl sm:text-2xl font-bold">How it works</h3>
@@ -853,6 +1087,13 @@ export default function LandingPage() {
                       Explore Pools
                     </Button>
                   </Link>
+
+                  {/* Additional Verify Button in CTA */}
+                  <VerifyButton 
+                    size="lg"
+                    variant="outline"
+                    className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 text-sm sm:text-base font-medium border-green-200 text-green-700 hover:bg-green-50"
+                  />
                 </div>
               </div>
               

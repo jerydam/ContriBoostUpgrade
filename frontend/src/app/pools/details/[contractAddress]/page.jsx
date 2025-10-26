@@ -10,6 +10,8 @@ import {
   GoalFundFactoryAbi,
   GoalFundAbi,
 } from "@/lib/contractabi";
+
+import { generateDivviTag, submitDivviReferral } from "@/lib/divvi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -306,304 +308,398 @@ export default function PoolDetailsPage() {
   }
 
   async function joinContriboost() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus || userStatus.isParticipant) {
-      toast.error("You are already a participant or cannot join");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join({ gasLimit: 200000 });
-      console.log("Join Contriboost tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Successfully joined the Contriboost pool! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error joining Contriboost:", error);
-      let message = error.reason || error.message || "Failed to join";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check pool status or participant limit";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.joinContriboost.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Join Contriboost transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Successfully joined Contriboost!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error joining Contriboost:", err);
+    toast.error("Failed to join Contriboost");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   async function depositContriboost() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isParticipant || !userStatus?.isActive) {
-      toast.warning("You must be an active participant to deposit");
-      return;
-    }
-    if (poolDetails.status !== "active") {
-      toast.warning("Deposits are only allowed when the pool is active");
-      return;
-    }
-    if (!depositAmount || isNaN(depositAmount) || Number(depositAmount) <= 0) {
-      toast.warning("Please enter a valid deposit amount");
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const amount = ethers.parseEther(depositAmount);
-
-      console.log("Depositing to Contriboost:", {
-        contractAddress,
-        amount: depositAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
-      });
-
-      let tx;
-      if (poolDetails.tokenAddress === ethers.ZeroAddress) {
-        const balance = await provider.getBalance(account);
-        if (balance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
-          );
-        }
-        tx = await contract.deposit({ value: amount, gasLimit: 300000 });
-      } else {
-        const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
-        const tokenBalance = await tokenContract.balanceOf(account);
-        if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
-          );
-        }
-        const allowance = await tokenContract.allowance(account, contractAddress);
-        if (allowance < amount) {
-          console.log(`Approving ${poolDetails.tokenSymbol} allowance...`);
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          console.log("Approve tx hash:", approveTx.hash);
-          await approveTx.wait();
-        }
-        tx = await contract.deposit({ gasLimit: 300000 });
-      }
-
-      console.log("Deposit Contriboost tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Deposit successful! Tx: ${tx.hash}`);
-      setDepositAmount("");
-    } catch (error) {
-      console.error("Error depositing to Contriboost:", error);
-      let message = "Failed to deposit";
-      if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for deposit and gas fees";
-      } else if (error.message.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
-        message = error.message;
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check participant status or pool state";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!depositAmount || parseFloat(depositAmount) <= 0) {
+    toast.error("Please enter a valid deposit amount");
+    return;
   }
+
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    const amount = ethers.parseEther(depositAmount);
+    
+    // Handle token approval for ERC20 tokens if needed
+    if (!isNative) {
+      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+      
+      // Approval transaction - ADD DIVVI HERE TOO
+      const referralTagApproval = generateDivviTag(account);
+      const populatedApproval = await tokenContract.approve.populateTransaction(contractAddress, amount);
+      populatedApproval.data = populatedApproval.data + referralTagApproval.slice(2);
+      const approveTx = await signer.sendTransaction(populatedApproval);
+      await approveTx.wait();
+      await submitDivviReferral(approveTx.hash, chainId);
+      
+      toast.info("Token approval successful");
+    }
+
+    // 🎯 DIVVI: Generate referral tag for deposit
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.deposit.populateTransaction(
+      isNative ? { value: amount } : {}
+    );
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Add value for native token if needed
+    if (isNative) {
+      populatedTx.value = amount;
+    }
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Deposit transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Deposit successful!");
+    setDepositAmount("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error depositing:", err);
+    toast.error("Failed to deposit");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function checkMissedDeposits() {
-    if (!(await ensureCorrectNetwork())) return;
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.checkMissedDeposits({ gasLimit: 200000 });
-      console.log("Check missed deposits tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Missed deposits checked successfully! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error checking missed deposits:", error);
-      let message = error.reason || error.message || "Failed to check missed deposits";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.checkMissedDeposits.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Check missed deposits transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Missed deposits checked successfully!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error checking missed deposits:", err);
+    toast.error("Failed to check missed deposits");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
-  async function emergencyWithdraw(tokenAddress) {
-    if (!(await ensureCorrectNetwork())) return;
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = poolType === "Contriboost"
-        ? await contract.emergencyWithdraw(tokenAddress || ethers.ZeroAddress, { gasLimit: 300000 })
-        : await contract.emergencyWithdraw({ gasLimit: 300000 });
-      console.log("Emergency withdraw tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Emergency withdrawal successful! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error performing emergency withdrawal:", error);
-      let message = error.reason || error.message || "Failed to perform emergency withdrawal";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  async function emergencyWithdraw() {
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.emergencyWithdraw.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Emergency withdraw transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Emergency withdrawal successful!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error in emergency withdrawal:", err);
+    toast.error("Failed to perform emergency withdrawal");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   async function setDescription() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!newDescription) {
-      toast.warning("Please enter a new description");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setDescription(newDescription, { gasLimit: 200000 });
-      console.log("Set description tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Description updated successfully! Tx: ${tx.hash}`);
-      setNewDescription("");
-    } catch (error) {
-      console.error("Error setting description:", error);
-      let message = error.reason || error.message || "Failed to set description";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!newDescription) {
+    toast.error("Please enter a description");
+    return;
   }
+  
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.setDescription.populateTransaction(newDescription);
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Set description transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Description updated successfully!");
+    setNewDescription("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error setting description:", err);
+    toast.error("Failed to update description");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function setHostFeePercentage() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!newHostFee || isNaN(newHostFee) || Number(newHostFee) < 0) {
-      toast.warning("Please enter a valid host fee percentage");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setHostFeePercentage(
-        Math.floor(Number(newHostFee) * 100),
-        { gasLimit: 200000 }
-      );
-      console.log("Set host fee tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Host fee updated successfully! Tx: ${tx.hash}`);
-      setNewHostFee("");
-    } catch (error) {
-      console.error("Error setting host fee:", error);
-      let message = error.reason || error.message || "Failed to set host fee";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!newHostFee || parseFloat(newHostFee) < 0 || parseFloat(newHostFee) > 5) {
+    toast.error("Please enter a valid host fee (0-5%)");
+    return;
   }
+  
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    const feeInBasisPoints = Math.floor(parseFloat(newHostFee) * 100);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.setHostFeePercentage.populateTransaction(feeInBasisPoints);
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Set host fee transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Host fee updated successfully!");
+    setNewHostFee("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error setting host fee:", err);
+    toast.error("Failed to update host fee");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function setTokenAddress() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!ethers.isAddress(newTokenAddress)) {
-      toast.warning("Please enter a valid token address");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setTokenAddress(newTokenAddress, { gasLimit: 200000 });
-      console.log("Set token address tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Token address updated successfully! Tx: ${tx.hash}`);
-      setNewTokenAddress("");
-    } catch (error) {
-      console.error("Error setting token address:", error);
-      let message = error.reason || error.message || "Failed to set token address";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!newTokenAddress || !ethers.isAddress(newTokenAddress)) {
+    toast.error("Please enter a valid token address");
+    return;
   }
+  
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.setTokenAddress.populateTransaction(newTokenAddress);
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Set token address transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Token address updated successfully!");
+    setNewTokenAddress("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error setting token address:", err);
+    toast.error("Failed to update token address");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function reactivateContriboost(participantAddress) {
-    if (!(await ensureCorrectNetwork())) return;
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const amount = ethers.parseEther(poolDetails.contributionAmount);
-      const tx =
-        poolDetails.tokenAddress === ethers.ZeroAddress
-          ? await contract.reactivateParticipant(participantAddress, { value: amount, gasLimit: 300000 })
-          : await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
-      console.log("Reactivate participant tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error reactivating in Contriboost:", error);
-      let message = error.reason || error.message || "Failed to reactivate";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check missed deposits or pool state";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.reactivateParticipant.populateTransaction(participantAddress);
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Reactivate transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Participant reactivated successfully!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error reactivating participant:", err);
+    toast.error("Failed to reactivate participant");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   async function distributeContriboostFunds() {
-    if (!(await ensureCorrectNetwork())) return;
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.distributeFunds({ gasLimit: 500000 });
-      console.log("Distribute funds tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Funds distributed successfully! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error distributing funds:", error);
-      let message = error.reason || error.message || "Failed to distribute funds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check pool status or funds availability";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.distributeFunds.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Distribute funds transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Funds distributed successfully!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error distributing funds:", err);
+    toast.error("Failed to distribute funds");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   async function transferOwnership() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!ethers.isAddress(newOwnerAddress)) {
-      toast.warning("Please enter a valid owner address");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = await contract.transferOwnership(newOwnerAddress, { gasLimit: 200000 });
-      console.log("Transfer ownership tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Ownership transferred successfully! Tx: ${tx.hash}`);
-      setNewOwnerAddress("");
-    } catch (error) {
-      console.error("Error transferring ownership:", error);
-      let message = error.reason || error.message || "Failed to transfer ownership";
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!newOwnerAddress || !ethers.isAddress(newOwnerAddress)) {
+    toast.error("Please enter a valid owner address");
+    return;
   }
+  
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.transferOwnership.populateTransaction(newOwnerAddress);
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Transfer ownership transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Ownership transferred successfully!");
+    setNewOwnerAddress("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error transferring ownership:", err);
+    toast.error("Failed to transfer ownership");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function exitContriboost() {
     if (!(await ensureCorrectNetwork())) return;
@@ -636,131 +732,134 @@ export default function PoolDetailsPage() {
   }
 
   async function contributeGoalFund() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (poolDetails.status !== "active" || poolDetails.achieved) {
-      toast.warning("Contributions are only allowed for active, non-achieved GoalFunds");
-      return;
-    }
-    if (!contributeAmount || isNaN(contributeAmount) || Number(contributeAmount) <= 0) {
-      toast.warning("Please enter a valid contribution amount");
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const amount = ethers.parseEther(contributeAmount);
-
-      console.log("Contributing to GoalFund:", {
-        contractAddress,
-        amount: contributeAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
-      });
-
-      let tx;
-      if (poolDetails.tokenAddress === ethers.ZeroAddress) {
-        const balance = await provider.getBalance(account);
-        if (balance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
-          );
-        }
-        tx = await contract.contribute({ value: amount, gasLimit: 300000 });
-      } else {
-        const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
-        const tokenBalance = await tokenContract.balanceOf(account);
-        if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
-          );
-        }
-        const allowance = await tokenContract.allowance(account, contractAddress);
-        if (allowance < amount) {
-          console.log(`Approving ${poolDetails.tokenSymbol} allowance...`);
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          console.log("Approve tx hash:", approveTx.hash);
-          await approveTx.wait();
-        }
-        tx = await contract.contribute(amount, { gasLimit: 300000 });
-      }
-
-      console.log("Contribute GoalFund tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Contribution successful! Tx: ${tx.hash}`);
-      setContributeAmount("");
-    } catch (error) {
-      console.error("Error contributing to GoalFund:", error);
-      let message = "Failed to contribute";
-      if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for contribution and gas fees";
-      } else if (error.message.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
-        message = error.message;
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check fund status or deadline";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  if (!contributeAmount || parseFloat(contributeAmount) <= 0) {
+    toast.error("Please enter a valid contribution amount");
+    return;
   }
+
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+    const amount = ethers.parseEther(contributeAmount);
+
+    // Handle token approval for ERC20 tokens if needed
+    if (!isNative) {
+      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+      
+      // Approval transaction with Divvi
+      const referralTagApproval = generateDivviTag(account);
+      const populatedApproval = await tokenContract.approve.populateTransaction(contractAddress, amount);
+      populatedApproval.data = populatedApproval.data + referralTagApproval.slice(2);
+      const approveTx = await signer.sendTransaction(populatedApproval);
+      await approveTx.wait();
+      await submitDivviReferral(approveTx.hash, chainId);
+      
+      toast.info("Token approval successful");
+    }
+
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.contribute.populateTransaction(
+      isNative ? { value: amount } : {}
+    );
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    if (isNative) {
+      populatedTx.value = amount;
+    }
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Contribute transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Contribution successful!");
+    setContributeAmount("");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error contributing:", err);
+    toast.error("Failed to contribute");
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   async function withdrawGoalFund() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isBeneficiary && !userStatus?.isOwner) {
-      toast.warning("Only the beneficiary or owner can withdraw funds");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.withdrawFunds({ gasLimit: 300000 });
-      console.log("Withdraw GoalFund tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Funds withdrawn successfully! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error withdrawing funds:", error);
-      let message = error.reason || error.message || "Failed to withdraw funds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check withdrawal conditions";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.withdraw.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Withdraw transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Withdrawal successful!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error withdrawing:", err);
+    toast.error("Failed to withdraw");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   async function refundContributors() {
-    if (!(await ensureCorrectNetwork())) return;
-    if (!userStatus?.isOwner) {
-      toast.warning("Only the owner can issue refunds");
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.refundContributors({ gasLimit: 500000 });
-      console.log("Refund contributors tx hash:", tx.hash);
-      await tx.wait();
-      await fetchPoolDetails();
-      toast.success(`Refunds issued successfully! Tx: ${tx.hash}`);
-    } catch (error) {
-      console.error("Error issuing refunds:", error);
-      let message = error.reason || error.message || "Failed to issue refunds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check refund conditions";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
-    }
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.refund.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Refund transaction:", tx.hash);
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral
+    await submitDivviReferral(tx.hash, chainId);
+    
+    toast.success("Refund processed successfully!");
+    fetchPoolDetails();
+  } catch (err) {
+    console.error("Error processing refund:", err);
+    toast.error("Failed to process refund");
+  } finally {
+    setIsProcessing(false);
   }
+}
 
   function formatAddress(address) {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;

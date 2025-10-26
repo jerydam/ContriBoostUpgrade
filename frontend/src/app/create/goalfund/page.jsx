@@ -17,6 +17,8 @@ import * as z from "zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
+// Import Divvi utilities
+import { generateDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 // Contract addresses
 const CONTRACT_ADDRESSES = {
@@ -171,46 +173,48 @@ export default function CreateGoalFundPage() {
         fundType: Number(values.fundType),
       });
 
+      // 🎯 DIVVI INTEGRATION START
+      // Step 1: Generate Divvi referral tag for this user
+      const referralTag = generateDivviTag(account);
+      console.log("🏷️ Generated Divvi referral tag");
+
+      // Step 2: Populate the transaction to get the data field
+      const populatedTx = await factoryContract.createGoalFund.populateTransaction(
+        values.name,
+        values.description,
+        ethers.parseEther(values.targetAmount),
+        Math.floor(new Date(values.deadline).getTime() / 1000),
+        values.beneficiary,
+        Number(values.paymentMethod),
+        tokenAddress,
+        Number(values.fundType)
+      );
+
+      // Step 3: Append Divvi referral tag to transaction data
+      populatedTx.data = populatedTx.data + referralTag.slice(2); // Remove '0x' from tag before appending
+      console.log("📎 Appended Divvi referral tag to transaction");
+
+      // Step 4: Estimate gas and send transaction with Divvi tag
       let tx;
       if (supportsGasEstimation) {
-        const estimatedGas = await factoryContract.createGoalFund.estimateGas(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType)
-        );
+        const estimatedGas = await signer.estimateGas(populatedTx);
         const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-        tx = await factoryContract.createGoalFund(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType),
-          { gasLimit }
-        );
+        tx = await signer.sendTransaction({
+          ...populatedTx,
+          gasLimit,
+        });
       } else {
-        tx = await factoryContract.createGoalFund(
-          values.name,
-          values.description,
-          ethers.parseEther(values.targetAmount),
-          Math.floor(new Date(values.deadline).getTime() / 1000),
-          values.beneficiary,
-          Number(values.paymentMethod),
-          tokenAddress,
-          Number(values.fundType)
-        );
+        tx = await signer.sendTransaction(populatedTx);
       }
 
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+
+      // Step 5: Submit referral to Divvi after transaction confirmation
+      await submitDivviReferral(tx.hash, chainId);
+      console.log("✅ Divvi referral tracking complete");
+      // 🎯 DIVVI INTEGRATION END
 
       const goalFundCreatedEvent = receipt.logs.find(
         (log) => {
@@ -223,85 +227,56 @@ export default function CreateGoalFundPage() {
         }
       );
 
-      if (!goalFundCreatedEvent) {
-        throw new Error("Could not find GoalFundCreated event in transaction receipt");
+      if (goalFundCreatedEvent) {
+        const parsedEvent = factoryContract.interface.parseLog(goalFundCreatedEvent);
+        const newGoalFundAddress = parsedEvent.args.goalFund;
+        console.log("New GoalFund created at:", newGoalFundAddress);
+        toast.success("GoalFund created successfully!");
+        router.push(`/pools/details/${newGoalFundAddress}?network=${selectedNetwork}`);
+      } else {
+        toast.success("GoalFund created successfully!");
+        router.push("/pools");
       }
-
-      const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
-      const newContractAddress = parsedLog.args.goalFundAddress;
-
-      if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from GoalFundCreated event");
-      }
-
-      toast.success("GoalFund created successfully!");
-      setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
-      }, 500);
-    } catch (error) {
-      console.error("Error creating GoalFund:", error);
-      let message = "Transaction failed. Please try again.";
-      if (error.code === 4001) {
-        message = "Transaction rejected by wallet";
-      } else if (error.code === 4100) {
-        message = "Wallet authorization needed";
-      } else if (error.code === -32603) {
-        message = "Insufficient funds for gas or contract error";
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.message.includes("GoalFundCreated event")) {
-        message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
-      } else if (error.message.includes("UNSUPPORTED_OPERATION") && error.operation === "estimateGas") {
-        message = "Gas estimation not supported for this wallet. Please try again.";
-      }
-      setError(`Error: ${message}`);
-      toast.error(`Error: ${message}`);
+    } catch (err) {
+      console.error("Error creating GoalFund:", err);
+      setError(err.message || "Failed to create GoalFund");
+      toast.error("Failed to create GoalFund");
     } finally {
       setIsCreating(false);
     }
   }
 
-  if (!account) {
-    return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4">Connect Your Wallet</h1>
-        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a GoalFund</p>
-        <Button variant="outline" asChild>
-          <a href="/">Go Home</a>
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create GoalFund</h1>
-      <p className="text-muted-foreground mb-8 text-sm sm:text-base">
-        Deploy a new goal-based funding campaign
-      </p>
-
-      <Card className="mb-6">
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-6">Create GoalFund</h1>
+      <Card className="mb-8">
         <CardHeader>
           <CardTitle>Select Network</CardTitle>
           <CardDescription>Choose the blockchain network for your fund</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <Button
               variant={selectedNetwork === "lisk" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("lisk")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
+              disabled={isCreating}
+              className="h-20"
             >
-              Lisk
+              <div className="text-center">
+                <div className="font-bold">Lisk</div>
+                <div className="text-xs text-muted-foreground">ETH / USDT</div>
+              </div>
             </Button>
             <Button
               variant={selectedNetwork === "celo" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("celo")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
+              disabled={isCreating}
+              className="h-20"
             >
-              Celo
+              <div className="text-center">
+                <div className="font-bold">Celo</div>
+                <div className="text-xs text-muted-foreground">CELO / cUSD</div>
+              </div>
             </Button>
           </div>
           {error && !selectedNetwork && (

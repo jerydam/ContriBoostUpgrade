@@ -11,6 +11,8 @@ import {
   GoalFundFactoryAbi,
   GoalFundAbi,
 } from "@/lib/contractabi";
+
+import { generateDivviTag, submitDivviReferral } from "@/lib/divvi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -54,8 +56,8 @@ const NETWORKS = {
     chainId: 42220,
     name: "Celo Mainnet",
     rpcUrl: "https://forno.celo.org",
-    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
-    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    contriboostFactory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180", // Deploy your contract on mainnet
+    goalFundFactory: "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF", // Deploy your contract on mainnet
     tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // cUSD on Celo
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
@@ -360,52 +362,196 @@ export default function PoolsPage() {
   }
 
   async function joinContriboost(pool) {
-    if (!(await ensureCorrectNetwork(pool.chainId))) return;
-
-    try {
-      const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join();
-      await tx.wait();
-      await fetchPools();
-      toast.success("Successfully joined the Contriboost pool!");
-    } catch (error) {
-      console.error("Error joining Contriboost:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to join"}`);
+  if (!account) {
+    await connect();
+    if (!account) {
+      toast.warning("Please connect your wallet");
+      return;
     }
   }
 
-  async function contributeGoalFund(pool, amount = ethers.parseEther("0.01")) {
-    if (!(await ensureCorrectNetwork(pool.chainId))) return;
+  try {
+    const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    console.log("🏷️ Generated Divvi referral tag for joinContriboost");
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.joinContriboost.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag to transaction data
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    console.log("📎 Appended Divvi referral tag to transaction");
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Join transaction sent:", tx.hash);
+    
+    toast.info("Transaction submitted, waiting for confirmation...");
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral after confirmation
+    await submitDivviReferral(tx.hash, pool.chainId);
+    console.log("✅ Divvi referral tracking complete");
+    
+    toast.success("Successfully joined the Contriboost pool!");
+    
+    // Refresh pools list
+    await fetchPools();
+  } catch (err) {
+    console.error("Error joining Contriboost:", err);
+    toast.error(`Failed to join: ${err.message || "Unknown error"}`);
+  }
+}
 
-    try {
-      const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
-      const isNative = pool.tokenAddress === ethers.ZeroAddress;
-      const tx = isNative
-        ? await contract.contribute({ value: amount })
-        : await contract.contribute(amount);
-      await tx.wait();
-      await fetchPools();
-      toast.success("Contribution successful!");
-    } catch (error) {
-      console.error("Error contributing to GoalFund:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to contribute"}`);
+  async function contributeGoalFund(pool) {
+  if (!account) {
+    await connect();
+    if (!account) {
+      toast.warning("Please connect your wallet");
+      return;
     }
   }
+
+  // Prompt user for contribution amount
+  const amount = prompt(`Enter contribution amount in ${pool.tokenSymbol}:`);
+  if (!amount || parseFloat(amount) <= 0) {
+    toast.error("Invalid contribution amount");
+    return;
+  }
+
+  try {
+    const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
+    const contributionAmount = ethers.parseEther(amount);
+    
+    const isNative = pool.tokenAddress === ethers.ZeroAddress || 
+                     pool.tokenAddress === "0x471EcE3750Da237f93B8E339c536989b8978a438"; // CELO token
+
+    // Handle token approval for ERC20 tokens
+    if (!isNative) {
+      const tokenContract = new ethers.Contract(pool.tokenAddress, IERC20Abi, signer);
+      
+      // Check allowance
+      const allowance = await tokenContract.allowance(account, pool.contractAddress);
+      
+      if (allowance < contributionAmount) {
+        toast.info("Approving token spend...");
+        
+        // 🎯 DIVVI: Add Divvi tracking to approval transaction too
+        const referralTagApproval = generateDivviTag(account);
+        const populatedApproval = await tokenContract.approve.populateTransaction(
+          pool.contractAddress, 
+          contributionAmount
+        );
+        populatedApproval.data = populatedApproval.data + referralTagApproval.slice(2);
+        
+        const approveTx = await signer.sendTransaction(populatedApproval);
+        await approveTx.wait();
+        await submitDivviReferral(approveTx.hash, pool.chainId);
+        
+        toast.success("Token approval successful!");
+      }
+    }
+    // Now make the contribution
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    console.log("🏷️ Generated Divvi referral tag for contributeGoalFund");
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.contribute.populateTransaction(
+      isNative ? { value: contributionAmount } : {}
+    );
+    
+    // 🎯 DIVVI: Append referral tag
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    
+    // Add value for native tokens
+    if (isNative) {
+      populatedTx.value = contributionAmount;
+    }
+    
+    console.log("📎 Appended Divvi referral tag to transaction");
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Contribute transaction sent:", tx.hash);
+    
+    toast.info("Transaction submitted, waiting for confirmation...");
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral after confirmation
+    await submitDivviReferral(tx.hash, pool.chainId);
+    console.log("✅ Divvi referral tracking complete");
+    
+    toast.success(`Successfully contributed ${amount} ${pool.tokenSymbol}!`);
+    
+    // Refresh pools list
+    await fetchPools();
+  } catch (err) {
+    console.error("Error contributing to GoalFund:", err);
+    toast.error(`Failed to contribute: ${err.message || "Unknown error"}`);
+  }
+}
 
   async function exitContriboost(pool) {
-    if (!(await ensureCorrectNetwork(pool.chainId))) return;
-
-    try {
-      const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
-      const tx = await contract.exitContriboost({ gasLimit: 200000 });
-      await tx.wait();
-      await fetchPools();
-      toast.success("Successfully exited the Contriboost pool!");
-    } catch (error) {
-      console.error("Error exiting Contriboost:", error);
-      toast.error(`Error: ${error.reason || error.message || "Failed to exit"}`);
+  if (!account) {
+    await connect();
+    if (!account) {
+      toast.warning("Please connect your wallet");
+      return;
     }
   }
+
+  // Confirm exit action
+  const confirmed = confirm(
+    "Are you sure you want to exit this pool? You can only exit before the pool starts."
+  );
+  
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
+    
+    // 🎯 DIVVI: Generate referral tag
+    const referralTag = generateDivviTag(account);
+    console.log("🏷️ Generated Divvi referral tag for exitContriboost");
+    
+    // 🎯 DIVVI: Populate transaction
+    const populatedTx = await contract.exitContriboost.populateTransaction();
+    
+    // 🎯 DIVVI: Append referral tag to transaction data
+    populatedTx.data = populatedTx.data + referralTag.slice(2);
+    console.log("📎 Appended Divvi referral tag to transaction");
+    
+    // Send transaction
+    const tx = await signer.sendTransaction(populatedTx);
+    console.log("Exit transaction sent:", tx.hash);
+    
+    toast.info("Transaction submitted, waiting for confirmation...");
+    
+    const receipt = await tx.wait();
+    console.log("Transaction confirmed:", receipt);
+    
+    // 🎯 DIVVI: Submit referral after confirmation
+    await submitDivviReferral(tx.hash, pool.chainId);
+    console.log("✅ Divvi referral tracking complete");
+    
+    toast.success("Successfully exited the Contriboost pool!");
+    
+    // Refresh pools list
+    await fetchPools();
+  } catch (err) {
+    console.error("Error exiting Contriboost:", err);
+    toast.error(`Failed to exit: ${err.message || "Unknown error"}`);
+  }
+}
 
   async function handleCreateNavigation(path) {
     setIsCreateDialogOpen(false);

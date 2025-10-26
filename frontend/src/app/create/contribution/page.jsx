@@ -18,6 +18,8 @@ import * as z from "zod";
 import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
+// Import Divvi utilities
+import { generateDivviTag, submitDivviReferral } from "@/lib/divvi";
 
 // Contract addresses
 const CONTRACT_ADDRESSES = {
@@ -169,34 +171,44 @@ export default function CreateContriboostPage() {
 
       console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
 
+      // 🎯 DIVVI INTEGRATION START
+      // Step 1: Generate Divvi referral tag for this user
+      const referralTag = generateDivviTag(account);
+      console.log("🏷️ Generated Divvi referral tag");
+
+      // Step 2: Populate the transaction to get the data field
+      const populatedTx = await factoryContract.createContriboost.populateTransaction(
+        config,
+        values.name,
+        values.description,
+        tokenAddress
+      );
+
+      // Step 3: Append Divvi referral tag to transaction data
+      populatedTx.data = populatedTx.data + referralTag.slice(2); // Remove '0x' from tag before appending
+      console.log("📎 Appended Divvi referral tag to transaction");
+
+      // Step 4: Estimate gas and send transaction with Divvi tag
       let tx;
       if (supportsGasEstimation) {
-        const estimatedGas = await factoryContract.createContriboost.estimateGas(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
+        const estimatedGas = await signer.estimateGas(populatedTx);
         const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress,
-          { gasLimit }
-        );
+        tx = await signer.sendTransaction({
+          ...populatedTx,
+          gasLimit,
+        });
       } else {
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
+        tx = await signer.sendTransaction(populatedTx);
       }
 
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+
+      // Step 5: Submit referral to Divvi after transaction confirmation
+      await submitDivviReferral(tx.hash, chainId);
+      console.log("✅ Divvi referral tracking complete");
+      // 🎯 DIVVI INTEGRATION END
 
       const contriboostCreatedEvent = receipt.logs.find(
         (log) => {
@@ -209,83 +221,56 @@ export default function CreateContriboostPage() {
         }
       );
 
-      if (!contriboostCreatedEvent) {
-        throw new Error("Could not find ContriboostCreated event in transaction receipt");
+      if (contriboostCreatedEvent) {
+        const parsedEvent = factoryContract.interface.parseLog(contriboostCreatedEvent);
+        const newContriboostAddress = parsedEvent.args.contriboost;
+        console.log("New Contriboost created at:", newContriboostAddress);
+        toast.success("Contriboost created successfully!");
+        router.push(`/pools/details/${newContriboostAddress}?network=${selectedNetwork}`);
+      } else {
+        toast.success("Contriboost created successfully!");
+        router.push("/pools");
       }
-
-      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      const newContractAddress = parsedLog.args.contriboostAddress;
-
-      if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from ContriboostCreated event");
-      }
-
-      toast.success("Contriboost pool created successfully!");
-      setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
-      }, 500);
-    } catch (error) {
-      console.error("Error creating Contriboost:", error);
-      let message = "Transaction failed. Please try again.";
-      if (error.code === 4001) {
-        message = "Transaction rejected by wallet";
-      } else if (error.code === 4100) {
-        message = "Wallet authorization needed";
-      } else if (error.code === -32603) {
-        message = "Insufficient funds for gas or contract error";
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.message.includes("ContriboostCreated event")) {
-        message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
-      } else if (error.message.includes("UNSUPPORTED_OPERATION") && error.operation === "estimateGas") {
-        message = "Gas estimation not supported for this wallet. Please try again.";
-      }
-      setError(`Error: ${message}`);
-      toast.error(`Error: ${message}`);
+    } catch (err) {
+      console.error("Error creating Contriboost:", err);
+      setError(err.message || "Failed to create Contriboost");
+      toast.error("Failed to create Contriboost");
     } finally {
       setIsCreating(false);
     }
   }
 
-  if (!account) {
-    return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
-        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
-        <Button variant="outline" asChild>
-          <a href="/">Go Home</a>
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
-      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
-
-      <Card className="mb-6">
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-6">Create Contriboost Pool</h1>
+      <Card className="mb-8">
         <CardHeader>
           <CardTitle>Select Network</CardTitle>
           <CardDescription>Choose the blockchain network for your pool</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <Button
               variant={selectedNetwork === "lisk" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("lisk")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
+              disabled={isCreating}
+              className="h-20"
             >
-              Lisk
+              <div className="text-center">
+                <div className="font-bold">Lisk</div>
+                <div className="text-xs text-muted-foreground">ETH / USDT</div>
+              </div>
             </Button>
             <Button
               variant={selectedNetwork === "celo" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("celo")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
+              disabled={isCreating}
+              className="h-20"
             >
-              Celo
+              <div className="text-center">
+                <div className="font-bold">Celo</div>
+                <div className="text-xs text-muted-foreground">CELO / cUSD</div>
+              </div>
             </Button>
           </div>
           {error && !selectedNetwork && (
@@ -363,7 +348,6 @@ export default function CreateContriboostPage() {
                       </FormItem>
                     )}
                   />
-                
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField

@@ -4,7 +4,6 @@ import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "./contriboost.sol"; 
-
 contract ContriboostFactory is ReentrancyGuard, Ownable {
     address[] public allContriboosts;
     mapping(address => address[]) public userContriboosts;

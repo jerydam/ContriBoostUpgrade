@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -43,7 +51,7 @@ const CHAINS = {
 };
 
 export default function Header() {
-  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting, balance, switchNetwork } = useWeb3();
+  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, switchNetwork, isConnecting, balance } = useWeb3();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
@@ -60,6 +68,20 @@ export default function Header() {
     { name: "My Account", href: "/account" },
   ];
 
+  const SUPPORTED_CHAINS = {
+    44787: {
+      chainId: "0xAEF3",
+      chainName: "Celo Alfajores",
+      rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
+      nativeCurrency: {
+        name: "Celo",
+        symbol: "CELO",
+        decimals: 18,
+      },
+      blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
+    },
+  };
+
   const isActive = (path) => path === pathname;
 
   const formatAccount = (account) => {
@@ -67,8 +89,13 @@ export default function Header() {
     return `${account.slice(0, 6)}...${account.slice(-4)}`;
   };
 
-  const getChainInfo = (chainId) => {
-    return CHAINS[chainId] || { name: `Unknown Chain (${chainId})`, shortName: "Unknown", icon: "❓" };
+  const getChainName = (chainId) => {
+    switch (chainId) {
+      case 44787:
+        return "Celo Alfajores";
+      default:
+        return `Unknown Chain (${chainId || "Not Connected"})`;
+    }
   };
 
   const toggleMobileMenu = () => {
@@ -103,6 +130,10 @@ export default function Header() {
         await connect();
         setIsConnectDialogOpen(false);
       } else {
+        if (chainId === 44787) {
+          toast.error("Smart Wallet is not supported on current chain. Please switch to Lisk Sepolia or use MetaMask.");
+          return;
+        }
         if (connectorId === "phone") {
           const error = validatePhoneNumber(options.phoneNumber);
           if (error) {
@@ -124,18 +155,16 @@ export default function Header() {
         }
       }
     } catch (error) {
-      let message = error.message;
-      if (message.includes("Failed to fetch")) {
-        message = "Network error: Unable to reach authentication server. Please check your connection.";
-      } else if (message.includes("pop-up")) {
-        message = "Unable to open authentication popup. Please allow popups for this site.";
-      }
-      toast.error(`Failed to connect: ${message}`);
+      toast.error(`Failed to connect: ${error.message}`);
     }
   };
 
   const handleVerification = async () => {
     try {
+      if (chainId === 44787) {
+        toast.error("Smart Wallet is not supported on current chain. Please switch to Lisk Sepolia or use MetaMask.");
+        return;
+      }
       if (authState === "email_verify") {
         await connectInAppWallet("email", {
           email,
@@ -265,12 +294,12 @@ export default function Header() {
           )}
 
           {account ? (
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center w-full gap-2 sm:gap-4">
               <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="hidden text-xs sm:text-sm md:inline-flex max-w-[200px] truncate hover:bg-accent"
+                    className="hidden text-xs sm:text-sm md:inline-flex max-w-full truncate hover:bg-accent"
                   >
                     {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)}
                   </Button>
@@ -304,23 +333,27 @@ export default function Header() {
                       </p>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium">Wallet Type</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        {walletType === "eoa" ? "MetaMask (EOA)" : "Smart Wallet (AA)"}
-                      </p>
-                    </div>
-                    <div>
                       <h3 className="text-sm font-medium">Network</h3>
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-                        <Image 
-                          src={currentChain.icon} 
-                          alt={currentChain.shortName} 
-                          width={16} 
-                          height={16} 
-                          className="h-4 w-4"
-                        />
-                        <span>{currentChain.name}</span>
-                      </div>
+                      <Select
+                        onValueChange={(value) => switchNetwork(Number(value))}
+                        defaultValue={chainId?.toString()}
+                      >
+                        <SelectTrigger className="w-full text-xs sm:text-sm h-9 sm:h-10">
+                          <SelectValue placeholder="Select Network" />
+                        </SelectTrigger>
+                        <SelectContent className="w-[var(--radix-select-trigger-width)] max-h-[50vh] overflow-y-auto bg-[#101b31] text-white border border-gray-700 rounded-md">
+                          {Object.entries(SUPPORTED_CHAINS).map(([chainId, chain]) => (
+                            <SelectItem
+                              key={chainId}
+                              value={chainId}
+                              className="text-xs sm:text-sm px-3 py-2 hover:bg-gray-700 focus:bg-gray-700 cursor-pointer"
+                              disabled={walletType === "smart" || walletType === "eoa" && chainId === "44787"}
+                            >
+                              {chain.chainName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </DialogContent>
@@ -424,26 +457,26 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("google")}
-                      disabled={isConnecting}
+                      disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
                           <svg className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24">
                             <path
                               fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                              d="M22.56 12.25c0-.78-.07-1.53-.20-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                             />
                             <path
                               fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
+                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04 .69-2.37 1.10-3.71 1.10-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4.01 20.52 7.69 23 12 23z"
                             />
                             <path
                               fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43 .35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22 .81-.62z"
                             />
                             <path
                               fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                              d="M12 5.38c1.62 0 3.06 .56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.69 1 4.01 3.48 2.18 7.07l3.66 2.84c .87-2.60 3.30-4.53 6.16-4.53z"
                             />
                           </svg>
                         </div>
@@ -457,7 +490,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("email", { email })}
-                      disabled={isConnecting || !email}
+                      disabled={isConnecting || !email || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -480,7 +513,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("phone", { phoneNumber: phone })}
-                      disabled={isConnecting || !phone || !!phoneError}
+                      disabled={isConnecting || !phone || !!phoneError || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -507,7 +540,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("passkey")}
-                      disabled={isConnecting}
+                      disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">
@@ -523,7 +556,7 @@ export default function Header() {
                       variant="outline"
                       className="w-full justify-start h-auto py-3 sm:ty-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("guest")}
-                      disabled={isConnecting}
+                      disabled={isConnecting || chainId === 44787}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-primary/10 p-1 sm:p-2 rounded-full">

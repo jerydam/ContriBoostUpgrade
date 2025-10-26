@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ethers } from "ethers";
+import { parseEther } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi } from "@/lib/contractabi";
+import { createContriboost } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,24 +19,16 @@ import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-// Contract addresses
 const CONTRACT_ADDRESSES = {
-  lisk: {
-    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
-    native: ethers.ZeroAddress, // ETH for Lisk
-  },
   celo: {
-    factory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180",
-    cusd: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-    celo: "0x471EcE3750Da237f93B8E339c536989b8978a438", // CELO token address
+    factory: "0x4C9118aBffa2aCCa4a16d08eC1222634eb744748",
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },
 };
 
-// Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 1135,
-  celo: 42220,
+  celo: 44787,
 };
 
 const formSchema = z.object({
@@ -47,14 +39,14 @@ const formSchema = z.object({
   contributionAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n;
+        return parseEther(value) > 0n;
       } catch {
         return false;
       }
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  paymentMethod: z.enum(["0", "1"]),
+  tokenType: z.enum(["0", "1"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -68,7 +60,7 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account, connect, supportsGasEstimation, chainId, switchNetwork } = useWeb3();
+  const { signer, account, connect, connectInAppWallet, chainId, switchNetwork, thirdwebClient, celoAlfajores, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -78,25 +70,22 @@ export default function CreateContriboostPage() {
     defaultValues: {
       name: "",
       description: "",
-      dayRange: 7,
-      expectedNumber: 10,
+      dayRange: "7",
+      expectedNumber: "10",
       contributionAmount: "0.1",
-      paymentMethod: "0",
-      hostFeePercentage: 2,
-      maxMissedDeposits: 2,
+      tokenType: "0",
+      hostFeePercentage: "2",
+      maxMissedDeposits: "2",
       startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     },
   });
 
-  // Detect and validate network
   useEffect(() => {
     if (chainId) {
-      if (chainId === SUPPORTED_CHAINS.lisk) {
-        setSelectedNetwork("lisk");
-      } else if (chainId === SUPPORTED_CHAINS.celo) {
+      if (chainId === SUPPORTED_CHAINS.celo) {
         setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk or Celo.");
+        setError("Unsupported network. Please switch to Celo Alfajores.");
         setSelectedNetwork(null);
       }
     } else {
@@ -104,156 +93,214 @@ export default function CreateContriboostPage() {
     }
   }, [chainId]);
 
-  // Switch network if needed
-  const handleNetworkSwitch = async (network) => {
+  async function handleNetworkSwitch(network) {
     try {
+      if (!account) {
+        await connect();
+        if (!account) {
+          setError("Please connect your wallet to switch networks.");
+          try {
+            toast.warning("Please connect your wallet to switch networks.");
+          } catch (toastError) {
+            console.error("Toast error:", toastError);
+          }
+          return;
+        }
+      }
+
+      if (walletType === "smart") {
+        setError("Smart wallets do not require manual network switching on Celo Alfajores.");
+        try {
+          toast.info("Smart wallets are already configured for Celo Alfajores.");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
+        return;
+      }
+
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk" : "Celo"} network`);
+      try {
+        toast.info(`Switched to Celo Alfajores network`);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
-      toast.error("Failed to switch network");
-    }
-  };
-
-  async function onSubmit(values) {
-    if (!account) {
-      await connect();
-      if (!account) {
-        setError("Please connect your wallet first");
-        toast.warning("Please connect your wallet first");
-        return;
+      try {
+        toast.error("Failed to switch network: " + err.message);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
       }
-    }
-
-    if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk or Celo)");
-      toast.error("Unsupported network");
-      return;
-    }
-
-    setError(null);
-    setIsCreating(true);
-
-    try {
-      const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
-      
-      // Handle token address based on payment method and network
-      let tokenAddress;
-      if (values.paymentMethod === "1") {
-        // Stablecoin payment
-        tokenAddress = CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"];
-      } else {
-        // Native token payment
-        if (selectedNetwork === "celo") {
-          // On Celo, native CELO is an ERC-20 token
-          tokenAddress = CONTRACT_ADDRESSES[selectedNetwork].celo;
-        } else {
-          // On Lisk (and Ethereum-like chains), use zero address for ETH
-          tokenAddress = ethers.ZeroAddress;
-        }
-      }
-
-      const factoryContract = new ethers.Contract(factoryAddress, ContriboostFactoryAbi, signer);
-      const config = {
-        dayRange: values.dayRange,
-        expectedNumber: values.expectedNumber,
-        contributionAmount: ethers.parseEther(values.contributionAmount),
-        hostFeePercentage: values.hostFeePercentage * 100,
-        platformFeePercentage: 50,
-        maxMissedDeposits: values.maxMissedDeposits,
-        startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
-        paymentMethod: Number(values.paymentMethod),
-      };
-
-      console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
-
-      let tx;
-      if (supportsGasEstimation) {
-        const estimatedGas = await factoryContract.createContriboost.estimateGas(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
-        const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress,
-          { gasLimit }
-        );
-      } else {
-        tx = await factoryContract.createContriboost(
-          config,
-          values.name,
-          values.description,
-          tokenAddress
-        );
-      }
-
-      console.log("Transaction sent:", tx.hash);
-      const receipt = await tx.wait();
-      console.log("Transaction confirmed:", receipt);
-
-      const contriboostCreatedEvent = receipt.logs.find(
-        (log) => {
-          try {
-            const parsedLog = factoryContract.interface.parseLog(log);
-            return parsedLog?.name === "ContriboostCreated";
-          } catch {
-            return false;
-          }
-        }
-      );
-
-      if (!contriboostCreatedEvent) {
-        throw new Error("Could not find ContriboostCreated event in transaction receipt");
-      }
-
-      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      const newContractAddress = parsedLog.args.contriboostAddress;
-
-      if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from ContriboostCreated event");
-      }
-
-      toast.success("Contriboost pool created successfully!");
-      setTimeout(() => {
-        router.push(`/pools/details/${newContractAddress}?network=${selectedNetwork}`);
-      }, 500);
-    } catch (error) {
-      console.error("Error creating Contriboost:", error);
-      let message = "Transaction failed. Please try again.";
-      if (error.code === 4001) {
-        message = "Transaction rejected by wallet";
-      } else if (error.code === 4100) {
-        message = "Wallet authorization needed";
-      } else if (error.code === -32603) {
-        message = "Insufficient funds for gas or contract error";
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.message.includes("ContriboostCreated event")) {
-        message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
-      } else if (error.message.includes("UNSUPPORTED_OPERATION") && error.operation === "estimateGas") {
-        message = "Gas estimation not supported for this wallet. Please try again.";
-      }
-      setError(`Error: ${message}`);
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsCreating(false);
     }
   }
+
+  // Update your onSubmit function in page.jsx to handle timeouts better:
+
+async function onSubmit(values) {
+  if (!account) {
+    await connect();
+    if (!account) {
+      setError("Please connect your wallet first");
+      try {
+        toast.warning("Please connect your wallet first");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
+      return;
+    }
+  }
+
+  if (!selectedNetwork) {
+    setError("Please select a supported network (Celo Alfajores)");
+    try {
+      toast.error("Select a supported network");
+    } catch (toastError) {
+      console.error("Toast error:", toastError);
+    }
+    return;
+  }
+
+  setError(null);
+  setIsCreating(true);
+
+  try {
+    const chain = selectedNetwork === "celo" ? celoAlfajores : null;
+    if (!chain) {
+      throw new Error("Invalid chain configuration for selected network");
+    }
+
+    const tokenAddress =
+      values.tokenType === "1"
+        ? CONTRACT_ADDRESSES[selectedNetwork].cusd
+        : CONTRACT_ADDRESSES[selectedNetwork].celo;
+
+    const config = {
+      dayRange: Number(values.dayRange),
+      expectedNumber: Number(values.expectedNumber),
+      contributionAmount: parseEther(values.contributionAmount),
+      hostFeePercentage: Number(values.hostFeePercentage) * 100,
+      platformFeePercentage: 100,
+      maxMissedDeposits: Number(values.maxMissedDeposits),
+      startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
+      paymentMethod: 1,
+    };
+
+    console.log("Submitting Contriboost:", {
+      chain: JSON.stringify(chain, null, 2),
+      chainId: SUPPORTED_CHAINS[selectedNetwork],
+      config,
+      name: values.name,
+      description: values.description,
+      tokenAddress,
+      walletType,
+      account,
+    });
+
+    const result = await createContriboost({
+      client: thirdwebClient,
+      chain,
+      chainId: SUPPORTED_CHAINS[selectedNetwork],
+      config,
+      name: values.name,
+      description: values.description,
+      tokenAddress,
+      account: signer,
+      walletType,
+    });
+
+    const { receipt, newContractAddress, transactionHash, timedOut, explorerUrl } = result;
+
+    console.log("Transaction result:", {
+      transactionHash,
+      newContractAddress,
+      timedOut,
+      walletType,
+      logs: receipt.logs || "No logs available",
+      events: receipt.events || "No events available",
+    });
+
+    if (timedOut) {
+      try {
+        toast.warning(
+          `Transaction submitted successfully but confirmation timed out. Check status manually: ${explorerUrl}`, 
+          { autoClose: 10000 }
+        );
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
+      
+      // Still show success message since transaction was submitted
+      console.log("Transaction submitted successfully (timed out waiting for confirmation)");
+      
+    } else {
+      try {
+        toast.success("Contriboost pool created successfully!");
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
+    }
+    
+    // Always redirect to pools page
+    router.push(`/pools?created=true${transactionHash ? `&tx=${transactionHash}` : ''}`);
+    
+  } catch (error) {
+    console.error("Error creating Contriboost:", error);
+    let message = "Failed to create Contriboost pool. Please try again.";
+    
+    // Check if we have a transaction hash in the error (partial success)
+    if (error.message.includes("Transaction confirmation timeout") && error.transactionHash) {
+      message = `Transaction was submitted but confirmation timed out. Check status: https://explorer.celo.org/alfajores/tx/${error.transactionHash}`;
+      try {
+        toast.warning(message, { autoClose: 15000 });
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
+      // Still redirect since transaction was submitted
+      router.push(`/pools?created=true&tx=${error.transactionHash}`);
+      return;
+    }
+    
+    // Handle other error types
+    if (error.message.includes("invalid chain")) {
+      message = "Invalid chain configuration. Ensure Celo Alfajores is selected.";
+    } else if (error.message.includes("invalid token address")) {
+      message = "Invalid token address. Please select CELO or cUSD.";
+    } else if (error.message.includes("startTimestamp")) {
+      message = "Start date must be in the future.";
+    } else if (error.message.includes("insufficient funds")) {
+      message = "Insufficient funds for gas or token approval.";
+    } else if (error.message.includes("USER_REJECTED")) {
+      message = "Transaction rejected by wallet.";
+    } else if (error.message.includes("Could not find ContriboostCreated event")) {
+      message = "Failed to parse contract creation event. Please check the transaction details.";
+    } else if (error.message.includes("UserOp failed")) {
+      message = "Transaction simulation failed for smart wallet. Ensure your wallet has sufficient CELO for gas.";
+    }
+    
+    setError(message);
+    try {
+      toast.error(message);
+    } catch (toastError) {
+      console.error("Toast error:", toastError);
+    }
+  } finally {
+    setIsCreating(false);
+  }
+}
 
   if (!account) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
+        <Button onClick={connect} className="mr-4">
+          Connect MetaMask
+        </Button>
+        <Button onClick={() => connectInAppWallet("guest")} className="mr-4">
+          Connect as Guest
+        </Button>
         <Button variant="outline" asChild>
           <a href="/">Go Home</a>
         </Button>
@@ -264,7 +311,7 @@ export default function CreateContriboostPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
-      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
+      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community on Celo Alfajores</p>
 
       <Card className="mb-6">
         <CardHeader>
@@ -274,21 +321,14 @@ export default function CreateContriboostPage() {
         <CardContent>
           <div className="flex gap-4">
             <Button
-              variant={selectedNetwork === "lisk" ? "default" : "outline"}
-              onClick={() => handleNetworkSwitch("lisk")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
-            >
-              Lisk
-            </Button>
-            <Button
               variant={selectedNetwork === "celo" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("celo")}
-              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
+              disabled={isCreating || chainId === SUPPORTED_CHAINS.celo || !account || walletType === "smart"}
             >
               Celo
             </Button>
           </div>
-          {error && !selectedNetwork && (
+          {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
@@ -346,152 +386,150 @@ export default function CreateContriboostPage() {
                         </FormControl>
                         <FormDescription>Number of days in each distribution cycle</FormDescription>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="expectedNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expected Participants</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="2" {...field} />
-                        </FormControl>
-                        <FormDescription>Maximum number of participants in the pool</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="contributionAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contribution Amount</FormLabel>
-                        <FormControl>
-                          <Input placeholder="0.1" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Amount each participant contributes per cycle (in {selectedNetwork === "lisk" ? "ETH or USDT" : "CELO or cUSD"})
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="paymentMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Payment Method</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex flex-col space-y-1"
-                          >
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="0" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO (Native)"}
-                              </FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="1" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {selectedNetwork === "lisk" ? "USDT (Stablecoin)" : "cUSD (Stablecoin)"}
-                              </FormLabel>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="hostFeePercentage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2">
-                          <FormLabel>Host Fee Percentage</FormLabel>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="w-[200px] text-xs">
-                                  The percentage fee you receive as the host of this pool. Max 5%.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <FormControl>
-                          <Input type="number" min="0" max="5" step="0.1" {...field} />
-                        </FormControl>
-                        <FormDescription>Your fee for hosting (0-5%)</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="maxMissedDeposits"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Missed Deposits</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="0" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          How many deposits a participant can miss before becoming inactive
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
-                  name="startTimestamp"
+                  name="expectedNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Date</FormLabel>
+                      <FormLabel>Expected Participants</FormLabel>
                       <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                          min={new Date().toISOString().slice(0, 16)}
-                        />
+                        <Input type="number" min="2" {...field} />
                       </FormControl>
-                      <FormDescription>When the first cycle will begin</FormDescription>
+                      <FormDescription>Maximum number of participants in the pool</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <CardFooter className="flex justify-end px-0">
-                  <Button variant="outline" type="submit" disabled={isCreating || !selectedNetwork}>
-                    {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Create Pool
-                  </Button>
-                </CardFooter>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="contributionAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contribution Amount</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Amount each participant contributes per cycle (in CELO or cUSD ERC20 tokens)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tokenType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Token Type</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex flex-col space-y-1"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="0" />
+                            </FormControl>
+                            <FormLabel className="font-normal">CELO (ERC20)</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="1" />
+                            </FormControl>
+                            <FormLabel className="font-normal">cUSD (ERC20)</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormDescription className="text-xs sm:text-sm">
+                        Select the ERC20 token for contributions
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="hostFeePercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Host Fee Percentage</FormLabel>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="w-[200px] text-xs">
+                                The percentage fee you receive as the host of this pool. Max 5%.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <FormControl>
+                        <Input type="number" min="0" max="5" step="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>Your fee for hosting (0-5%)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxMissedDeposits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Missed Deposits</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        How many deposits a participant can miss before becoming inactive
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="startTimestamp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="datetime-local"
+                        {...field}
+                        min={new Date().toISOString().slice(0, 16)}
+                      />
+                    </FormControl>
+                    <FormDescription>When the first cycle will begin</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <CardFooter className="flex justify-end px-0">
+                <Button variant="outline" type="submit" disabled={isCreating || !selectedNetwork}>
+                  {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Pool
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    )}
     </div>
   );
 }

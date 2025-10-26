@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ethers } from "ethers";
+import { getContract, prepareContractCall, sendTransaction } from "thirdweb";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import {
   ContriboostFactoryAbi,
@@ -34,23 +35,13 @@ const IERC20Abi = [
 ];
 
 const NETWORKS = {
-  lisk: {
-    chainId: 1135,
-    name: "Lisk",
-    rpcUrl: "https://rpc.api.lisk.com",
-    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
-    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
-    tokenAddress: "0x05D032ac25d322df992303dCa074EE7392C117b9", // USDT on Lisk
-    tokenSymbol: "USDT",
-    nativeSymbol: "ETH",
-  },
   celo: {
-    chainId: 42220,
-    name: "Celo Mainnet",
-    rpcUrl: "https://forno.celo.org",
-    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
-    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
-    tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // cUSD on Celo
+    chainId: 44787,
+    name: "Celo Alfajores",
+    rpcUrl: "https://alfajores-forno.celo-testnet.org",
+    contriboostFactory: "0x4C9118aBffa2aCCa4a16d08eC1222634eb744748",
+    goalFundFactory: "0x64547A48C57583C8f595D97639543E2f1b6db4a6",
+    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },
@@ -59,7 +50,7 @@ export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { provider, signer, account, connect, isConnecting, chainId, switchNetwork } = useWeb3();
+  const { provider, signer, account, connect, isConnecting, chainId, switchNetwork, thirdwebClient, celoAlfajores } = useWeb3();
   const [poolDetails, setPoolDetails] = useState(null);
   const [poolType, setPoolType] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,23 +65,23 @@ export default function PoolDetailsPage() {
   const [newOwnerAddress, setNewOwnerAddress] = useState("");
   const [participants, setParticipants] = useState([]);
   const [network, setNetwork] = useState(null);
-  // Added state to track if any deposits have been made
   const [hasDeposits, setHasDeposits] = useState(false);
+  const [accumulatedRewards, setAccumulatedRewards] = useState("0");
+  const [rewardTransferAmount, setRewardTransferAmount] = useState("");
+  const [rewardTransferAddress, setRewardTransferAddress] = useState("");
+  const [isFactoryOwner, setIsFactoryOwner] = useState(false);
 
-  // Initialize providers
-  const liskProvider = new ethers.JsonRpcProvider(NETWORKS.lisk.rpcUrl);
   const celoProvider = new ethers.JsonRpcProvider(NETWORKS.celo.rpcUrl);
 
   useEffect(() => {
     const networkParam = searchParams.get("network");
-    if (networkParam && NETWORKS[networkParam]) {
-      setNetwork(networkParam);
-    } else {
-      setError("Network not specified or invalid");
+    if (networkParam !== "celo") {
+      setError("Only Celo Alfajores network is supported");
       setIsLoading(false);
       router.push("/pools");
       return;
     }
+    setNetwork("celo");
     if (!contractAddress || typeof contractAddress !== "string") {
       setError("No contract address provided");
       setIsLoading(false);
@@ -99,33 +90,50 @@ export default function PoolDetailsPage() {
     }
     if (ethers.isAddress(contractAddress)) {
       fetchPoolDetails();
+      checkFactoryOwner();
     } else {
       setError("Invalid contract address");
       setIsLoading(false);
       router.push("/pools");
     }
-  }, [provider, contractAddress, searchParams, router, account, network]);
+  }, [provider, contractAddress, searchParams, router, account, chainId]);
+
+  async function checkFactoryOwner() {
+    if (!account || chainId !== NETWORKS.celo.chainId) {
+      setIsFactoryOwner(false);
+      return;
+    }
+    try {
+      const goalFundFactory = new ethers.Contract(
+        NETWORKS.celo.goalFundFactory,
+        GoalFundFactoryAbi,
+        celoProvider
+      );
+      const owner = await goalFundFactory.owner();
+      setIsFactoryOwner(account.toLowerCase() === owner.toLowerCase());
+    } catch (error) {
+      console.error("Error checking factory owner:", error);
+      setIsFactoryOwner(false);
+    }
+  }
 
   async function fetchPoolDetails() {
-    console.log("Fetching details for contract:", contractAddress, "on network:", network);
     setIsLoading(true);
     setError(null);
 
-    const networkConfig = NETWORKS[network];
-    const provider = network === "lisk" ? liskProvider : celoProvider;
+    const networkConfig = NETWORKS.celo;
 
     try {
       const contriboostFactory = new ethers.Contract(
         networkConfig.contriboostFactory,
         ContriboostFactoryAbi,
-        provider
+        celoProvider
       );
       try {
-        console.log("Attempting to fetch Contriboost details...");
         const contriboostDetails = await contriboostFactory.getSingleContriboostDetails(
           contractAddress
         );
-        const contract = new ethers.Contract(contractAddress, ContriboostAbi, provider);
+        const contract = new ethers.Contract(contractAddress, ContriboostAbi, celoProvider);
         const [
           description,
           currentSegment,
@@ -160,7 +168,6 @@ export default function PoolDetailsPage() {
           })
         );
 
-        // Check if any participant has made a deposit
         const hasAnyDeposits = participantDetails.some(
           (participant) => parseFloat(participant.depositAmount) > 0
         );
@@ -211,6 +218,7 @@ export default function PoolDetailsPage() {
               }
             : null
         );
+        setAccumulatedRewards("0");
         setIsLoading(false);
         return;
       } catch (e) {
@@ -220,18 +228,18 @@ export default function PoolDetailsPage() {
       const goalFundFactory = new ethers.Contract(
         networkConfig.goalFundFactory,
         GoalFundFactoryAbi,
-        provider
+        celoProvider
       );
       try {
-        console.log("Attempting to fetch GoalFund details...");
         const goalFundDetails = await goalFundFactory.getSingleGoalFundDetails(contractAddress);
-        const contract = new ethers.Contract(contractAddress, GoalFundAbi, provider);
-        const [balance, contributorCount, userContribution, goal, owner] = await Promise.all([
+        const contract = new ethers.Contract(contractAddress, GoalFundAbi, celoProvider);
+        const [balance, contributorCount, userContribution, goal, owner, accumulatedRewards] = await Promise.all([
           contract.getBalance(),
           contract.getContributorCount(),
           account && chainId === networkConfig.chainId ? contract.contributions(account) : 0,
           contract.goal(),
           contract.owner(),
+          account && chainId === networkConfig.chainId ? contract.getAccumulatedRewards(account) : 0,
         ]);
         const now = Math.floor(Date.now() / 1000);
         const status = goalFundDetails.achieved
@@ -267,9 +275,11 @@ export default function PoolDetailsPage() {
                 hasContributed: Number(ethers.formatEther(userContribution)) > 0,
                 isOwner: account.toLowerCase() === owner.toLowerCase(),
                 isBeneficiary: account.toLowerCase() === goalFundDetails.beneficiary.toLowerCase(),
+                accumulatedRewards: ethers.formatEther(accumulatedRewards),
               }
             : null
         );
+        setAccumulatedRewards(ethers.formatEther(accumulatedRewards));
         setIsLoading(false);
       } catch (e) {
         console.error("Not a GoalFund:", e.message);
@@ -280,6 +290,7 @@ export default function PoolDetailsPage() {
       setError("Failed to load pool details. Check the contract address and network.");
       setPoolDetails(null);
       setUserStatus(null);
+      setAccumulatedRewards("0");
     } finally {
       setIsLoading(false);
     }
@@ -293,12 +304,13 @@ export default function PoolDetailsPage() {
         return false;
       }
     }
-    if (chainId !== NETWORKS[network].chainId) {
+    if (chainId !== NETWORKS.celo.chainId) {
       try {
-        await switchNetwork(NETWORKS[network].chainId);
+        await switchNetwork(NETWORKS.celo.chainId);
         return true;
       } catch (error) {
-        toast.error(`Please switch to ${NETWORKS[network].name} in your wallet`);
+        console.error("Network switch error:", error);
+        toast.error(`Please switch to ${NETWORKS.celo.name} in your wallet`);
         return false;
       }
     }
@@ -311,21 +323,49 @@ export default function PoolDetailsPage() {
       toast.error("You are already a participant or cannot join");
       return;
     }
+
+    try {
+      const response = await fetch(`/api/verify/status/${account}`);
+      const data = await response.json();
+      if (!data.verified) {
+        toast.error("You must be verified to join a Contriboost pool");
+        router.push("/verify");
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking verification status:", error);
+      toast.error("Error checking verification status");
+      router.push("/verify");
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join({ gasLimit: 200000 });
-      console.log("Join Contriboost tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "join",
+        params: [],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Join Contriboost tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully joined the Contriboost pool! Tx: ${tx.hash}`);
+      toast.success(`Successfully joined the Contriboost pool!`);
     } catch (error) {
       console.error("Error joining Contriboost:", error);
-      let message = error.reason || error.message || "Failed to join";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check pool status or participant limit";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to join"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -348,63 +388,54 @@ export default function PoolDetailsPage() {
 
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const amount = ethers.parseEther(depositAmount);
-
-      console.log("Depositing to Contriboost:", {
-        contractAddress,
-        amount: depositAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
       });
 
-      let tx;
+      const amount = ethers.parseEther(depositAmount);
+
       if (poolDetails.tokenAddress === ethers.ZeroAddress) {
         const balance = await provider.getBalance(account);
         if (balance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
-          );
+          throw new Error(`Insufficient CELO balance: ${ethers.formatEther(balance)} available`);
         }
-        tx = await contract.deposit({ value: amount, gasLimit: 300000 });
       } else {
         const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
         const tokenBalance = await tokenContract.balanceOf(account);
         if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
-          );
+          throw new Error(`Insufficient cUSD balance: ${ethers.formatEther(tokenBalance)} available`);
         }
         const allowance = await tokenContract.allowance(account, contractAddress);
         if (allowance < amount) {
-          console.log(`Approving ${poolDetails.tokenSymbol} allowance...`);
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          console.log("Approve tx hash:", approveTx.hash);
+          console.log(`Approving cUSD allowance...`);
+          const approveTx = await tokenContract.approve(contractAddress, amount, { gasLimit: 100000 });
           await approveTx.wait();
         }
-        tx = await contract.deposit({ gasLimit: 300000 });
       }
 
-      console.log("Deposit Contriboost tx hash:", tx.hash);
-      await tx.wait();
+      const transaction = await prepareContractCall({
+        contract,
+        method: "deposit",
+        params: [],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Deposit Contriboost tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Deposit successful! Tx: ${tx.hash}`);
+      toast.success(`Deposit successful!`);
       setDepositAmount("");
     } catch (error) {
       console.error("Error depositing to Contriboost:", error);
-      let message = "Failed to deposit";
-      if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for deposit and gas fees";
-      } else if (error.message.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
-        message = error.message;
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check participant status or pool state";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.message || "Failed to deposit"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -414,16 +445,31 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.checkMissedDeposits({ gasLimit: 200000 });
-      console.log("Check missed deposits tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "checkMissedDeposits",
+        params: [],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Check missed deposits tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Missed deposits checked successfully! Tx: ${tx.hash}`);
+      toast.success(`Missed deposits checked successfully!`);
     } catch (error) {
       console.error("Error checking missed deposits:", error);
-      let message = error.reason || error.message || "Failed to check missed deposits";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to check missed deposits"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -433,22 +479,31 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = poolType === "Contriboost"
-        ? await contract.emergencyWithdraw(tokenAddress || ethers.ZeroAddress, { gasLimit: 300000 })
-        : await contract.emergencyWithdraw({ gasLimit: 300000 });
-      console.log("Emergency withdraw tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "emergencyWithdraw",
+        params: poolType === "Contriboost" ? [tokenAddress || ethers.ZeroAddress] : [],
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Emergency withdraw tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Emergency withdrawal successful! Tx: ${tx.hash}`);
+      toast.success(`Emergency withdrawal successful!`);
     } catch (error) {
       console.error("Error performing emergency withdrawal:", error);
-      let message = error.reason || error.message || "Failed to perform emergency withdrawal";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to perform emergency withdrawal"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -462,17 +517,32 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setDescription(newDescription, { gasLimit: 200000 });
-      console.log("Set description tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setDescription",
+        params: [newDescription],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Set description tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Description updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Description updated successfully!`);
       setNewDescription("");
     } catch (error) {
       console.error("Error setting description:", error);
-      let message = error.reason || error.message || "Failed to set description";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to set description"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -486,20 +556,34 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setHostFeePercentage(
-        Math.floor(Number(newHostFee) * 100),
-        { gasLimit: 200000 }
-      );
-      console.log("Set host fee tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const hostFee = Math.floor(Number(newHostFee) * 100);
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setHostFeePercentage",
+        params: [hostFee],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Set host fee tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Host fee updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Host fee updated successfully!`);
       setNewHostFee("");
     } catch (error) {
       console.error("Error setting host fee:", error);
-      let message = error.reason || error.message || "Failed to set host fee";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to set host fee"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -513,17 +597,32 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setTokenAddress(newTokenAddress, { gasLimit: 200000 });
-      console.log("Set token address tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "setTokenAddress",
+        params: [newTokenAddress],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Set token address tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Token address updated successfully! Tx: ${tx.hash}`);
+      toast.success(`Token address updated successfully!`);
       setNewTokenAddress("");
     } catch (error) {
       console.error("Error setting token address:", error);
-      let message = error.reason || error.message || "Failed to set token address";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to set token address"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -533,23 +632,43 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
       const amount = ethers.parseEther(poolDetails.contributionAmount);
-      const tx =
-        poolDetails.tokenAddress === ethers.ZeroAddress
-          ? await contract.reactivateParticipant(participantAddress, { value: amount, gasLimit: 300000 })
-          : await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
-      console.log("Reactivate participant tx hash:", tx.hash);
-      await tx.wait();
+
+      if (poolDetails.tokenAddress !== ethers.ZeroAddress) {
+        const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+        const allowance = await tokenContract.allowance(account, contractAddress);
+        if (allowance < amount) {
+          const approveTx = await tokenContract.approve(contractAddress, amount, { gasLimit: 100000 });
+          await approveTx.wait();
+        }
+      }
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "reactivateParticipant",
+        params: [participantAddress],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Reactivate participant tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}! Tx: ${tx.hash}`);
+      toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}!`);
     } catch (error) {
       console.error("Error reactivating in Contriboost:", error);
-      let message = error.reason || error.message || "Failed to reactivate";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check missed deposits or pool state";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to reactivate"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -559,19 +678,31 @@ export default function PoolDetailsPage() {
     if (!(await ensureCorrectNetwork())) return;
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.distributeFunds({ gasLimit: 500000 });
-      console.log("Distribute funds tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "distributeFunds",
+        params: [],
+        gas: 500000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Distribute funds tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Funds distributed successfully! Tx: ${tx.hash}`);
+      toast.success(`Funds distributed successfully!`);
     } catch (error) {
       console.error("Error distributing funds:", error);
-      let message = error.reason || error.message || "Failed to distribute funds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check pool status or funds availability";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to distribute funds"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -585,21 +716,32 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
-        signer
-      );
-      const tx = await contract.transferOwnership(newOwnerAddress, { gasLimit: 200000 });
-      console.log("Transfer ownership tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "transferOwnership",
+        params: [newOwnerAddress],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Transfer ownership tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Ownership transferred successfully! Tx: ${tx.hash}`);
+      toast.success(`Ownership transferred successfully!`);
       setNewOwnerAddress("");
     } catch (error) {
       console.error("Error transferring ownership:", error);
-      let message = error.reason || error.message || "Failed to transfer ownership";
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to transfer ownership"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -617,19 +759,31 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.exitContriboost({ gasLimit: 200000 });
-      console.log("Exit Contriboost tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: ContriboostAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "exitContriboost",
+        params: [],
+        gas: 200000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Exit Contriboost tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Successfully exited the Contriboost pool! Tx: ${tx.hash}`);
+      toast.success(`Successfully exited the Contriboost pool!`);
     } catch (error) {
       console.error("Error exiting Contriboost:", error);
-      let message = error.reason || error.message || "Failed to exit";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check pool status or participant status";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to exit"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -648,63 +802,54 @@ export default function PoolDetailsPage() {
 
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const amount = ethers.parseEther(contributeAmount);
-
-      console.log("Contributing to GoalFund:", {
-        contractAddress,
-        amount: contributeAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: GoalFundAbi,
       });
 
-      let tx;
+      const amount = ethers.parseEther(contributeAmount);
+
       if (poolDetails.tokenAddress === ethers.ZeroAddress) {
         const balance = await provider.getBalance(account);
         if (balance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(balance)} available`
-          );
+          throw new Error(`Insufficient CELO balance: ${ethers.formatEther(balance)} available`);
         }
-        tx = await contract.contribute({ value: amount, gasLimit: 300000 });
       } else {
         const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
         const tokenBalance = await tokenContract.balanceOf(account);
         if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient ${poolDetails.tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} available`
-          );
+          throw new Error(`Insufficient cUSD balance: ${ethers.formatEther(tokenBalance)} available`);
         }
         const allowance = await tokenContract.allowance(account, contractAddress);
         if (allowance < amount) {
-          console.log(`Approving ${poolDetails.tokenSymbol} allowance...`);
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          console.log("Approve tx hash:", approveTx.hash);
+          console.log(`Approving cUSD allowance...`);
+          const approveTx = await tokenContract.approve(contractAddress, amount, { gasLimit: 100000 });
           await approveTx.wait();
         }
-        tx = await contract.contribute(amount, { gasLimit: 300000 });
       }
 
-      console.log("Contribute GoalFund tx hash:", tx.hash);
-      await tx.wait();
+      const transaction = await prepareContractCall({
+        contract,
+        method: "contribute",
+        params: [amount],
+        value: poolDetails.tokenAddress === ethers.ZeroAddress ? amount : 0n,
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Contribute GoalFund tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Contribution successful! Tx: ${tx.hash}`);
+      toast.success(`Contribution successful!`);
       setContributeAmount("");
     } catch (error) {
       console.error("Error contributing to GoalFund:", error);
-      let message = "Failed to contribute";
-      if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for contribution and gas fees";
-      } else if (error.message.includes(`Insufficient ${poolDetails.tokenSymbol} balance`)) {
-        message = error.message;
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check fund status or deadline";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.message || "Failed to contribute"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -718,19 +863,31 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.withdrawFunds({ gasLimit: 300000 });
-      console.log("Withdraw GoalFund tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: GoalFundAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "withdrawFunds",
+        params: [],
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Withdraw GoalFund tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Funds withdrawn successfully! Tx: ${tx.hash}`);
+      toast.success(`Funds withdrawn successfully!`);
     } catch (error) {
       console.error("Error withdrawing funds:", error);
-      let message = error.reason || error.message || "Failed to withdraw funds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check withdrawal conditions";
-      }
-      toast.error(`Error: ${message}`);
+      toast.error(`Error: ${error.reason || error.message || "Failed to withdraw funds"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -744,19 +901,95 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.refundContributors({ gasLimit: 500000 });
-      console.log("Refund contributors tx hash:", tx.hash);
-      await tx.wait();
+      const contract = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: contractAddress,
+        abi: GoalFundAbi,
+      });
+
+      const transaction = await prepareContractCall({
+        contract,
+        method: "refundContributors",
+        params: [],
+        gas: 500000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Refund contributors tx hash:", receipt.transactionHash);
       await fetchPoolDetails();
-      toast.success(`Refunds issued successfully! Tx: ${tx.hash}`);
+      toast.success(`Refunds issued successfully!`);
     } catch (error) {
       console.error("Error issuing refunds:", error);
-      let message = error.reason || error.message || "Failed to issue refunds";
-      if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check refund conditions";
+      toast.error(`Error: ${error.reason || error.message || "Failed to issue refunds"}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function transferRewards() {
+    if (!(await ensureCorrectNetwork())) return;
+    if (!isFactoryOwner && !userStatus?.isOwner) {
+      toast.warning("Only the factory owner or pool owner can transfer rewards");
+      return;
+    }
+    if (!ethers.isAddress(rewardTransferAddress)) {
+      toast.warning("Please enter a valid contributor address");
+      return;
+    }
+    if (!rewardTransferAmount || isNaN(rewardTransferAmount) || Number(rewardTransferAmount) <= 0) {
+      toast.warning("Please enter a valid reward amount");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const goalFundFactory = getContract({
+        client: thirdwebClient,
+        chain: celoAlfajores,
+        address: NETWORKS.celo.goalFundFactory,
+        abi: GoalFundFactoryAbi,
+      });
+
+      const amount = ethers.parseEther(rewardTransferAmount);
+
+      const goodDollarTokenAddress = await goalFundFactory.read({ method: "goodDollarToken", params: [] });
+      const tokenContract = new ethers.Contract(goodDollarTokenAddress, IERC20Abi, signer);
+      const balance = await tokenContract.balanceOf(account);
+      if (balance < amount) {
+        throw new Error(`Insufficient GoodDollar balance: ${ethers.formatEther(balance)} available`);
       }
-      toast.error(`Error: ${message}`);
+
+      const allowance = await tokenContract.allowance(account, NETWORKS.celo.goalFundFactory);
+      if (allowance < amount) {
+        const approveTx = await tokenContract.approve(NETWORKS.celo.goalFundFactory, amount, { gasLimit: 100000 });
+        await approveTx.wait();
+      }
+
+      const transaction = await prepareContractCall({
+        contract: goalFundFactory,
+        method: "transferRewards",
+        params: [contractAddress, rewardTransferAddress, amount],
+        gas: 300000n,
+      });
+
+      const receipt = await sendTransaction({
+        transaction,
+        account: signer,
+      });
+
+      console.log("Transfer rewards tx hash:", receipt.transactionHash);
+      await fetchPoolDetails();
+      toast.success(`Rewards transferred successfully to ${formatAddress(rewardTransferAddress)}!`);
+      setRewardTransferAmount("");
+      setRewardTransferAddress("");
+    } catch (error) {
+      console.error("Error transferring rewards:", error);
+      toast.error(`Error: ${error.reason || error.message || "Failed to transfer rewards"}`);
     } finally {
       setIsProcessing(false);
     }
@@ -774,202 +1007,216 @@ export default function PoolDetailsPage() {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center items-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
-        <span>Loading pool details...</span>
+        <span>Loading pool detailsals...</span>
       </div>
     );
   }
 
-  if (error || !poolDetails || !network) {
+  if (error || !poolDetails) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || "Pool not found or inaccessible"}</AlertDescription>
+          <AlertDescription>{error || "Pool not found"}</AlertDescription>
         </Alert>
-        <Button variant="outline" asChild>
-          <a href="/pools">Back to Pools</a>
-        </Button>
       </div>
     );
   }
 
+  const isCorrectNetwork = chainId === NETWORKS.celo.chainId;
   const isContriboost = poolType === "Contriboost";
-  const isNative = poolDetails.tokenAddress === ethers.ZeroAddress;
-  const canJoinContriboost =
+  const canJoin =
     isContriboost &&
-    userStatus &&
-    !userStatus.isParticipant &&
+    !userStatus?.isParticipant &&
     poolDetails.status !== "full" &&
     poolDetails.status !== "completed" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
-  // Modified to allow deposits regardless of hasReceivedFunds
-  const canDepositContriboost =
+  const canDeposit =
     isContriboost &&
-    userStatus &&
-    userStatus.isParticipant &&
-    userStatus.isActive &&
+    userStatus?.isParticipant &&
+    userStatus?.isActive &&
     poolDetails.status === "active";
-  const isDepositDisabled = poolDetails.status === "completed";
-  const canCheckMissedDeposits =
-    isContriboost &&
-    userStatus &&
-    userStatus.isHost &&
-    poolDetails.status === "active";
-  const canEmergencyWithdraw =
-    userStatus &&
-    (userStatus.isHost || userStatus.isOwner);
-  const canSetDescription =
-    isContriboost &&
-    userStatus &&
-    userStatus.isHost;
-  const canSetHostFee =
-    isContriboost &&
-    userStatus &&
-    userStatus.isHost;
-  const canSetTokenAddress =
-    isContriboost &&
-    userStatus &&
-    userStatus.isHost;
-  // Modified to only show distribute button if deposits exist and user is host
-  const showDistributeContriboost =
-    isContriboost && poolDetails.status === "active" && hasDeposits && userStatus?.isHost;
-  const canTransferOwnership =
-    userStatus &&
-    (userStatus.isHost || userStatus.isOwner);
-  const canContributeGoalFund =
-    !isContriboost && poolDetails.status === "active" && !poolDetails.achieved;
-  const canWithdrawGoalFund =
+  const canExit =
+    isContriboost && userStatus?.isParticipant && poolDetails.status === "not-started";
+  const canContribute = !isContriboost && poolDetails.status === "active" && !poolDetails.achieved;
+  const canWithdraw =
     !isContriboost &&
-    userStatus &&
-    (userStatus.isBeneficiary || userStatus.isOwner) &&
-    poolDetails.achieved &&
+    (userStatus?.isBeneficiary || userStatus?.isOwner) &&
+    poolDetails.currentAmount > 0 &&
     !poolDetails.fundsWithdrawn;
-  const canRefundGoalFund =
-    !isContriboost &&
-    userStatus &&
-    userStatus.isOwner &&
-    poolDetails.status === "expired" &&
-    !poolDetails.achieved;
-  const isCorrectNetwork = chainId === NETWORKS[network].chainId;
+  const canRefund = !isContriboost && userStatus?.isOwner && !poolDetails.achieved;
+  const canManage =
+    (isContriboost && userStatus?.isHost) ||
+    (!isContriboost && userStatus?.isOwner) ||
+    isFactoryOwner;
+  const progress = isContriboost
+    ? (poolDetails.currentSegment / poolDetails.expectedNumber) * 100
+    : (parseFloat(poolDetails.currentAmount) / parseFloat(poolDetails.targetAmount)) * 100;
 
-  // Admin Actions Dialog Component
   function AdminActionsDialog() {
     return (
       <Dialog>
         <DialogTrigger asChild>
-          <Button
-            disabled={isProcessing || isConnecting}
-            className="min-w-[120px]"
-          >
+          <Button disabled={isConnecting || !canManage} className="min-w-[120px]">
             Admin Actions
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] bg-[#101b31]">
           <DialogHeader>
             <DialogTitle>Admin Actions</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            {canSetDescription && (
-              <div className="space-y-2">
-                <Label htmlFor="newDescription">New Description</Label>
-                <Input
-                  id="newDescription"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Enter new description"
-                />
+            {isContriboost && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="newDescription">Update Description</Label>
+                  <Input
+                    id="newDescription"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Enter new description"
+                  />
+                  <Button
+                    onClick={isCorrectNetwork ? setDescription : () => switchNetwork(NETWORKS.celo.chainId)}
+                    disabled={isProcessing || !isCorrectNetwork || !newDescription}
+                    className="w-full"
+                  >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {isCorrectNetwork ? "Update Description" : `Switch to ${NETWORKS.celo.name}`}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newHostFee">Update Host Fee (%)</Label>
+                  <Input
+                    id="newHostFee"
+                    type="number"
+                    value={newHostFee}
+                    onChange={(e) => setNewHostFee(e.target.value)}
+                    placeholder="Enter new host fee percentage"
+                  />
+                  <Button
+                    onClick={isCorrectNetwork ? setHostFeePercentage : () => switchNetwork(NETWORKS.celo.chainId)}
+                    disabled={isProcessing || !isCorrectNetwork || !newHostFee}
+                    className="w-full"
+                  >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {isCorrectNetwork ? "Update Host Fee" : `Switch to ${NETWORKS.celo.name}`}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newTokenAddress">Update Token Address</Label>
+                  <Input
+                    id="newTokenAddress"
+                    value={newTokenAddress}
+                    onChange={(e) => setNewTokenAddress(e.target.value)}
+                    placeholder="Enter new token address"
+                  />
+                  <Button
+                    onClick={isCorrectNetwork ? setTokenAddress : () => switchNetwork(NETWORKS.celo.chainId)}
+                    disabled={isProcessing || !isCorrectNetwork || !ethers.isAddress(newTokenAddress)}
+                    className="w-full"
+                  >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {isCorrectNetwork ? "Update Token" : `Switch to ${NETWORKS.celo.name}`}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newOwnerAddress">Transfer Ownership</Label>
+                  <Input
+                    id="newOwnerAddress"
+                    value={newOwnerAddress}
+                    onChange={(e) => setNewOwnerAddress(e.target.value)}
+                    placeholder="Enter new owner address"
+                  />
+                  <Button
+                    onClick={isCorrectNetwork ? transferOwnership : () => switchNetwork(NETWORKS.celo.chainId)}
+                    disabled={isProcessing || !isCorrectNetwork || !ethers.isAddress(newOwnerAddress)}
+                    className="w-full"
+                  >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {isCorrectNetwork ? "Transfer Ownership" : `Switch to ${NETWORKS.celo.name}`}
+                  </Button>
+                </div>
                 <Button
-                  onClick={isCorrectNetwork ? setDescription : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
+                  onClick={isCorrectNetwork ? distributeContriboostFunds : () => switchNetwork(NETWORKS.celo.chainId)}
+                  disabled={isProcessing || !isCorrectNetwork}
                   className="w-full"
                 >
                   {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Set Description" : `Switch to ${NETWORKS[network].name}`}
+                  {isCorrectNetwork ? "Distribute Funds" : `Switch to ${NETWORKS.celo.name}`}
                 </Button>
-              </div>
+              </>
             )}
-            {canSetHostFee && (
-              <div className="space-y-2">
-                <Label htmlFor="newHostFee">New Host Fee (%)</Label>
-                <Input
-                  id="newHostFee"
-                  type="number"
-                  value={newHostFee}
-                  onChange={(e) => setNewHostFee(e.target.value)}
-                  placeholder="Enter new host fee percentage"
-                />
-                <Button
-                  onClick={isCorrectNetwork ? setHostFeePercentage : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
-                  className="w-full"
-                >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Set Host Fee" : `Switch to ${NETWORKS[network].name}`}
-                </Button>
-              </div>
+            {!isContriboost && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="newOwnerAddress">Transfer Ownership</Label>
+                  <Input
+                    id="newOwnerAddress"
+                    value={newOwnerAddress}
+                    onChange={(e) => setNewOwnerAddress(e.target.value)}
+                    placeholder="Enter new owner address"
+                  />
+                  <Button
+                    onClick={isCorrectNetwork ? transferOwnership : () => switchNetwork(NETWORKS.celo.chainId)}
+                    disabled={isProcessing || !isCorrectNetwork || !ethers.isAddress(newOwnerAddress)}
+                    className="w-full"
+                  >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {isCorrectNetwork ? "Transfer Ownership" : `Switch to ${NETWORKS.celo.name}`}
+                  </Button>
+                </div>
+                {(isFactoryOwner || userStatus?.isOwner) && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="rewardTransferAddress">Transfer Rewards To</Label>
+                      <Input
+                        id="rewardTransferAddress"
+                        value={rewardTransferAddress}
+                        onChange={(e) => setRewardTransferAddress(e.target.value)}
+                        placeholder="Enter contributor address"
+                      />
+                      <Label htmlFor="rewardTransferAmount">Reward Amount (G$)</Label>
+                      <Input
+                        id="rewardTransferAmount"
+                        type="number"
+                        step="0.000000000000000001"
+                        min="0"
+                        value={rewardTransferAmount}
+                        onChange={(e) => setRewardTransferAmount(e.target.value)}
+                        placeholder="Enter reward amount"
+                      />
+                      <Button
+                        onClick={isCorrectNetwork ? transferRewards : () => switchNetwork(NETWORKS.celo.chainId)}
+                        disabled={
+                          isProcessing ||
+                          !isCorrectNetwork ||
+                          !ethers.isAddress(rewardTransferAddress) ||
+                          !rewardTransferAmount
+                        }
+                        className="w-full"
+                      >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        {isCorrectNetwork ? "Transfer Rewards" : `Switch to ${NETWORKS.celo.name}`}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </>
             )}
-            {canSetTokenAddress && (
-              <div className="space-y-2">
-                <Label htmlFor="newTokenAddress">New Token Address</Label>
-                <Input
-                  id="newTokenAddress"
-                  value={newTokenAddress}
-                  onChange={(e) => setNewTokenAddress(e.target.value)}
-                  placeholder="Enter new token address"
-                />
-                <Button
-                  onClick={isCorrectNetwork ? setTokenAddress : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
-                  className="w-full"
-                >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Set Token Address" : `Switch to ${NETWORKS[network].name}`}
-                </Button>
-              </div>
-            )}
-            {canTransferOwnership && (
-              <div className="space-y-2">
-                <Label htmlFor="newOwnerAddress">New Owner Address</Label>
-                <Input
-                  id="newOwnerAddress"
-                  value={newOwnerAddress}
-                  onChange={(e) => setNewOwnerAddress(e.target.value)}
-                  placeholder="Enter new owner address"
-                />
-                <Button
-                  onClick={isCorrectNetwork ? transferOwnership : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
-                  className="w-full"
-                >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Transfer Ownership" : `Switch to ${NETWORKS[network].name}`}
-                </Button>
-              </div>
-            )}
-            {canEmergencyWithdraw && (
-              <div className="space-y-2">
-                <Button
-                  onClick={isCorrectNetwork ? () => emergencyWithdraw(poolDetails.tokenAddress) : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
-                  className="w-full"
-                >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Emergency Withdraw" : `Switch to ${NETWORKS[network].name}`}
-                </Button>
-              </div>
-            )}
-            {canCheckMissedDeposits && (
-              <div className="space-y-2">
-                <Button
-                  onClick={isCorrectNetwork ? checkMissedDeposits : () => switchNetwork(NETWORKS[network].chainId)}
-                  disabled={isProcessing || isConnecting}
-                  className="w-full"
-                >
-                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCorrectNetwork ? "Check Missed Deposits" : `Switch to ${NETWORKS[network].name}`}
-                </Button>
-              </div>
-            )}
+            <Button
+              onClick={() =>
+                isCorrectNetwork
+                  ? emergencyWithdraw(poolDetails.tokenAddress)
+                  : switchNetwork(NETWORKS.celo.chainId)
+              }
+              disabled={isProcessing || !isCorrectNetwork}
+              variant="destructive"
+              className="w-full"
+            >
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isCorrectNetwork ? "Emergency Withdraw" : `Switch to ${NETWORKS.celo.name}`}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -978,386 +1225,401 @@ export default function PoolDetailsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          {poolDetails.name}
-          <span className="text-xs bg-purple-100 text-purple-800 py-0.5 px-1.5 rounded-full flex items-center">
-            <Tag className="h-3 w-3 mr-1" />
-            {poolType}
-          </span>
-          {!isContriboost && (
-            <span className="text-xs bg-blue-100 text-blue-800 py-0.5 px-1.5 rounded-full flex items-center">
-              <Tag className="h-3 w-3 mr-1" />
-              {poolDetails.fundType === 0 ? "Grouped" : "Personal"}
-            </span>
-          )}
-        </h1>
-        <p className="text-muted-foreground break-words max-w-2xl">{poolDetails.description}</p>
-        <div className="flex items-center gap-1 mt-1">
-          <Globe className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">{NETWORKS[network].name}</span>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">{poolDetails.name}</h1>
+          <p className="text-muted-foreground">
+            {isContriboost ? "Contriboost Pool" : `GoalFund - ${poolDetails.fundType === 0 ? "Grouped" : "Personal"}`}
+          </p>
         </div>
-        {!isCorrectNetwork && (
-          <Button
-            variant="outline"
-            className="mt-2"
-            onClick={() => switchNetwork(NETWORKS[network].chainId)}
-            disabled={isConnecting}
-          >
-            {isConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Switch to {NETWORKS[network].name}
+        <div className="flex gap-2">
+          {canManage && <AdminActionsDialog />}
+          <Button variant="outline" onClick={() => router.push("/pools")}>
+            Back to Pools
           </Button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Participants" : "Contributors"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost
-                  ? `${poolDetails.currentParticipants}/${poolDetails.expectedNumber}`
-                  : poolDetails.contributors}
-              </span>
-            </div>
-            {isContriboost ? (
-              <Progress
-                value={(poolDetails.currentParticipants / poolDetails.expectedNumber) * 100}
-                className="h-2 mt-2"
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1">
-                Your contribution: {poolDetails.userContribution} {poolDetails.tokenSymbol}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Current Cycle" : "Deadline"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost ? poolDetails.currentSegment : formatDate(poolDetails.deadline)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isContriboost
-                ? `Started on ${formatDate(poolDetails.startTimestamp)}`
-                : `Status: ${poolDetails.status}`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Contribution Amount" : "Funding Progress"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost
-                  ? `${poolDetails.contributionAmount} ${poolDetails.tokenSymbol}`
-                  : `${poolDetails.currentAmount}/${poolDetails.targetAmount} ${poolDetails.tokenSymbol}`}
-              </span>
-            </div>
-            {isContriboost ? (
-              <p className="text-xs text-muted-foreground mt-1">
-                Host fee: {poolDetails.hostFeePercentage / 100}% | Platform fee:{" "}
-                {poolDetails.platformFeePercentage / 100}%
-              </p>
-            ) : (
-              <Progress
-                value={
-                  (Number.parseFloat(poolDetails.currentAmount) /
-                    Number.parseFloat(poolDetails.targetAmount)) *
-                  100
-                }
-                className="h-2 mt-2"
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mb-8 space-y-4">
-        {canJoinContriboost && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={isCorrectNetwork ? joinContriboost : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Join" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {canDepositContriboost && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="depositAmount">Deposit Amount ({poolDetails.tokenSymbol})</Label>
-              <Input
-                id="depositAmount"
-                type="number"
-                step="0.000000000000000001"
-                min="0"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder={`Required: ${poolDetails.contributionAmount}`}
-                className="w-48"
-                disabled={isDepositDisabled}
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? depositContriboost : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting || isDepositDisabled}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? (isDepositDisabled ? "Pool Completed" : "Deposit") : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {isContriboost && userStatus?.isParticipant && poolDetails.status === "not-started" && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={isCorrectNetwork ? exitContriboost : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-              variant="destructive"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Exit Pool" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        {canContributeGoalFund && (
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="contributeAmount">Contribution Amount ({poolDetails.tokenSymbol})</Label>
-              <Input
-                id="contributeAmount"
-                type="number"
-                value={contributeAmount}
-                onChange={(e) => setContributeAmount(e.target.value)}
-                placeholder="Enter amount"
-                className="w-48"
-              />
-            </div>
-            <Button
-              onClick={isCorrectNetwork ? contributeGoalFund : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Contribute" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {showDistributeContriboost && (
-            <Button
-              onClick={isCorrectNetwork ? distributeContriboostFunds : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Distribute Funds" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          )}
-          {canWithdrawGoalFund && (
-            <Button
-              onClick={isCorrectNetwork ? withdrawGoalFund : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Withdraw Funds" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          )}
-          {canRefundGoalFund && (
-            <Button
-              onClick={isCorrectNetwork ? refundContributors : () => switchNetwork(NETWORKS[network].chainId)}
-              disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {isCorrectNetwork ? "Refund Contributors" : `Switch to ${NETWORKS[network].name}`}
-            </Button>
-          )}
-          {(canEmergencyWithdraw || canCheckMissedDeposits || canSetDescription || canSetHostFee || canSetTokenAddress || canTransferOwnership) && (
-            <AdminActionsDialog />
-          )}
         </div>
       </div>
 
-      {isContriboost && participants.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Participants</CardTitle>
-            <CardDescription>
-              List of all participants in this Contriboost pool
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Deposit Amount</TableHead>
-                  <TableHead>Missed Deposits</TableHead>
-                  <TableHead>Last Deposit</TableHead>
-                  {userStatus?.isHost && <TableHead>Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {participants.map((participant) => (
-                  <TableRow key={participant.address}>
-                    <TableCell>{formatAddress(participant.address)}</TableCell>
-                    <TableCell>
-                      {participant.receivedFunds
-                        ? "Received Funds"
-                        : participant.active
-                        ? "Active"
-                        : "Inactive"}
-                    </TableCell>
-                    <TableCell>
-                      {parseFloat(participant.depositAmount).toFixed(4)} {poolDetails.tokenSymbol}
-                    </TableCell>
-                    <TableCell>{participant.missedDeposits}</TableCell>
-                    <TableCell>
-                      {participant.lastDepositTime > 0
-                        ? formatDate(participant.lastDepositTime)
-                        : "N/A"}
-                    </TableCell>
-                    {userStatus?.isHost && (
-                      <TableCell>
-                        {!participant.active &&
-                          !participant.receivedFunds &&
-                          participant.missedDeposits > 0 && (
-                            <Button
-                              size="sm"
-                              onClick={() => reactivateContriboost(participant.address)}
-                              disabled={isProcessing}
-                            >
-                              Reactivate
-                            </Button>
-                          )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pool Details</CardTitle>
+              <CardDescription>
+                {isContriboost ? "Rotating savings pool details" : "Goal-based funding campaign details"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <span>{NETWORKS[network].name}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Contract Address: </span>
+                  <span className="font-mono">{formatAddress(poolDetails.contractAddress)}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Description: </span>
+                  <span>{poolDetails.description}</span>
+                </div>
+                {isContriboost ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Contribution Amount</span>
+                      <span className="font-medium">
+                        {parseFloat(poolDetails.contributionAmount).toFixed(4)} {poolDetails.tokenSymbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Participants</span>
+                      <span className="font-medium">
+                        {poolDetails.currentParticipants}/{poolDetails.expectedNumber}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Current Segment</span>
+                      <span className="font-medium">
+                        {poolDetails.currentSegment}/{poolDetails.expectedNumber}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Cycle Duration</span>
+                      <span className="font-medium">{poolDetails.dayRange} days</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Host Fee</span>
+                      <span className="font-medium">{poolDetails.hostFeePercentage / 100}%</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Platform Fee</span>
+                      <span className="font-medium">{poolDetails.platformFeePercentage / 100}%</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Max Missed Deposits</span>
+                      <span className="font-medium">{poolDetails.maxMissedDeposits}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Start Date</span>
+                      <span className="font-medium">{formatDate(poolDetails.startTimestamp)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Host</span>
+                      <span className="font-medium font-mono">{formatAddress(poolDetails.host)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Target Amount</span>
+                      <span className="font-medium">
+                        {parseFloat(poolDetails.targetAmount).toFixed(4)} {poolDetails.tokenSymbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Current Amount</span>
+                      <span className="font-medium">
+                        {parseFloat(poolDetails.currentAmount).toFixed(4)} {poolDetails.tokenSymbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Deadline</span>
+                      <span className="font-medium">{formatDate(poolDetails.deadline)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Beneficiary</span>
+                      <span className="font-medium font-mono">{formatAddress(poolDetails.beneficiary)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Contributors</span>
+                      <span className="font-medium">{poolDetails.contributors}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Platform Fee</span>
+                      <span className="font-medium">{poolDetails.platformFeePercentage / 100}%</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Your Contribution</span>
+                      <span className="font-medium">
+                        {userStatus?.hasContributed
+                          ? `${parseFloat(userStatus.userContribution).toFixed(4)} ${poolDetails.tokenSymbol}`
+                          : "0"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Your Accumulated Rewards</span>
+                      <span className="font-medium">
+                        {parseFloat(accumulatedRewards).toFixed(4)} G$
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Status</span>
+                  <span
+                    className={`font-medium ${
+                      poolDetails.status === "active"
+                        ? "text-green-600"
+                        : poolDetails.status === "full"
+                        ? "text-amber-600"
+                        : poolDetails.status === "not-started"
+                        ? "text-blue-600"
+                        : poolDetails.status === "completed"
+                        ? "text-gray-600"
+                        : poolDetails.status === "achieved"
+                        ? "text-teal-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {poolDetails.status === "active"
+                      ? "Active"
+                      : poolDetails.status === "full"
+                      ? "Full"
+                      : poolDetails.status === "not-started"
+                      ? "Not Started"
+                      : poolDetails.status === "completed"
+                      ? "Completed"
+                      : poolDetails.status === "achieved"
+                      ? "Achieved"
+                      : "Expired"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-muted-foreground mt-2">
+                  {isContriboost
+                    ? `${poolDetails.currentSegment} of ${poolDetails.expectedNumber} segments completed`
+                    : `${parseFloat(poolDetails.currentAmount).toFixed(2)} / ${parseFloat(
+                        poolDetails.targetAmount
+                      ).toFixed(2)} ${poolDetails.tokenSymbol} raised`}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Pool Details</CardTitle>
-          <CardDescription>Key information about this {poolType} pool</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Contract Address</TableCell>
-                <TableCell>{poolDetails.contractAddress}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Name</TableCell>
-                <TableCell>{poolDetails.name}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Network</TableCell>
-                <TableCell>{NETWORKS[network].name}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Token</TableCell>
-                <TableCell>
-                  {isNative ? poolDetails.tokenSymbol : formatAddress(poolDetails.tokenAddress)}
-                </TableCell>
-              </TableRow>
-              {isContriboost ? (
-                <>
-                  <TableRow>
-                    <TableCell className="font-medium">Day Range</TableCell>
-                    <TableCell>{poolDetails.dayRange} days</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Expected Participants</TableCell>
-                    <TableCell>{poolDetails.expectedNumber}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Max Missed Deposits</TableCell>
-                    <TableCell>{poolDetails.maxMissedDeposits}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Host Address</TableCell>
-                    <TableCell>{formatAddress(poolDetails.host)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Start Date</TableCell>
-                    <TableCell>{formatDate(poolDetails.startTimestamp)}</TableCell>
-                  </TableRow>
-                </>
-              ) : (
-                <>
-                  <TableRow>
-                    <TableCell className="font-medium">Target Amount</TableCell>
-                    <TableCell>
-                      {poolDetails.targetAmount} {poolDetails.tokenSymbol}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Current Amount</TableCell>
-                    <TableCell>
-                      {poolDetails.currentAmount} {poolDetails.tokenSymbol}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Beneficiary</TableCell>
-                    <TableCell>{formatAddress(poolDetails.beneficiary)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Fund Type</TableCell>
-                    <TableCell>{poolDetails.fundType === 0 ? "Grouped" : "Personal"}</TableCell>
-                  </TableRow>
-                </>
-              )}
-              <TableRow>
-                <TableCell className="font-medium">Platform Fee</TableCell>
-                <TableCell>{poolDetails.platformFeePercentage / 100}%</TableCell>
-              </TableRow>
-              {isContriboost && (
-                <TableRow>
-                  <TableCell className="font-medium">Host Fee</TableCell>
-                  <TableCell>{poolDetails.hostFeePercentage / 100}%</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          {isContriboost && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Participants</CardTitle>
+                <CardDescription>List of all participants in this pool</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {participants.length === 0 ? (
+                  <p className="text-muted-foreground">No participants yet</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Participant</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Deposits</TableHead>
+                        <TableHead>Missed</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {participants.map((participant) => (
+                        <TableRow key={participant.address}>
+                          <TableCell className="font-mono">{formatAddress(participant.address)}</TableCell>
+                          <TableCell>
+                            {participant.receivedFunds
+                              ? "Received Funds"
+                              : participant.active
+                              ? "Active"
+                              : "Inactive"}
+                          </TableCell>
+                          <TableCell>
+                            {parseFloat(participant.depositAmount).toFixed(4)} {poolDetails.tokenSymbol}
+                          </TableCell>
+                          <TableCell>{participant.missedDeposits}</TableCell>
+                          <TableCell>
+                            {userStatus?.isHost &&
+                              !participant.active &&
+                              !participant.receivedFunds &&
+                              poolDetails.status === "active" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => reactivateContriboost(participant.address)}
+                                  disabled={isProcessing}
+                                >
+                                  {isProcessing ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : null}
+                                  Reactivate
+                                </Button>
+                              )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
-      <Button variant="outline" asChild>
-        <a href="/pools">Back to Pools</a>
-      </Button>
+        <div className="space-y-6">
+          {isContriboost ? (
+            <>
+              {canJoin && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Join Pool</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="w-full"
+                      onClick={isCorrectNetwork ? joinContriboost : () => switchNetwork(NETWORKS.celo.chainId)}
+                      disabled={isProcessing || !isCorrectNetwork}
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {isCorrectNetwork ? "Join Pool" : `Switch to ${NETWORKS.celo.name}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {canDeposit && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Deposit</CardTitle>
+                    <CardDescription>
+                      Deposit {poolDetails.contributionAmount} {poolDetails.tokenSymbol} for the current segment
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <Input
+                        type="number"
+                        step="0.000000000000000001"
+                        min="0"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        placeholder={`Enter amount (${poolDetails.contributionAmount} ${poolDetails.tokenSymbol})`}
+                      />
+                      <Button
+                        className="w-full"
+                        onClick={isCorrectNetwork ? depositContriboost : () => switchNetwork(NETWORKS.celo.chainId)}
+                        disabled={isProcessing || !isCorrectNetwork}
+                      >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        {isCorrectNetwork ? "Deposit" : `Switch to ${NETWORKS.celo.name}`}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {canExit && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Exit Pool</CardTitle>
+                    <CardDescription>Exit the pool before it starts</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="w-full"
+                      variant="destructive"
+                      onClick={isCorrectNetwork ? exitContriboost : () => switchNetwork(NETWORKS.celo.chainId)}
+                      disabled={isProcessing || !isCorrectNetwork}
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {isCorrectNetwork ? "Exit Pool" : `Switch to ${NETWORKS.celo.name}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {userStatus?.isHost && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Check Missed Deposits</CardTitle>
+                    <CardDescription>Check and penalize missed deposits</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="w-full"
+                      onClick={isCorrectNetwork ? checkMissedDeposits : () => switchNetwork(NETWORKS.celo.chainId)}
+                      disabled={isProcessing || !isCorrectNetwork}
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {isCorrectNetwork ? "Check Missed Deposits" : `Switch to ${NETWORKS.celo.name}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <>
+              {canContribute && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Contribute</CardTitle>
+                    <CardDescription>Contribute to the funding goal</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <Input
+                        type="number"
+                        step="0.000000000000000001"
+                        min="0"
+                        value={contributeAmount}
+                        onChange={(e) => setContributeAmount(e.target.value)}
+                        placeholder={`Enter amount (${poolDetails.tokenSymbol})`}
+                      />
+                      <Button
+                        className="w-full"
+                        onClick={isCorrectNetwork ? contributeGoalFund : () => switchNetwork(NETWORKS.celo.chainId)}
+                        disabled={isProcessing || !isCorrectNetwork}
+                      >
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        {isCorrectNetwork ? "Contribute" : `Switch to ${NETWORKS.celo.name}`}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {canWithdraw && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Withdraw Funds</CardTitle>
+                    <CardDescription>Withdraw funds as the beneficiary or owner</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="w-full"
+                      onClick={isCorrectNetwork ? withdrawGoalFund : () => switchNetwork(NETWORKS.celo.chainId)}
+                      disabled={isProcessing || !isCorrectNetwork}
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {isCorrectNetwork ? "Withdraw Funds" : `Switch to ${NETWORKS.celo.name}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {canRefund && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Refund Contributors</CardTitle>
+                    <CardDescription>Issue refunds to all contributors</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="w-full"
+                      variant="destructive"
+                      onClick={isCorrectNetwork ? refundContributors : () => switchNetwork(NETWORKS.celo.chainId)}
+                      disabled={isProcessing || !isCorrectNetwork}
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {isCorrectNetwork ? "Refund Contributors" : `Switch to ${NETWORKS.celo.name}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

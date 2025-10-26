@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ethers } from "ethers";
+import { parseEther } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi } from "@/lib/contractabi";
+import { createContriboost } from "@/lib/contract";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,24 +21,16 @@ import { toast } from "react-toastify";
 // Import Divvi utilities
 import { generateDivviTag, submitDivviReferral } from "@/lib/divvi";
 
-// Contract addresses
 const CONTRACT_ADDRESSES = {
-  lisk: {
-    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
-    native: ethers.ZeroAddress, // ETH for Lisk
-  },
   celo: {
-    factory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180",
-    cusd: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-    celo: "0x471EcE3750Da237f93B8E339c536989b8978a438", // CELO token address
+    factory: "0x4C9118aBffa2aCCa4a16d08eC1222634eb744748",
+    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8",
+    celo: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
   },
 };
 
-// Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 1135,
-  celo: 42220,
+  celo: 44787,
 };
 
 const formSchema = z.object({
@@ -49,14 +41,14 @@ const formSchema = z.object({
   contributionAmount: z.string().refine(
     (value) => {
       try {
-        return ethers.parseEther(value) > 0n;
+        return parseEther(value) > 0n;
       } catch {
         return false;
       }
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  paymentMethod: z.enum(["0", "1"]),
+  tokenType: z.enum(["0", "1"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -70,7 +62,7 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account, connect, supportsGasEstimation, chainId, switchNetwork } = useWeb3();
+  const { signer, account, connect, connectInAppWallet, chainId, switchNetwork, thirdwebClient, celoAlfajores, walletType } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
@@ -80,25 +72,22 @@ export default function CreateContriboostPage() {
     defaultValues: {
       name: "",
       description: "",
-      dayRange: 7,
-      expectedNumber: 10,
+      dayRange: "7",
+      expectedNumber: "10",
       contributionAmount: "0.1",
-      paymentMethod: "0",
-      hostFeePercentage: 2,
-      maxMissedDeposits: 2,
+      tokenType: "0",
+      hostFeePercentage: "2",
+      maxMissedDeposits: "2",
       startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     },
   });
 
-  // Detect and validate network
   useEffect(() => {
     if (chainId) {
-      if (chainId === SUPPORTED_CHAINS.lisk) {
-        setSelectedNetwork("lisk");
-      } else if (chainId === SUPPORTED_CHAINS.celo) {
+      if (chainId === SUPPORTED_CHAINS.celo) {
         setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk or Celo.");
+        setError("Unsupported network. Please switch to Celo Alfajores.");
         setSelectedNetwork(null);
       }
     } else {
@@ -106,13 +95,39 @@ export default function CreateContriboostPage() {
     }
   }, [chainId]);
 
-  // Switch network if needed
-  const handleNetworkSwitch = async (network) => {
+  async function handleNetworkSwitch(network) {
     try {
+      if (!account) {
+        await connect();
+        if (!account) {
+          setError("Please connect your wallet to switch networks.");
+          try {
+            toast.warning("Please connect your wallet to switch networks.");
+          } catch (toastError) {
+            console.error("Toast error:", toastError);
+          }
+          return;
+        }
+      }
+
+      if (walletType === "smart") {
+        setError("Smart wallets do not require manual network switching on Celo Alfajores.");
+        try {
+          toast.info("Smart wallets are already configured for Celo Alfajores.");
+        } catch (toastError) {
+          console.error("Toast error:", toastError);
+        }
+        return;
+      }
+
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk" : "Celo"} network`);
+      try {
+        toast.info(`Switched to Celo Alfajores network`);
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
       toast.error("Failed to switch network");
@@ -273,7 +288,7 @@ export default function CreateContriboostPage() {
               </div>
             </Button>
           </div>
-          {error && !selectedNetwork && (
+          {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>

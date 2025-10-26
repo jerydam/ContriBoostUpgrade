@@ -1,0 +1,11 @@
+{
+  "build": {
+    "env": {
+      "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+      "NPM_CONFIG_AUTO_INSTALL_PEERS": "true",
+      "NPM_CONFIG_FUND": "false",
+      "NPM_CONFIG_AUDIT": "false"
+    }
+  },
+  "installCommand": "npm install --legacy-peer-deps --force"
+}

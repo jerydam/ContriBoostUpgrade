@@ -1,0 +1,22 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@divvi/referral-sdk':
+        specifier: ^2.3.0
+        version: 2.3.0
+
+packages:
+
+  '@divvi/referral-sdk@2.3.0':
+    resolution: {integrity: sha512-2Fc5rJ4L9Txr6tQ8CQmdM0Jp55YE8Wfd63a97AZtVh/leh2k8WzHsyABP/OHThXZBPTnsdw8V4BH85wYPZwJcQ==}
+
+snapshots:
+
+  '@divvi/referral-sdk@2.3.0': {}

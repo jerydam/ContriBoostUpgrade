@@ -9,23 +9,23 @@ import { toast } from "react-toastify";
 import { CONTRACTS, SUPPORTED_CHAINS } from "../../utils/config";
 
 // Thirdweb client
-const thirdwebClient = createThirdwebClient({ clientId: "b81c12c8d9ae57479a26c52be1d198eb" });
+const thirdwebClient = createThirdwebClient({ clientId: "fb46f0aa1800487731b4f031aa2b00f3" });
 
 // Define custom chains
 const liskSepolia = defineChain({
-  id: 4202,
-  name: "Lisk Sepolia Testnet",
-  nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
+  id: 1135,
+  name: "Lisk",
+  nativeCurrency: { name: "Lisk ETH", symbol: "ETH", decimals: 18 },
   rpc: ["https://rpc.sepolia-api.lisk.com"],
   blockExplorers: [{ name: "Lisk Explorer", url: "https://sepolia-blockscout.lisk.com" }],
 });
 
 const celoAlfajores = defineChain({
-  id: 44787,
-  name: "Celo Alfajores Testપીએફnet",
+  id: 42220,
+  name: "Celo Mainnet",
   nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
-  rpc: ["https://alfajores-forno.celo-testnet.org"],
-  blockExplorers: [{ name: "Celo Explorer", url: "https://alfajores-blockscout.celo-testnet.org" }],
+  rpc: ["https://forno.celo.org"],
+  blockExplorers: [{ name: "Celo Explorer", url: "https://celoscan.io" }],
 });
 
 // Custom storage
@@ -65,14 +65,14 @@ export function Web3Provider({ children }) {
 
   // Map chain IDs to Thirdweb chain configurations
   const chainConfigs = {
-    4202: liskSepolia,
-    44787: celoAlfajores,
+    1135: liskSepolia,
+    42220: celoAlfajores,
   };
 
   // Map chain IDs to ethers provider RPC URLs
   const rpcUrls = {
-    4202: "https://rpc.sepolia-api.lisk.com",
-    44787: "https://alfajores-forno.celo-testnet.org",
+    1135: "https://rpc.sepolia-api.lisk.com",
+    42220: "https://alfajores-forno.celo-testnet.org",
   };
 
   // Retry logic for network requests
@@ -101,7 +101,7 @@ export function Web3Provider({ children }) {
       if (currentBlock !== lastBlockNumber) {
         const balanceWei = await providerInstance.getBalance(accountAddress);
         const balanceEther = ethers.formatEther(balanceWei);
-        const symbol = chainId === 44787 ? "CELO" : "ETH";
+        const symbol = chainId === 42220 ? "CELO" : "ETH";
         setBalance(`${parseFloat(balanceEther).toFixed(4)} ${symbol}`);
         setLastBlockNumber(currentBlock);
       }
@@ -138,7 +138,7 @@ export function Web3Provider({ children }) {
   // Login with Socials (e.g., Google)
   async function connectWithSocials(strategy) {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       const walletAccount = await withRetry(() =>
         wallet.connect({
           client: thirdwebClient,
@@ -169,7 +169,7 @@ export function Web3Provider({ children }) {
   // Login with Email
   async function connectWithEmail(email, verificationCode = null) {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       if (!verificationCode) {
         await withRetry(() =>
           preAuthenticate({
@@ -210,7 +210,7 @@ export function Web3Provider({ children }) {
   // Login with Phone Number
   async function connectWithPhone(phoneNumber, verificationCode = null) {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       if (!verificationCode) {
         await withRetry(() =>
           preAuthenticate({
@@ -251,7 +251,7 @@ export function Web3Provider({ children }) {
   // Login with Passkey
   async function connectWithPasskey() {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       let walletAccount;
       try {
         walletAccount = await withRetry(() =>
@@ -292,7 +292,7 @@ export function Web3Provider({ children }) {
   // Connect to a Guest Account
   async function connectAsGuest() {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       const walletAccount = await wallet.connect({
         client: thirdwebClient,
         chain: thirdwebChain,
@@ -321,7 +321,7 @@ export function Web3Provider({ children }) {
   // Login with SIWE (e.g., Rabby)
   async function connectWithSIWE() {
     try {
-      const thirdwebChain = chainId === 44787 ? celoAlfajores : liskSepolia;
+      const thirdwebChain = chainId === 42220 ? celoAlfajores : liskSepolia;
       const rabby = createWallet("io.rabby");
       const walletAccount = await wallet.connect({
         client: thirdwebClient,
@@ -396,7 +396,7 @@ export function Web3Provider({ children }) {
       const currentChainId = Number(network.chainId);
 
       if (!SUPPORTED_CHAINS[currentChainId]) {
-        const defaultChainId = 4202;
+        const defaultChainId = 1135;
         try {
           await window.ethereum.request({
             method: "wallet_switchEthereumChain",
@@ -416,8 +416,8 @@ export function Web3Provider({ children }) {
             });
             setChainId(defaultChainId);
           } else {
-            setConnectionError("Please switch to a supported network (Lisk Sepolia or Celo Alfajores)");
-            throw new Error("Please switch to a supported network (Lisk Sepolia or Celo Alfajores)");
+            setConnectionError("Please switch to a supported network (Lisk or Celo)");
+            throw new Error("Please switch to a supported network (Lisk or Celo)");
           }
         }
       } else {

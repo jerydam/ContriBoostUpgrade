@@ -21,21 +21,21 @@ import { toast } from "react-toastify";
 // Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0x3D6D20896b945E947b962a8c043E09c522504079", // Placeholder; replace with Lisk Sepolia GoalFund factory
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin
-    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
+    factory: "0x3D6D20896b945E947b962a8c043E09c522504079",
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
+    native: ethers.ZeroAddress, // ETH for Lisk
   },
   celo: {
-    factory: "0xDB4421c212D78bfCB4380276428f70e50881ABad", // Celo Alfajores GoalFund factory
-    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
-    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
+    factory: "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF",
+    cusd: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+    celo: "0x471EcE3750Da237f93B8E339c536989b8978a438", // CELO token address
   },
 };
 
 // Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 4202, // Lisk Sepolia
-  celo: 44787, // Celo Alfajores
+  lisk: 1135,
+  celo: 42220,
 };
 
 const formSchema = z.object({
@@ -76,7 +76,7 @@ export default function CreateGoalFundPage() {
       name: "",
       description: "",
       targetAmount: "1",
-      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16), // 30 days from now
+      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
       beneficiary: account || "",
       fundType: "0",
       paymentMethod: "0",
@@ -99,7 +99,7 @@ export default function CreateGoalFundPage() {
       } else if (chainId === SUPPORTED_CHAINS.celo) {
         setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia or Celo Alfajores.");
+        setError("Unsupported network. Please switch to Lisk or Celo.");
         setSelectedNetwork(null);
       }
     } else {
@@ -113,7 +113,7 @@ export default function CreateGoalFundPage() {
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk Sepolia" : "Celo Alfajores"} network`);
+      toast.info(`Switched to ${network === "lisk" ? "Lisk" : "Celo"} network`);
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
       toast.error("Failed to switch network");
@@ -131,7 +131,7 @@ export default function CreateGoalFundPage() {
     }
 
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia or Celo Alfajores)");
+      setError("Please select a supported network (Lisk or Celo)");
       toast.error("Unsupported network");
       return;
     }
@@ -141,11 +141,22 @@ export default function CreateGoalFundPage() {
 
     try {
       const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
-      // Updated to use native token address for Celo and zero address for Lisk
-      const tokenAddress =
-        values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
-          : CONTRACT_ADDRESSES[selectedNetwork].native;
+      
+      // Handle token address based on payment method and network
+      let tokenAddress;
+      if (values.paymentMethod === "1") {
+        // Stablecoin payment
+        tokenAddress = CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"];
+      } else {
+        // Native token payment
+        if (selectedNetwork === "celo") {
+          // On Celo, native CELO is an ERC-20 token
+          tokenAddress = CONTRACT_ADDRESSES[selectedNetwork].celo;
+        } else {
+          // On Lisk (and Ethereum-like chains), use zero address for ETH
+          tokenAddress = ethers.ZeroAddress;
+        }
+      }
 
       const factoryContract = new ethers.Contract(factoryAddress, GoalFundFactoryAbi, signer);
 
@@ -283,14 +294,14 @@ export default function CreateGoalFundPage() {
               onClick={() => handleNetworkSwitch("lisk")}
               disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
             >
-              Lisk Sepolia
+              Lisk
             </Button>
             <Button
               variant={selectedNetwork === "celo" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("celo")}
               disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
             >
-              Celo Alfajores
+              Celo
             </Button>
           </div>
           {error && !selectedNetwork && (
@@ -376,7 +387,7 @@ export default function CreateGoalFundPage() {
                           <Input
                             type="datetime-local"
                             {...field}
-                            min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                            min={new Date().toISOString().slice(0, 16)}
                           />
                         </FormControl>
                         <FormDescription className="text-xs sm:text-sm">
@@ -464,7 +475,7 @@ export default function CreateGoalFundPage() {
                               <RadioGroupItem value="0" />
                             </FormControl>
                             <FormLabel className="font-normal">
-                              {selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO"}
+                              {selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO (Native)"}
                             </FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
@@ -472,7 +483,7 @@ export default function CreateGoalFundPage() {
                               <RadioGroupItem value="1" />
                             </FormControl>
                             <FormLabel className="font-normal">
-                              {selectedNetwork === "lisk" ? "USDT" : "cUSD"}
+                              {selectedNetwork === "lisk" ? "USDT (Stablecoin)" : "cUSD (Stablecoin)"}
                             </FormLabel>
                           </FormItem>
                         </RadioGroup>

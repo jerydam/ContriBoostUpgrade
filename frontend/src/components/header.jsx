@@ -14,23 +14,46 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, Wallet, LogOut, Mail, Phone, Key, User, Copy } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, Wallet, LogOut, Mail, Phone, Key, User, Copy, ChevronDown, Network } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// Supported chains configuration
+const CHAINS = {
+  1135: {
+    id: 1135,
+    name: "Lisk Sepolia",
+    shortName: "Lisk",
+    icon: "/lsk.png",
+  },
+  42220: {
+    id: 42220,
+    name: "Celo Mainnet",
+    shortName: "Celo",
+    icon: "/celo.png",
+  },
+};
+
 export default function Header() {
-  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting, balance } = useWeb3();
+  const { connect, connectInAppWallet, disconnect, account, chainId, walletType, isConnecting, balance, switchNetwork } = useWeb3();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
-  const [authState, setAuthState] = useState(null); // null, "email_verify", "phone_verify"
+  const [authState, setAuthState] = useState(null);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
   const navLinks = [
     { name: "Contriboost Pools", href: "/pools" },
@@ -44,15 +67,8 @@ export default function Header() {
     return `${account.slice(0, 6)}...${account.slice(-4)}`;
   };
 
-  const getChainName = (chainId) => {
-    switch (chainId) {
-      case 4202:
-        return "Lisk Sepolia";
-      case 44787:
-        return "Celo Alfajores";
-      default:
-        return `Unknown Chain (${chainId || "Not Connected"})`;
-    }
+  const getChainInfo = (chainId) => {
+    return CHAINS[chainId] || { name: `Unknown Chain (${chainId})`, shortName: "Unknown", icon: "❓" };
   };
 
   const toggleMobileMenu = () => {
@@ -63,6 +79,22 @@ export default function Header() {
     const e164Regex = /^\+[1-9]\d{1,14}$/;
     if (!value) return "";
     return e164Regex.test(value) ? "" : "Please enter a valid phone number (e.g., +1234567890)";
+  };
+
+  const handleNetworkSwitch = async (targetChainId) => {
+    if (chainId === targetChainId) {
+      toast.info("Already connected to this network");
+      return;
+    }
+
+    setIsSwitchingNetwork(true);
+    try {
+      await switchNetwork(targetChainId);
+    } catch (error) {
+      console.error("Network switch error:", error);
+    } finally {
+      setIsSwitchingNetwork(false);
+    }
   };
 
   const handleConnect = async (connectorId, options = {}) => {
@@ -136,18 +168,20 @@ export default function Header() {
     }
   };
 
+  const currentChain = getChainInfo(chainId);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 sm:gap-6">
           <Link href="/" className="text-lg font-bold sm:text-xl lg:text-2xl">
-          <Image
-          src={"/contriboostb.png"}
-          alt="Contriboost Logo"
-          width={500}
-          height={500}
-          className="h-auto w-auto sm:h-10 lg:h-12 bg-amber-50"
-          />
+            <Image
+              src={"/contriboostb.png"}
+              alt="Contriboost Logo"
+              width={500}
+              height={500}
+              className="h-auto w-auto sm:h-10 lg:h-12 bg-amber-50"
+            />
           </Link>
           <nav className="hidden md:flex">
             <ul className="flex items-center gap-4 sm:gap-6">
@@ -169,6 +203,67 @@ export default function Header() {
 
         <div className="flex items-center gap-2 sm:gap-4">
           <ThemeToggle />
+          
+          {/* Chain Selector - Only show when connected */}
+          {account && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSwitchingNetwork || isConnecting}
+                  className="gap-2 text-xs sm:text-sm"
+                >
+                  {isSwitchingNetwork ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="hidden sm:inline">Switching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Image 
+                        src={currentChain.icon} 
+                        alt={currentChain.shortName} 
+                        width={16} 
+                        height={16} 
+                        className="h-4 w-4"
+                      />
+                      <span className="hidden sm:inline">{currentChain.shortName}</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {Object.values(CHAINS).map((chain) => (
+                  <DropdownMenuItem
+                    key={chain.id}
+                    onClick={() => handleNetworkSwitch(chain.id)}
+                    disabled={chainId === chain.id || isSwitchingNetwork}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <Image 
+                        src={chain.icon} 
+                        alt={chain.shortName} 
+                        width={20} 
+                        height={20} 
+                        className="h-5 w-5"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{chain.shortName}</span>
+                        <span className="text-xs text-muted-foreground">{chain.name}</span>
+                      </div>
+                      {chainId === chain.id && (
+                        <span className="ml-auto text-xs text-primary">✓ Active</span>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {account ? (
             <div className="flex items-center gap-2 sm:gap-4">
               <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
@@ -177,7 +272,7 @@ export default function Header() {
                     variant="ghost"
                     className="hidden text-xs sm:text-sm md:inline-flex max-w-[200px] truncate hover:bg-accent"
                   >
-                    {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
+                    {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-[#101b31] max-w-[90vw] sm:max-w-md rounded-lg">
@@ -216,7 +311,16 @@ export default function Header() {
                     </div>
                     <div>
                       <h3 className="text-sm font-medium">Network</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{getChainName(chainId)}</p>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                        <Image 
+                          src={currentChain.icon} 
+                          alt={currentChain.shortName} 
+                          width={16} 
+                          height={16} 
+                          className="h-4 w-4"
+                        />
+                        <span>{currentChain.name}</span>
+                      </div>
                     </div>
                   </div>
                 </DialogContent>
@@ -417,7 +521,7 @@ export default function Header() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="w-full justify-start h-auto py-3 sm:py-4 text-xs sm:text-sm"
+                      className="w-full justify-start h-auto py-3 sm:ty-4 text-xs sm:text-sm"
                       onClick={() => handleConnect("guest")}
                       disabled={isConnecting}
                     >
@@ -468,7 +572,7 @@ export default function Header() {
           <div className="container mx-auto px-4 py-4 h-full flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <Link href="/" className="text-lg font-bold sm:text-xl">
-              <Image
+                <Image
                   src="/contriboostb.png"
                   alt="Contriboost Logo"
                   width={100}
@@ -512,15 +616,63 @@ export default function Header() {
                   </li>
                 ))}
                 {account && (
-                  <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
-                    <Button
-                      variant="ghost"
-                      className="text-left w-full truncate"
-                      onClick={() => setIsWalletDialogOpen(true)}
-                    >
-                      {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)} ({getChainName(chainId)})
-                    </Button>
-                  </li>
+                  <>
+                    <li className="block p-2 text-sm text-muted-foreground max-w-[90%] truncate">
+                      <Button
+                        variant="ghost"
+                        className="text-left w-full truncate"
+                        onClick={() => setIsWalletDialogOpen(true)}
+                      >
+                        {walletType === "eoa" ? "MetaMask" : "Smart Wallet"}: {formatAccount(account)}
+                      </Button>
+                    </li>
+                    <li className="block p-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-between"
+                            disabled={isSwitchingNetwork}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Image 
+                                src={currentChain.icon} 
+                                alt={currentChain.shortName} 
+                                width={16} 
+                                height={16} 
+                                className="h-4 w-4"
+                              />
+                              <span>{currentChain.shortName}</span>
+                            </span>
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-full">
+                          {Object.values(CHAINS).map((chain) => (
+                            <DropdownMenuItem
+                              key={chain.id}
+                              onClick={() => handleNetworkSwitch(chain.id)}
+                              disabled={chainId === chain.id || isSwitchingNetwork}
+                            >
+                              <div className="flex items-center gap-3 w-full">
+                                <Image 
+                                  src={chain.icon} 
+                                  alt={chain.shortName} 
+                                  width={20} 
+                                  height={20} 
+                                  className="h-5 w-5"
+                                />
+                                <span>{chain.shortName}</span>
+                                {chainId === chain.id && (
+                                  <span className="ml-auto text-primary">✓</span>
+                                )}
+                              </div>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </li>
+                  </>
                 )}
               </ul>
             </nav>
@@ -541,7 +693,6 @@ export default function Header() {
           </div>
         </div>
       )}
-     
     </header>
   );
 }

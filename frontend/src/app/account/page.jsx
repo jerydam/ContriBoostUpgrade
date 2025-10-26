@@ -15,27 +15,26 @@ import { Loader2, PlusCircle, AlertCircle, Globe } from "lucide-react";
 // Network configurations
 const NETWORKS = {
   lisk: {
-    chainId: 4202,
-    name: "Lisk Sepolia",
-    rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
-    tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
+    chainId: 1135,
+    name: "Lisk",
+    rpcUrl: "https://rpc.api.lisk.com",
+    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    tokenAddress: "0x05D032ac25d322df992303dCa074EE7392C117b9", // USDT on Lisk
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
   celo: {
-    chainId: 44787,
-    name: "Celo Alfajores",
-    rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
+    chainId: 42220,
+    name: "Celo Mainnet",
+    rpcUrl: "https://forno.celo.org",
+    contriboostFactory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180", // Deploy your contract on mainnet
+    goalFundFactory: "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF", // Deploy your contract on mainnet
+    tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // cUSD on Celo
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },
 };
-
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
   const [balance, setBalance] = useState({ lisk: "0", celo: "0" });
@@ -66,20 +65,20 @@ export default function AccountPage() {
     const fetchedFunds = [];
     const newBalance = { lisk: "0", celo: "0" };
 
-    // Fetch data from Lisk Sepolia
+    // Fetch data from Lisk
     try {
       await fetchNetworkData("lisk", liskProvider, account, fetchedPools, fetchedFunds, newBalance);
     } catch (e) {
-      console.error("Error fetching Lisk Sepolia data:", e);
-      setError((prev) => prev ? `${prev}; Lisk Sepolia: ${e.message}` : `Lisk Sepolia: ${e.message}`);
+      console.error("Error fetching Lisk data:", e);
+      setError((prev) => prev ? `${prev}; Lisk: ${e.message}` : `Lisk: ${e.message}`);
     }
 
-    // Fetch data from Celo Alfajores
+    // Fetch data from Celo
     try {
       await fetchNetworkData("celo", celoProvider, account, fetchedPools, fetchedFunds, newBalance);
     } catch (e) {
-      console.error("Error fetching Celo Alfajores data:", e);
-      setError((prev) => prev ? `${prev}; Celo Alfajores: ${e.message}` : `Celo Alfajores: ${e.message}`);
+      console.error("Error fetching Celo data:", e);
+      setError((prev) => prev ? `${prev}; Celo: ${e.message}` : `Celo: ${e.message}`);
     }
 
     setBalance(newBalance);
@@ -283,10 +282,10 @@ export default function AccountPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
                 <p className="text-sm font-medium">
-                  Lisk Sepolia: {parseFloat(balance.lisk).toFixed(4)} {NETWORKS.lisk.nativeSymbol}
+                  Lisk: {parseFloat(balance.lisk).toFixed(4)} {NETWORKS.lisk.nativeSymbol}
                 </p>
                 <p className="text-sm font-medium">
-                  Celo Alfajores: {parseFloat(balance.celo).toFixed(4)} {NETWORKS.celo.nativeSymbol}
+                  Celo: {parseFloat(balance.celo).toFixed(4)} {NETWORKS.celo.nativeSymbol}
                 </p>
               </div>
             </div>

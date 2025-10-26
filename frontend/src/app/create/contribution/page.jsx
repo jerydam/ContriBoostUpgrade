@@ -22,21 +22,21 @@ import { toast } from "react-toastify";
 // Contract addresses
 const CONTRACT_ADDRESSES = {
   lisk: {
-    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4", // Placeholder; replace with Lisk Sepolia factory address
-    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // Placeholder; replace with Lisk Sepolia stablecoin address
-    native: ethers.ZeroAddress, // ETH for Lisk Sepolia
+    factory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
+    usdt: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd",
+    native: ethers.ZeroAddress, // ETH for Lisk
   },
   celo: {
-    factory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c", // Celo Alfajores Contriboost factory
-    cusd: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD for Alfajores
-    native: "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9", // CELO native token address
+    factory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180",
+    cusd: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+    celo: "0x471EcE3750Da237f93B8E339c536989b8978a438", // CELO token address
   },
 };
 
 // Supported chain IDs
 const SUPPORTED_CHAINS = {
-  lisk: 4202, // Lisk Sepolia
-  celo: 44787, // Celo Alfajores
+  lisk: 1135,
+  celo: 42220,
 };
 
 const formSchema = z.object({
@@ -84,7 +84,7 @@ export default function CreateContriboostPage() {
       paymentMethod: "0",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16), // 1 day from now
+      startTimestamp: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     },
   });
 
@@ -96,7 +96,7 @@ export default function CreateContriboostPage() {
       } else if (chainId === SUPPORTED_CHAINS.celo) {
         setSelectedNetwork("celo");
       } else {
-        setError("Unsupported network. Please switch to Lisk Sepolia or Celo Alfajores.");
+        setError("Unsupported network. Please switch to Lisk or Celo.");
         setSelectedNetwork(null);
       }
     } else {
@@ -110,7 +110,7 @@ export default function CreateContriboostPage() {
       const targetChainId = SUPPORTED_CHAINS[network];
       await switchNetwork(targetChainId);
       setError(null);
-      toast.info(`Switched to ${network === "lisk" ? "Lisk Sepolia" : "Celo Alfajores"} network`);
+      toast.info(`Switched to ${network === "lisk" ? "Lisk" : "Celo"} network`);
     } catch (err) {
       setError("Failed to switch network. Please switch manually in your wallet.");
       toast.error("Failed to switch network");
@@ -128,7 +128,7 @@ export default function CreateContriboostPage() {
     }
 
     if (!selectedNetwork) {
-      setError("Please select a supported network (Lisk Sepolia or Celo Alfajores)");
+      setError("Please select a supported network (Lisk or Celo)");
       toast.error("Unsupported network");
       return;
     }
@@ -138,11 +138,22 @@ export default function CreateContriboostPage() {
 
     try {
       const factoryAddress = CONTRACT_ADDRESSES[selectedNetwork].factory;
-      // Updated to use native token address for Celo and zero address for Lisk
-      const tokenAddress =
-        values.paymentMethod === "1"
-          ? CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"]
-          : CONTRACT_ADDRESSES[selectedNetwork].native;
+      
+      // Handle token address based on payment method and network
+      let tokenAddress;
+      if (values.paymentMethod === "1") {
+        // Stablecoin payment
+        tokenAddress = CONTRACT_ADDRESSES[selectedNetwork][selectedNetwork === "lisk" ? "usdt" : "cusd"];
+      } else {
+        // Native token payment
+        if (selectedNetwork === "celo") {
+          // On Celo, native CELO is an ERC-20 token
+          tokenAddress = CONTRACT_ADDRESSES[selectedNetwork].celo;
+        } else {
+          // On Lisk (and Ethereum-like chains), use zero address for ETH
+          tokenAddress = ethers.ZeroAddress;
+        }
+      }
 
       const factoryContract = new ethers.Contract(factoryAddress, ContriboostFactoryAbi, signer);
       const config = {
@@ -267,14 +278,14 @@ export default function CreateContriboostPage() {
               onClick={() => handleNetworkSwitch("lisk")}
               disabled={isCreating || chainId === SUPPORTED_CHAINS.lisk}
             >
-              Lisk Sepolia
+              Lisk
             </Button>
             <Button
               variant={selectedNetwork === "celo" ? "default" : "outline"}
               onClick={() => handleNetworkSwitch("celo")}
               disabled={isCreating || chainId === SUPPORTED_CHAINS.celo}
             >
-              Celo Alfajores
+              Celo
             </Button>
           </div>
           {error && !selectedNetwork && (
@@ -387,13 +398,17 @@ export default function CreateContriboostPage() {
                               <FormControl>
                                 <RadioGroupItem value="0" />
                               </FormControl>
-                              <FormLabel className="font-normal">{selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO"}</FormLabel>
+                              <FormLabel className="font-normal">
+                                {selectedNetwork === "lisk" ? "Ether (ETH)" : "CELO (Native)"}
+                              </FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0">
                               <FormControl>
                                 <RadioGroupItem value="1" />
                               </FormControl>
-                              <FormLabel className="font-normal">{selectedNetwork === "lisk" ? "USDT" : "cUSD"}</FormLabel>
+                              <FormLabel className="font-normal">
+                                {selectedNetwork === "lisk" ? "USDT (Stablecoin)" : "cUSD (Stablecoin)"}
+                              </FormLabel>
                             </FormItem>
                           </RadioGroup>
                         </FormControl>
@@ -458,7 +473,7 @@ export default function CreateContriboostPage() {
                         <Input
                           type="datetime-local"
                           {...field}
-                          min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                          min={new Date().toISOString().slice(0, 16)}
                         />
                       </FormControl>
                       <FormDescription>When the first cycle will begin</FormDescription>

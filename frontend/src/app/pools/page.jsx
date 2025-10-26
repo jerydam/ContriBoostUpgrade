@@ -41,27 +41,26 @@ import { toast } from "react-toastify";
 // Contract addresses and network configurations
 const NETWORKS = {
   lisk: {
-    chainId: 4202,
-    name: "Lisk Sepolia",
-    rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    contriboostFactory: "0xF122b07B2730c6056114a5507FA1A776808Bf0A4",
-    goalFundFactory: "0x3D6D20896b945E947b962a8c043E09c522504079",
-    tokenAddress: "0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd", // USDT
+    chainId: 1135,
+    name: "Lisk",
+    rpcUrl: "https://rpc.api.lisk.com",
+    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    tokenAddress: "0x05D032ac25d322df992303dCa074EE7392C117b9", // USDT on Lisk
     tokenSymbol: "USDT",
     nativeSymbol: "ETH",
   },
   celo: {
-    chainId: 44787,
-    name: "Celo Alfajores",
-    rpcUrl: "https://alfajores-forno.celo-testnet.org",
-    contriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    goalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    tokenAddress: "0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8", // cUSD
+    chainId: 42220,
+    name: "Celo Mainnet",
+    rpcUrl: "https://forno.celo.org",
+    contriboostFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    goalFundFactory: "YOUR_DEPLOYED_CONTRACT_ADDRESS", // Deploy your contract on mainnet
+    tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // cUSD on Celo
     tokenSymbol: "cUSD",
     nativeSymbol: "CELO",
   },
 };
-
 export default function PoolsPage() {
   const { provider, signer, account, chainId, connect, isConnecting, switchNetwork } = useWeb3();
   const [pools, setPools] = useState([]);
@@ -90,40 +89,40 @@ export default function PoolsPage() {
     setFetchErrors([]);
     const allPools = [];
 
-    // Fetch Lisk Sepolia Contriboost pools
+    // Fetch Lisk Contriboost pools
     try {
       const liskContriboostPools = await fetchContriboostPools("lisk", liskProvider, ContriboostFactoryAbi);
       allPools.push(...liskContriboostPools);
     } catch (error) {
-      console.error("Error fetching Lisk Sepolia Contriboost pools:", error);
-      setFetchErrors((prev) => [...prev, `Lisk Sepolia Contriboost: ${error.message}`]);
+      console.error("Error fetching Lisk Contriboost pools:", error);
+      setFetchErrors((prev) => [...prev, `Lisk Contriboost: ${error.message}`]);
     }
 
-    // Fetch Lisk Sepolia GoalFund pools
+    // Fetch Lisk GoalFund pools
     try {
       const liskGoalFundPools = await fetchGoalFundPools("lisk", liskProvider);
       allPools.push(...liskGoalFundPools);
     } catch (error) {
-      console.error("Error fetching Lisk Sepolia GoalFund pools:", error);
-      setFetchErrors((prev) => [...prev, `Lisk Sepolia GoalFund: ${error.message}`]);
+      console.error("Error fetching Lisk GoalFund pools:", error);
+      setFetchErrors((prev) => [...prev, `Lisk GoalFund: ${error.message}`]);
     }
 
-    // Fetch Celo Alfajores Contriboost pools
+    // Fetch Celo Contriboost pools
     try {
       const celoContriboostPools = await fetchContriboostPools("celo", celoProvider, ContriboostFactoryAbi);
       allPools.push(...celoContriboostPools);
     } catch (error) {
-      console.error("Error fetching Celo Alfajores Contriboost pools:", error);
-      setFetchErrors((prev) => [...prev, `Celo Alfajores Contriboost: ${error.message}`]);
+      console.error("Error fetching Celo Contriboost pools:", error);
+      setFetchErrors((prev) => [...prev, `Celo Contriboost: ${error.message}`]);
     }
 
-    // Fetch Celo Alfajores GoalFund pools
+    // Fetch Celo GoalFund pools
     try {
       const celoGoalFundPools = await fetchGoalFundPools("celo", celoProvider);
       allPools.push(...celoGoalFundPools);
     } catch (error) {
-      console.error("Error fetching Celo Alfajores GoalFund pools:", error);
-      setFetchErrors((prev) => [...prev, `Celo Alfajores GoalFund: ${error.message}`]);
+      console.error("Error fetching Celo GoalFund pools:", error);
+      setFetchErrors((prev) => [...prev, `Celo GoalFund: ${error.message}`]);
     }
 
     // Deduplicate by contractAddress and network

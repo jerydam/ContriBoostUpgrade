@@ -14,24 +14,24 @@ export const CONTRACTS = {
     USDT: validateContractAddress("0x46d96167DA9E15aaD148c8c68Aa1042466BA6EEd"),
   },
   CELO_ALFAJORES: {
-    // Add addresses for Celo Alfajores if deployed
-    ContriboostFactory: "0x8DE33AbcC5eB868520E1ceEee5137754cb3A558c",
-    GoalFundFactory: "0xDB4421c212D78bfCB4380276428f70e50881ABad",
-    cUSD: validateContractAddress("0xFE18f2C089f8fdCC843F183C5aBdeA7fa96C78a8"),
+    // Add addresses for Celo if deployed
+    ContriboostFactory: "0x6580B6E641061D71c809f8EDa8a522f9EB88F180",
+    GoalFundFactory: "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF",
+    cUSD: validateContractAddress("0x765DE816845861e75A25fCA122bb6898B8B1282a"),
   },
 };
 
 export const SUPPORTED_CHAINS = {
-  4202: {
-    chainName: "Lisk Sepolia Testnet",
-    nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
-    rpcUrls: ["https://rpc.sepolia-api.lisk.com"],
-    blockExplorerUrls: ["https://sepolia-blockscout.lisk.com"],
+  1135: {
+    chainName: "Lisk Mainnet",
+    nativeCurrency: { name: "ETHER", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://rpc.api.lisk.com"],
+    blockExplorerUrls: ["https://blockscout.lisk.com"],
   },
-  44787: {
-    chainName: "Celo Alfajores Testnet",
+  42220: {
+    chainName: "Celo Mainnet",
     nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
-    rpcUrls: ["https://alfajores-forno.celo-testnet.org"],
-    blockExplorerUrls: ["https://alfajores-blockscout.celo-testnet.org"],
+    rpcUrls: ["https://forno.celo.org"],
+    blockExplorerUrls: ["https://celoscan.io"],
   },
 };

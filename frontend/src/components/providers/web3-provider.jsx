@@ -22,11 +22,11 @@ export function Web3Provider({ children }) {
 
   // Supported chain IDs
   const SUPPORTED_CHAINS = {
-    4202: {
-      chainName: "Lisk Sepolia Testnet",
-      nativeCurrency: { name: "Lisk Sepolia ETH", symbol: "ETH", decimals: 18 },
-      rpcUrls: ["https://rpc.sepolia-api.lisk.com"],
-      blockExplorerUrls: ["https://sepolia-blockscout.lisk.com"],
+    42220: {
+      chainName: "Celo Mainnet",
+      nativeCurrency: { name: "Celo Mainnet", symbol: "Celo", decimals: 18 },
+      rpcUrls: ["https://forno.celo.org"],
+      blockExplorerUrls: ["https://celoscan.io"],
     },
     44787: {
       chainName: "Celo Alfajores Testnet",
@@ -91,8 +91,8 @@ export function Web3Provider({ children }) {
 
       // Check if the current chain is supported
       if (!SUPPORTED_CHAINS[currentChainId]) {
-        // Default to Lisk Sepolia if unsupported chain
-        const defaultChainId = 4202;
+        // Default to Celo Mainnet if unsupported chain
+        const defaultChainId = 42220;
         try {
           await window.ethereum.request({
             method: "wallet_switchEthereumChain",

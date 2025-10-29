@@ -12,8 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
 
 // Contract addresses
-const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
-const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
+const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
@@ -77,6 +79,7 @@ export default function AccountPage() {
               contributionAmount: ethers.formatEther(details.contributionAmount || 0n),
               hostFeePercentage: Number(details.hostFeePercentage || 0),
               currentParticipants,
+              tokenAddress: details.tokenAddress,
             };
           } catch (err) {
             console.error(`Error processing Contriboost at ${address}:`, err);
@@ -108,8 +111,8 @@ export default function AccountPage() {
               targetAmount: ethers.formatEther(details.targetAmount || 0n),
               currentAmount: ethers.formatEther(details.currentAmount || 0n),
               deadline: Number(details.deadline || 0),
-              beneficiary: details.beneficiary || ethers.ZeroAddress,
-              tokenAddress: details.tokenAddress || ethers.ZeroAddress,
+              beneficiary: details.beneficiary || CELO_ADDRESS,
+              tokenAddress: details.tokenAddress || CELO_ADDRESS,
               fundType: Number(details.fundType || 0),
               platformFeePercentage: Number(details.platformFeePercentage || 0),
             };
@@ -142,6 +145,13 @@ export default function AccountPage() {
 
   function formatAddress(address) {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  function getTokenSymbol(tokenAddress) {
+    if (!tokenAddress) return "Token";
+    if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
+    if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
+    return "Token";
   }
 
   if (!account) {
@@ -207,7 +217,7 @@ export default function AccountPage() {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
-                <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} ETH</p>
+                <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} CELO</p>
               </div>
             </div>
           </div>
@@ -275,7 +285,9 @@ export default function AccountPage() {
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Contribution</span>
-                          <span className="font-medium">{parseFloat(pool.contributionAmount).toFixed(4)} ETH</span>
+                          <span className="font-medium">
+                            {parseFloat(pool.contributionAmount).toFixed(4)} {getTokenSymbol(pool.tokenAddress)}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Participants</span>
@@ -304,7 +316,7 @@ export default function AccountPage() {
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-base sm:text-lg mb-2">No Contriboost pools found</p>
               <p className="text-muted-foreground mb-4 text-sm">
-                You haven’t created or joined any Contriboost pools yet
+                You haven't created or joined any Contriboost pools yet
               </p>
               <Button variant="outline" asChild className="text-xs sm:text-sm">
                 <Link href="/pools">Browse Pools</Link>
@@ -328,11 +340,15 @@ export default function AccountPage() {
                     <div className="space-y-2 text-xs sm:text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Target</span>
-                        <span className="font-medium">{parseFloat(fund.targetAmount).toFixed(4)} ETH</span>
+                        <span className="font-medium">
+                          {parseFloat(fund.targetAmount).toFixed(4)} {getTokenSymbol(fund.tokenAddress)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">{parseFloat(fund.currentAmount).toFixed(4)} ETH</span>
+                        <span className="font-medium">
+                          {parseFloat(fund.currentAmount).toFixed(4)} {getTokenSymbol(fund.tokenAddress)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Type</span>
@@ -367,7 +383,7 @@ export default function AccountPage() {
             <div className="text-center py-12 border rounded-lg bg-muted/50">
               <p className="text-base sm:text-lg mb-2">No GoalFunds found</p>
               <p className="text-muted-foreground mb-4 text-sm">
-                You haven’t created or contributed to any GoalFunds yet
+                You haven't created or contributed to any GoalFunds yet
               </p>
               <Button
                 variant="outline"

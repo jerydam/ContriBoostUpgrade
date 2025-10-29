@@ -19,8 +19,9 @@ import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-const FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
-const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
+const FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -37,7 +38,7 @@ const formSchema = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  paymentMethod: z.enum(["0", "1"]),
+  tokenType: z.enum(["CELO", "cUSD"]), // Changed from paymentMethod
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -53,7 +54,7 @@ export default function CreateContriboostPage() {
   const router = useRouter();
   const { signer, account, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState(null); // Added error state
+  const [error, setError] = useState(null);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -63,7 +64,7 @@ export default function CreateContriboostPage() {
       dayRange: 7,
       expectedNumber: 10,
       contributionAmount: "0.1",
-      paymentMethod: "0",
+      tokenType: "CELO", // Default to CELO
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
       startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0],
@@ -85,6 +86,13 @@ export default function CreateContriboostPage() {
 
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
+      
+      // Always use ERC20 payment method (1) for Celo
+      const paymentMethod = 1;
+      
+      // Select token address based on user choice
+      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
+      
       const config = {
         dayRange: values.dayRange,
         expectedNumber: values.expectedNumber,
@@ -93,10 +101,8 @@ export default function CreateContriboostPage() {
         platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
-        paymentMethod: Number(values.paymentMethod),
+        paymentMethod: paymentMethod, // Always 1 (ERC20)
       };
-
-      const tokenAddress = values.paymentMethod === "1" ? USDT_ADDRESS : ethers.ZeroAddress;
 
       console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
 
@@ -138,14 +144,13 @@ export default function CreateContriboostPage() {
 
       const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
       console.log("Parsed ContriboostCreated event:", parsedLog);
-      const newContractAddress = parsedLog.args.contriboostAddress; // Corrected argument name
+      const newContractAddress = parsedLog.args.contriboostAddress;
 
       if (!ethers.isAddress(newContractAddress)) {
         throw new Error("Invalid contract address received from ContriboostCreated event");
       }
 
       toast.success("Contriboost pool created successfully!");
-      // Add a small delay to ensure state updates before navigation
       setTimeout(() => {
         router.push(`/pools/details/${newContractAddress}`);
       }, 500);
@@ -273,7 +278,7 @@ export default function CreateContriboostPage() {
                         <Input placeholder="0.1" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Amount each participant contributes per cycle (in ETH or USDT)
+                        Amount each participant contributes per cycle
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -281,10 +286,10 @@ export default function CreateContriboostPage() {
                 />
                 <FormField
                   control={form.control}
-                  name="paymentMethod"
+                  name="tokenType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Payment Method</FormLabel>
+                      <FormLabel>Token</FormLabel>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -293,18 +298,19 @@ export default function CreateContriboostPage() {
                         >
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="0" />
+                              <RadioGroupItem value="CELO" />
                             </FormControl>
-                            <FormLabel className="font-normal">Ether (ETH)</FormLabel>
+                            <FormLabel className="font-normal">CELO</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="1" />
+                              <RadioGroupItem value="cUSD" />
                             </FormControl>
-                            <FormLabel className="font-normal">USDT</FormLabel>
+                            <FormLabel className="font-normal">cUSD</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
+                      <FormDescription>Choose the token for contributions</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

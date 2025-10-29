@@ -18,8 +18,9 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
 
-const FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
-const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
+const FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -43,7 +44,7 @@ const formSchema = z.object({
   ),
   beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]), // 0 for Group, 1 for Personal
-  paymentMethod: z.enum(["0", "1"]), // 0 for ETH, 1 for USDT
+  tokenType: z.enum(["CELO", "cUSD"]), // Changed from paymentMethod
 });
 
 export default function CreateGoalFundPage() {
@@ -61,7 +62,7 @@ export default function CreateGoalFundPage() {
       deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
       beneficiary: account || "",
       fundType: "0",
-      paymentMethod: "0",
+      tokenType: "CELO", // Default to CELO
     },
   });
 
@@ -88,7 +89,12 @@ export default function CreateGoalFundPage() {
 
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
-      const tokenAddress = values.paymentMethod === "1" ? USDT_ADDRESS : ethers.ZeroAddress;
+      
+      // Always use ERC20 payment method (1) for Celo
+      const paymentMethod = 1;
+      
+      // Select token address based on user choice
+      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
 
       console.log("Creating GoalFund with values:", {
         name: values.name,
@@ -96,7 +102,7 @@ export default function CreateGoalFundPage() {
         targetAmount: ethers.parseEther(values.targetAmount).toString(),
         deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
         beneficiary: values.beneficiary,
-        paymentMethod: Number(values.paymentMethod),
+        paymentMethod: paymentMethod, // Always 1 (ERC20)
         tokenAddress,
         fundType: Number(values.fundType),
       });
@@ -107,7 +113,7 @@ export default function CreateGoalFundPage() {
         ethers.parseEther(values.targetAmount),
         Math.floor(new Date(values.deadline).getTime() / 1000),
         values.beneficiary,
-        Number(values.paymentMethod),
+        paymentMethod, // Always 1 (ERC20)
         tokenAddress,
         Number(values.fundType)
       );
@@ -119,7 +125,7 @@ export default function CreateGoalFundPage() {
         ethers.parseEther(values.targetAmount),
         Math.floor(new Date(values.deadline).getTime() / 1000),
         values.beneficiary,
-        Number(values.paymentMethod),
+        paymentMethod, // Always 1 (ERC20)
         tokenAddress,
         Number(values.fundType),
         { gasLimit }
@@ -130,7 +136,6 @@ export default function CreateGoalFundPage() {
       console.log("Transaction confirmed:", receipt);
       console.log("Receipt logs:", receipt.logs);
 
-      // Extract the new contract address from the GoalFundCreated event
       const goalFundCreatedEvent = receipt.logs.find(
         (log) => {
           try {
@@ -148,14 +153,13 @@ export default function CreateGoalFundPage() {
 
       const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
       console.log("Parsed GoalFundCreated event:", parsedLog);
-      const newContractAddress = parsedLog.args.goalFundAddress; // Corrected from contractAddress to goalFundAddress
+      const newContractAddress = parsedLog.args.goalFundAddress;
 
       if (!ethers.isAddress(newContractAddress)) {
         throw new Error("Invalid contract address received from GoalFundCreated event");
       }
 
       toast.success("GoalFund created successfully!");
-      // Add a small delay to ensure state updates before navigation
       setTimeout(() => {
         router.push(`/pools/details/${newContractAddress}`);
       }, 500);
@@ -265,7 +269,7 @@ export default function CreateGoalFundPage() {
                         <Input placeholder="1" {...field} />
                       </FormControl>
                       <FormDescription className="text-xs sm:text-sm">
-                        Amount you aim to raise (in ETH or USDT)
+                        Amount you aim to raise
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -350,10 +354,10 @@ export default function CreateGoalFundPage() {
               />
               <FormField
                 control={form.control}
-                name="paymentMethod"
+                name="tokenType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Method</FormLabel>
+                    <FormLabel>Token</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
@@ -362,18 +366,21 @@ export default function CreateGoalFundPage() {
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
-                            <RadioGroupItem value="0" />
+                            <RadioGroupItem value="CELO" />
                           </FormControl>
-                          <FormLabel className="font-normal">Ether (ETH)</FormLabel>
+                          <FormLabel className="font-normal">CELO</FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
-                            <RadioGroupItem value="1" />
+                            <RadioGroupItem value="cUSD" />
                           </FormControl>
-                          <FormLabel className="font-normal">USDT</FormLabel>
+                          <FormLabel className="font-normal">cUSD</FormLabel>
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
+                    <FormDescription className="text-xs sm:text-sm">
+                      Choose the token for contributions
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

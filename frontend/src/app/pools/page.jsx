@@ -38,9 +38,10 @@ import {
 import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
 import { toast } from "react-toastify";
 
-const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
-const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
-
+const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
+const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 export default function PoolsPage() {
   const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
   const [pools, setPools] = useState([]);
@@ -237,7 +238,7 @@ export default function PoolsPage() {
 
     try {
       const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
-      const isETH = pool.tokenAddress === ethers.ZeroAddress;
+      const isETH = pool.tokenAddress === CELO_ADDRESS;
       const tx = isETH
         ? await contract.contribute({ value: amount })
         : await contract.contribute(amount);
@@ -501,7 +502,7 @@ export default function PoolsPage() {
                           <span className="text-muted-foreground">Contribution</span>
                           <span className="font-medium">
                             {pool.contributionAmount}{" "}
-                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
@@ -522,14 +523,14 @@ export default function PoolsPage() {
                           <span className="text-muted-foreground">Target</span>
                           <span className="font-medium">
                             {pool.targetAmount}{" "}
-                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Raised</span>
                           <span className="font-medium">
                             {pool.currentAmount}{" "}
-                            {pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"}
+                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
@@ -549,7 +550,7 @@ export default function PoolsPage() {
                               ? "Received Funds"
                               : "Active"
                             : `${pool.userStatus.contributionAmount} ${
-                                pool.tokenAddress === ethers.ZeroAddress ? "ETH" : "Tokens"
+                                pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"
                               }`}
                         </span>
                       </div>

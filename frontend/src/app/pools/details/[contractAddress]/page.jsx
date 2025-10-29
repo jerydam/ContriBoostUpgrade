@@ -26,9 +26,10 @@ const IERC20Abi = [
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
-const CONTRIBOOST_FACTORY_ADDRESS = "0xaE83198F4c622a5dccdda1B494fF811f5B6F3631";
-const GOALFUND_FACTORY_ADDRESS = "0x791F269E311aE13e490ffEf7DFd68f27f7B21E41";
-const USDT_ADDRESS = "0x2728DD8B45B788e26d12B13Db5A244e5403e7eda";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
+const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 
 export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
@@ -182,7 +183,7 @@ export default function PoolDetailsPage() {
           contract.owner(),
         ]);
         const now = Math.floor(Date.now() / 1000);
-        const status = goalFundDetails.achieved
+        const status = goal.achieved
           ? "achieved"
           : now > Number(goalFundDetails.deadline)
           ? "expired"
@@ -203,7 +204,7 @@ export default function PoolDetailsPage() {
           contributors: Number(contributorCount),
           status,
           userContribution: ethers.formatEther(userContribution),
-          achieved: goalFundDetails.achieved,
+          achieved: goal.achieved,
           fundsWithdrawn: goal.fundsWithdrawn,
         });
         setUserStatus(
@@ -294,36 +295,27 @@ export default function PoolDetailsPage() {
         user: account,
       });
 
-      let tx;
-      if (poolDetails.tokenAddress === ethers.ZeroAddress) {
-        const balance = await provider.getBalance(account);
-        if (balance < amount) {
-          throw new Error(
-            `Insufficient ETH balance: ${ethers.formatEther(balance)} ETH available`
-          );
-        }
-        tx = await contract.deposit({ value: amount, gasLimit: 300000 });
-      } else if (poolDetails.tokenAddress.toLowerCase() === USDT_ADDRESS.toLowerCase()) {
-        const tokenContract = new ethers.Contract(USDT_ADDRESS, IERC20Abi, signer);
-        const tokenBalance = await tokenContract.balanceOf(account);
-        if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient USDT balance: ${ethers.formatEther(tokenBalance)} USDT available`
-          );
-        }
-        const allowance = await tokenContract.allowance(account, contractAddress);
-        if (allowance < amount) {
-          console.log("Approving USDT allowance...");
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          await approveTx.wait();
-        }
-        tx = await contract.deposit({ gasLimit: 300000 });
-      } else {
-        throw new Error("Unsupported token address");
+      // Check if using CELO or cUSD (both are ERC20 on Celo)
+      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+      const tokenBalance = await tokenContract.balanceOf(account);
+      
+      if (tokenBalance < amount) {
+        const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
+        throw new Error(
+          `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
+        );
       }
-
+      
+      const allowance = await tokenContract.allowance(account, contractAddress);
+      if (allowance < amount) {
+        console.log("Approving token allowance...");
+        const approveTx = await tokenContract.approve(contractAddress, amount, {
+          gasLimit: 100000,
+        });
+        await approveTx.wait();
+      }
+      
+      const tx = await contract.deposit({ gasLimit: 300000 });
       await tx.wait();
       await fetchPoolDetails();
       toast.success("Deposit successful!");
@@ -333,9 +325,7 @@ export default function PoolDetailsPage() {
       let message = "Failed to deposit";
       if (error.message.includes("insufficient funds")) {
         message = "Insufficient funds for deposit and gas fees";
-      } else if (error.message.includes("Insufficient ETH balance")) {
-        message = error.message;
-      } else if (error.message.includes("Insufficient USDT balance")) {
+      } else if (error.message.includes("Insufficient")) {
         message = error.message;
       } else if (error.reason) {
         message = error.reason;
@@ -392,7 +382,7 @@ export default function PoolDetailsPage() {
         signer
       );
       const tx = poolType === "Contriboost"
-        ? await contract.emergencyWithdraw(tokenAddress || ethers.ZeroAddress, { gasLimit: 300000 })
+        ? await contract.emergencyWithdraw(tokenAddress || CELO_ADDRESS, { gasLimit: 300000 })
         : await contract.emergencyWithdraw({ gasLimit: 300000 });
       await tx.wait();
       await fetchPoolDetails();
@@ -524,10 +514,19 @@ export default function PoolDetailsPage() {
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
       const amount = ethers.parseEther(poolDetails.contributionAmount);
-      const tx =
-        poolDetails.tokenAddress === ethers.ZeroAddress
-          ? await contract.reactivateParticipant(participantAddress, { value: amount, gasLimit: 300000 })
-          : await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
+      
+      // Always use ERC20 tokens on Celo
+      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+      const allowance = await tokenContract.allowance(account, contractAddress);
+      if (allowance < amount) {
+        console.log("Approving token allowance for reactivation...");
+        const approveTx = await tokenContract.approve(contractAddress, amount, {
+          gasLimit: 100000,
+        });
+        await approveTx.wait();
+      }
+      
+      const tx = await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
       await tx.wait();
       await fetchPoolDetails();
       toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}!`);
@@ -640,36 +639,27 @@ export default function PoolDetailsPage() {
         user: account,
       });
 
-      let tx;
-      if (poolDetails.tokenAddress === ethers.ZeroAddress) {
-        const balance = await provider.getBalance(account);
-        if (balance < amount) {
-          throw new Error(
-            `Insufficient ETH balance: ${ethers.formatEther(balance)} ETH available`
-          );
-        }
-        tx = await contract.contribute({ value: amount, gasLimit: 300000 });
-      } else if (poolDetails.tokenAddress.toLowerCase() === USDT_ADDRESS.toLowerCase()) {
-        const tokenContract = new ethers.Contract(USDT_ADDRESS, IERC20Abi, signer);
-        const tokenBalance = await tokenContract.balanceOf(account);
-        if (tokenBalance < amount) {
-          throw new Error(
-            `Insufficient USDT balance: ${ethers.formatEther(tokenBalance)} USDT available`
-          );
-        }
-        const allowance = await tokenContract.allowance(account, contractAddress);
-        if (allowance < amount) {
-          console.log("Approving USDT allowance...");
-          const approveTx = await tokenContract.approve(contractAddress, amount, {
-            gasLimit: 100000,
-          });
-          await approveTx.wait();
-        }
-        tx = await contract.contribute(amount, { gasLimit: 300000 });
-      } else {
-        throw new Error("Unsupported token address");
+      // Both CELO and cUSD are ERC20 tokens on Celo
+      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+      const tokenBalance = await tokenContract.balanceOf(account);
+      
+      if (tokenBalance < amount) {
+        const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
+        throw new Error(
+          `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
+        );
       }
-
+      
+      const allowance = await tokenContract.allowance(account, contractAddress);
+      if (allowance < amount) {
+        console.log("Approving token allowance...");
+        const approveTx = await tokenContract.approve(contractAddress, amount, {
+          gasLimit: 100000,
+        });
+        await approveTx.wait();
+      }
+      
+      const tx = await contract.contribute(amount, { gasLimit: 300000 });
       await tx.wait();
       await fetchPoolDetails();
       toast.success("Contribution successful!");
@@ -679,9 +669,7 @@ export default function PoolDetailsPage() {
       let message = "Failed to contribute";
       if (error.message.includes("insufficient funds")) {
         message = "Insufficient funds for contribution and gas fees";
-      } else if (error.message.includes("Insufficient ETH balance")) {
-        message = error.message;
-      } else if (error.message.includes("Insufficient USDT balance")) {
+      } else if (error.message.includes("Insufficient")) {
         message = error.message;
       } else if (error.reason) {
         message = error.reason;
@@ -764,6 +752,13 @@ export default function PoolDetailsPage() {
     return new Date(timestamp * 1000).toLocaleDateString();
   }
 
+  function getTokenSymbol(tokenAddress) {
+    if (!tokenAddress) return "Token";
+    if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
+    if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
+    return "Token";
+  }
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center items-center">
@@ -788,7 +783,7 @@ export default function PoolDetailsPage() {
   }
 
   const isContriboost = poolType === "Contriboost";
-  const isETH = poolDetails.tokenAddress === ethers.ZeroAddress;
+  const tokenSymbol = getTokenSymbol(poolDetails.tokenAddress);
   const canJoinContriboost =
     isContriboost &&
     userStatus &&
@@ -887,7 +882,7 @@ export default function PoolDetailsPage() {
               />
             ) : (
               <p className="text-xs text-muted-foreground mt-1">
-                Your contribution: {poolDetails.userContribution} {isETH ? "ETH" : "USDT"}
+                Your contribution: {poolDetails.userContribution} {tokenSymbol}
               </p>
             )}
           </CardContent>
@@ -923,8 +918,8 @@ export default function PoolDetailsPage() {
               <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
               <span className="text-2xl font-bold">
                 {isContriboost
-                  ? `${poolDetails.contributionAmount} ${isETH ? "ETH" : "USDT"}`
-                  : `${poolDetails.currentAmount}/${poolDetails.targetAmount} ${isETH ? "ETH" : "USDT"}`}
+                  ? `${poolDetails.contributionAmount} ${tokenSymbol}`
+                  : `${poolDetails.currentAmount}/${poolDetails.targetAmount} ${tokenSymbol}`}
               </span>
             </div>
             {isContriboost ? (
@@ -962,7 +957,7 @@ export default function PoolDetailsPage() {
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">
-              <Label htmlFor="depositAmount">Deposit Amount ({isETH ? "ETH" : "USDT"})</Label>
+              <Label htmlFor="depositAmount">Deposit Amount ({tokenSymbol})</Label>
               <Input
                 id="depositAmount"
                 type="number"
@@ -985,7 +980,7 @@ export default function PoolDetailsPage() {
         {canContributeGoalFund && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">
-              <Label htmlFor="contributeAmount">Contribution Amount ({isETH ? "ETH" : "USDT"})</Label>
+              <Label htmlFor="contributeAmount">Contribution Amount ({tokenSymbol})</Label>
               <Input
                 id="contributeAmount"
                 type="number"
@@ -1172,7 +1167,7 @@ export default function PoolDetailsPage() {
                   <TableRow key={participant.address}>
                     <TableCell>{formatAddress(participant.address)}</TableCell>
                     <TableCell>{participant.id}</TableCell>
-                    <TableCell>{participant.depositAmount} {isETH ? "ETH" : "USDT"}</TableCell>
+                    <TableCell>{participant.depositAmount} {tokenSymbol}</TableCell>
                     <TableCell>
                       {participant.lastDepositTime
                         ? formatDate(participant.lastDepositTime)
@@ -1226,10 +1221,8 @@ export default function PoolDetailsPage() {
                 <TableCell>{poolDetails.name}</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-medium">Token Address</TableCell>
-                <TableCell>
-                  {isETH ? "Native ETH" : formatAddress(poolDetails.tokenAddress)}
-                </TableCell>
+                <TableCell className="font-medium">Token</TableCell>
+                <TableCell>{tokenSymbol}</TableCell>
               </TableRow>
               {isContriboost ? (
                 <>
@@ -1259,13 +1252,13 @@ export default function PoolDetailsPage() {
                   <TableRow>
                     <TableCell className="font-medium">Target Amount</TableCell>
                     <TableCell>
-                      {poolDetails.targetAmount} {isETH ? "ETH" : "USDT"}
+                      {poolDetails.targetAmount} {tokenSymbol}
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Current Amount</TableCell>
                     <TableCell>
-                      {poolDetails.currentAmount} {isETH ? "ETH" : "USDT"}
+                      {poolDetails.currentAmount} {tokenSymbol}
                     </TableCell>
                   </TableRow>
                   <TableRow>

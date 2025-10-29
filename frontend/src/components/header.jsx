@@ -28,8 +28,8 @@ export default function Header() {
 
   const getChainName = (chainId) => {
     switch (chainId) {
-      case 4202:
-        return "Lisk Sepolia";
+      case 42220:
+        return "Celo Mainnet";
       case 44787:
         return "Celo Alfajores";
       default:

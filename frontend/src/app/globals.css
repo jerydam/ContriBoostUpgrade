@@ -3,7 +3,7 @@
 :root {
   /* Light mode - Clean and professional */
   --background: #ffffff; /* Pure white background */
-  --foreground: #1e2a44; /* Dark slate for text */
+  --foreground: #000000; /* Dark slate for text */
 
   /* Essential shadcn variables */
   --card: rgba(255, 255, 255, 0.95); /* White cards (95% opaque) */

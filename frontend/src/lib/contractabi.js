@@ -1275,6 +1275,26 @@ export const GoalFundAbi =[
 	{
 		"inputs": [
 			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "contribute",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "emergencyWithdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "string",
 				"name": "_name",
 				"type": "string"
@@ -1451,6 +1471,13 @@ export const GoalFundAbi =[
 		"type": "event"
 	},
 	{
+		"inputs": [],
+		"name": "refundContributors",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
@@ -1471,23 +1498,34 @@ export const GoalFundAbi =[
 	},
 	{
 		"inputs": [],
-		"name": "PERCENTAGE_BASE",
-		"outputs": [
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
 			}
 		],
-		"stateMutability": "view",
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
 		"inputs": [],
-		"name": "contribute",
+		"name": "withdrawFunds",
 		"outputs": [],
-		"stateMutability": "payable",
+		"stateMutability": "nonpayable",
 		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
 	},
 	{
 		"inputs": [
@@ -1525,13 +1563,6 @@ export const GoalFundAbi =[
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "emergencyWithdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -1649,6 +1680,19 @@ export const GoalFundAbi =[
 	},
 	{
 		"inputs": [],
+		"name": "PERCENTAGE_BASE",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "platformFeePercentage",
 		"outputs": [
 			{
@@ -1675,20 +1719,6 @@ export const GoalFundAbi =[
 	},
 	{
 		"inputs": [],
-		"name": "refundContributors",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "token",
 		"outputs": [
 			{
@@ -1699,30 +1729,6 @@ export const GoalFundAbi =[
 		],
 		"stateMutability": "view",
 		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "withdrawFunds",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
 	}
 ]
 

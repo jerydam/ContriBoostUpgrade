@@ -21,7 +21,7 @@ import { toast } from "react-toastify";
 // 🔵 DIVVI INTEGRATION: Import Divvi utilities
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
-const FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
+const FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 

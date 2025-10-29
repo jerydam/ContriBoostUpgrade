@@ -28,8 +28,8 @@ const IERC20Abi = [
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
-const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
-const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
+const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
@@ -805,101 +805,102 @@ export default function PoolDetailsPage() {
   }
 
   // 🔵 DIVVI INTEGRATION: Updated contributeGoalFund with Divvi tracking
-  async function contributeGoalFund() {
-    if (!signer || !account) {
-      await connect();
-      if (!account) {
-        toast.warning("Please connect your wallet");
-        return;
-      }
-    }
-    if (poolDetails.status !== "active" || poolDetails.achieved) {
-      toast.warning("Contributions are only allowed for active, non-achieved GoalFunds");
+ async function contributeGoalFund() {
+  if (!signer || !account) {
+    await connect();
+    if (!account) {
+      toast.warning("Please connect your wallet");
       return;
-    }
-    if (!contributeAmount || isNaN(contributeAmount) || Number(contributeAmount) <= 0) {
-      toast.warning("Please enter a valid contribution amount");
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const amount = ethers.parseEther(contributeAmount);
-
-      console.log("Contributing to GoalFund:", {
-        contractAddress,
-        amount: contributeAmount,
-        tokenAddress: poolDetails.tokenAddress,
-        user: account,
-      });
-
-      const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
-      const tokenBalance = await tokenContract.balanceOf(account);
-      
-      if (tokenBalance < amount) {
-        const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
-        throw new Error(
-          `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
-        );
-      }
-      
-      const allowance = await tokenContract.allowance(account, contractAddress);
-      if (allowance < amount) {
-        console.log("Approving token allowance...");
-        
-        // 🔵 DIVVI: Track token approval transaction
-        const approvePopulatedTx = await tokenContract.approve.populateTransaction(contractAddress, amount);
-        const approveDataWithTag = appendDivviTag(approvePopulatedTx.data, account);
-        
-        const approveTx = await signer.sendTransaction({
-          to: poolDetails.tokenAddress,
-          data: approveDataWithTag,
-          gasLimit: 100000,
-        });
-        
-        const approveReceipt = await approveTx.wait();
-        await submitDivviReferral(approveReceipt.hash || approveTx.hash, chainId);
-      }
-      
-      // 🔵 DIVVI STEP 1: Get populated transaction
-      const populatedTx = await contract.contribute.populateTransaction(amount);
-      
-      // 🔵 DIVVI STEP 2: Append Divvi referral tag
-      const dataWithTag = appendDivviTag(populatedTx.data, account);
-      
-      // 🔵 DIVVI STEP 3: Send transaction
-      const tx = await signer.sendTransaction({
-        to: contractAddress,
-        data: dataWithTag,
-        gasLimit: 300000,
-      });
-      
-      const receipt = await tx.wait();
-      
-      // 🔵 DIVVI STEP 4: Submit referral
-      await submitDivviReferral(receipt.hash || tx.hash, chainId);
-      
-      await fetchPoolDetails();
-      toast.success("Contribution successful!");
-      setContributeAmount("");
-    } catch (error) {
-      console.error("Error contributing to GoalFund:", error);
-      let message = "Failed to contribute";
-      if (error.message.includes("insufficient funds")) {
-        message = "Insufficient funds for contribution and gas fees";
-      } else if (error.message.includes("Insufficient")) {
-        message = error.message;
-      } else if (error.reason) {
-        message = error.reason;
-      } else if (error.code === "CALL_EXCEPTION") {
-        message = "Contract call failed: Check fund status or deadline";
-      }
-      toast.error(`Error: ${message}`);
-    } finally {
-      setIsProcessing(false);
     }
   }
+  if (poolDetails.status !== "active" || poolDetails.achieved) {
+    toast.warning("Contributions are only allowed for active, non-achieved GoalFunds");
+    return;
+  }
+  if (!contributeAmount || isNaN(contributeAmount) || Number(contributeAmount) <= 0) {
+    toast.warning("Please enter a valid contribution amount");
+    return;
+  }
+
+  setIsProcessing(true);
+  try {
+    const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+    const amount = ethers.parseEther(contributeAmount);
+
+    console.log("Contributing to GoalFund:", {
+      contractAddress,
+      amount: contributeAmount,
+      tokenAddress: poolDetails.tokenAddress,
+      user: account,
+    });
+
+    const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
+    const tokenBalance = await tokenContract.balanceOf(account);
+    
+    if (tokenBalance < amount) {
+      const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
+      throw new Error(
+        `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
+      );
+    }
+    
+    const allowance = await tokenContract.allowance(account, contractAddress);
+    if (allowance < amount) {
+      console.log("Approving token allowance...");
+      
+      // 🔵 DIVVI: Track token approval transaction
+      const approvePopulatedTx = await tokenContract.approve.populateTransaction(contractAddress, amount);
+      const approveDataWithTag = appendDivviTag(approvePopulatedTx.data, account);
+      
+      const approveTx = await signer.sendTransaction({
+        to: poolDetails.tokenAddress,
+        data: approveDataWithTag,
+        gasLimit: 100000,
+      });
+      
+      const approveReceipt = await approveTx.wait();
+      await submitDivviReferral(approveReceipt.hash || approveTx.hash, chainId);
+    }
+    
+    // 🔵 DIVVI STEP 1: Get populated transaction with explicit value: 0
+    const populatedTx = await contract.contribute.populateTransaction(amount, { value: 0 });
+    
+    // 🔵 DIVVI STEP 2: Append Divvi referral tag
+    const dataWithTag = appendDivviTag(populatedTx.data, account);
+    
+    // 🔵 DIVVI STEP 3: Send transaction
+    const tx = await signer.sendTransaction({
+      to: contractAddress,
+      data: dataWithTag,
+      value: 0, // Also explicitly set value here
+      gasLimit: 300000,
+    });
+    
+    const receipt = await tx.wait();
+    
+    // 🔵 DIVVI STEP 4: Submit referral
+    await submitDivviReferral(receipt.hash || tx.hash, chainId);
+    
+    await fetchPoolDetails();
+    toast.success("Contribution successful!");
+    setContributeAmount("");
+  } catch (error) {
+    console.error("Error contributing to GoalFund:", error);
+    let message = "Failed to contribute";
+    if (error.message.includes("insufficient funds")) {
+      message = "Insufficient funds for contribution and gas fees";
+    } else if (error.message.includes("Insufficient")) {
+      message = error.message;
+    } else if (error.reason) {
+      message = error.reason;
+    } else if (error.code === "CALL_EXCEPTION") {
+      message = "Contract call failed: Check fund status or deadline";
+    }
+    toast.error(`Error: ${message}`);
+  } finally {
+    setIsProcessing(false);
+  }
+}
 
   // 🔵 DIVVI INTEGRATION: Updated withdrawGoalFund with Divvi tracking
   async function withdrawGoalFund() {
@@ -1273,7 +1274,7 @@ export default function PoolDetailsPage() {
               className="min-w-[120px]"
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Emergency Withdraw
+               Withdraw
             </Button>
           )}
           {canDistributeContriboost && (

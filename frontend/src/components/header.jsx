@@ -54,7 +54,7 @@ export default function Header() {
               className="inline-block mr-2"
             />
           </Link>
-          <nav className="hidden md:flex">
+          <nav className="hidden md:flex ">
             <ul className="flex items-center gap-6">
               {navLinks.map((link) => (
                 <li key={link.name}>

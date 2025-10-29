@@ -45,10 +45,10 @@ export default function RootLayout({ children }) {
                 toastStyle={{
                   backgroundColor: "#101b31",
                   color: "#ffffff",
-                  border: "1px solid #6264c7",
+                  border: "1px solid #1e2a44",
                 }}
                 progressStyle={{
-                  background: "#6264c7",
+                  background: "#1e2a44",
                 }}
               />
             </div>

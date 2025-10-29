@@ -37,12 +37,16 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
 import { toast } from "react-toastify";
+// 🔵 DIVVI INTEGRATION
+import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
 const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
+
 export default function PoolsPage() {
+  // 🔵 DIVVI INTEGRATION: Added chainId to destructuring
   const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
   const [pools, setPools] = useState([]);
   const [filteredPools, setFilteredPools] = useState([]);
@@ -212,6 +216,7 @@ export default function PoolsPage() {
     setFilteredPools(filtered);
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated joinContriboost with Divvi tracking
   async function joinContriboost(pool) {
     if (!signer || !account) {
       await connect();
@@ -220,8 +225,25 @@ export default function PoolsPage() {
 
     try {
       const contract = new ethers.Contract(pool.contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join();
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.join.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction with Divvi tracking
+      const tx = await signer.sendTransaction({
+        to: pool.contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral to Divvi
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPools();
       toast.success("Successfully joined the Contriboost pool!");
     } catch (error) {
@@ -230,6 +252,7 @@ export default function PoolsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated contributeGoalFund with Divvi tracking
   async function contributeGoalFund(pool, amount = ethers.parseEther("0.01")) {
     if (!signer || !account) {
       await connect();
@@ -239,10 +262,28 @@ export default function PoolsPage() {
     try {
       const contract = new ethers.Contract(pool.contractAddress, GoalFundAbi, signer);
       const isETH = pool.tokenAddress === CELO_ADDRESS;
-      const tx = isETH
-        ? await contract.contribute({ value: amount })
-        : await contract.contribute(amount);
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = isETH
+        ? await contract.contribute.populateTransaction({ value: amount })
+        : await contract.contribute.populateTransaction(amount);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction with Divvi tracking
+      const tx = await signer.sendTransaction({
+        to: pool.contractAddress,
+        data: dataWithTag,
+        value: isETH ? amount : undefined,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral to Divvi
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPools();
       toast.success("Contribution successful!");
     } catch (error) {
@@ -270,6 +311,13 @@ export default function PoolsPage() {
 
   function formatDate(timestamp) {
     return new Date(timestamp * 1000).toLocaleDateString();
+  }
+
+  function getTokenSymbol(tokenAddress) {
+    if (!tokenAddress) return "Token";
+    if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
+    if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
+    return "Token";
   }
 
   return (
@@ -387,7 +435,7 @@ export default function PoolsPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => handleCreateNavigation("/createos/contribution")}
+                  onClick={() => handleCreateNavigation("/create/contribution")}
                   disabled={isConnecting}
                 >
                   <div className="flex items-start gap-4">
@@ -502,7 +550,7 @@ export default function PoolsPage() {
                           <span className="text-muted-foreground">Contribution</span>
                           <span className="font-medium">
                             {pool.contributionAmount}{" "}
-                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
+                            {getTokenSymbol(pool.tokenAddress)}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
@@ -523,14 +571,14 @@ export default function PoolsPage() {
                           <span className="text-muted-foreground">Target</span>
                           <span className="font-medium">
                             {pool.targetAmount}{" "}
-                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
+                            {getTokenSymbol(pool.tokenAddress)}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Raised</span>
                           <span className="font-medium">
                             {pool.currentAmount}{" "}
-                            {pool.tokenAddress === CELO_ADDRESS ? "ETH" : "Tokens"}
+                            {getTokenSymbol(pool.tokenAddress)}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">

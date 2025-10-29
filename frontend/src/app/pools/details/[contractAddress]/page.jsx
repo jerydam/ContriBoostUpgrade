@@ -19,6 +19,8 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "react-toastify";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+// 🔵 DIVVI INTEGRATION
+import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const IERC20Abi = [
   "function approve(address spender, uint256 amount) external returns (bool)",
@@ -28,13 +30,14 @@ const IERC20Abi = [
 
 const CONTRIBOOST_FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
 const GOALFUND_FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
 export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
   const router = useRouter();
-  const { provider, signer, account, connect, isConnecting } = useWeb3();
+  // 🔵 DIVVI INTEGRATION: Added chainId to destructuring
+  const { provider, signer, account, chainId, connect, isConnecting } = useWeb3();
   const [poolDetails, setPoolDetails] = useState(null);
   const [poolType, setPoolType] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,7 +107,6 @@ export default function PoolDetailsPage() {
           account ? contract.getParticipantStatus(account) : null,
         ]);
 
-        // Fetch participant details
         const participantDetails = await Promise.all(
           allParticipants.map(async (addr) => {
             const status = await contract.participants(addr);
@@ -230,7 +232,7 @@ export default function PoolDetailsPage() {
       setIsLoading(false);
     }
   }
-
+  // 🔵 DIVVI INTEGRATION: Updated joinContriboost with Divvi tracking
   async function joinContriboost() {
     if (!signer || !account) {
       await connect();
@@ -246,8 +248,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.join({ gasLimit: 200000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.join.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction with Divvi tracking
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral to Divvi
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Successfully joined the Contriboost pool!");
     } catch (error) {
@@ -262,6 +281,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated depositContriboost with Divvi tracking
   async function depositContriboost() {
     if (!signer || !account) {
       await connect();
@@ -295,7 +315,6 @@ export default function PoolDetailsPage() {
         user: account,
       });
 
-      // Check if using CELO or cUSD (both are ERC20 on Celo)
       const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
       const tokenBalance = await tokenContract.balanceOf(account);
       
@@ -309,14 +328,39 @@ export default function PoolDetailsPage() {
       const allowance = await tokenContract.allowance(account, contractAddress);
       if (allowance < amount) {
         console.log("Approving token allowance...");
-        const approveTx = await tokenContract.approve(contractAddress, amount, {
+        
+        // 🔵 DIVVI: Track token approval transaction
+        const approvePopulatedTx = await tokenContract.approve.populateTransaction(contractAddress, amount);
+        const approveDataWithTag = appendDivviTag(approvePopulatedTx.data, account);
+        
+        const approveTx = await signer.sendTransaction({
+          to: poolDetails.tokenAddress,
+          data: approveDataWithTag,
           gasLimit: 100000,
         });
-        await approveTx.wait();
+        
+        const approveReceipt = await approveTx.wait();
+        await submitDivviReferral(approveReceipt.hash || approveTx.hash, chainId);
       }
       
-      const tx = await contract.deposit({ gasLimit: 300000 });
-      await tx.wait();
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.deposit.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Deposit successful!");
       setDepositAmount("");
@@ -338,6 +382,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated checkMissedDeposits with Divvi tracking
   async function checkMissedDeposits() {
     if (!signer || !account) {
       await connect();
@@ -349,8 +394,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.checkMissedDeposits({ gasLimit: 200000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.checkMissedDeposits.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Missed deposits checked successfully!");
     } catch (error) {
@@ -362,6 +424,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated emergencyWithdraw with Divvi tracking
   async function emergencyWithdraw(tokenAddress) {
     if (!signer || !account) {
       await connect();
@@ -381,10 +444,28 @@ export default function PoolDetailsPage() {
         poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
         signer
       );
-      const tx = poolType === "Contriboost"
-        ? await contract.emergencyWithdraw(tokenAddress || CELO_ADDRESS, { gasLimit: 300000 })
-        : await contract.emergencyWithdraw({ gasLimit: 300000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1 & 2: Get populated transaction and append tag
+      let populatedTx, dataWithTag;
+      if (poolType === "Contriboost") {
+        populatedTx = await contract.emergencyWithdraw.populateTransaction(tokenAddress || CELO_ADDRESS);
+      } else {
+        populatedTx = await contract.emergencyWithdraw.populateTransaction();
+      }
+      dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Emergency withdrawal successful!");
     } catch (error) {
@@ -396,6 +477,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated setDescription with Divvi tracking
   async function setDescription() {
     if (!signer || !account) {
       await connect();
@@ -415,8 +497,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setDescription(newDescription, { gasLimit: 200000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.setDescription.populateTransaction(newDescription);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Description updated successfully!");
       setNewDescription("");
@@ -429,6 +528,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated setHostFeePercentage with Divvi tracking
   async function setHostFeePercentage() {
     if (!signer || !account) {
       await connect();
@@ -448,11 +548,27 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setHostFeePercentage(
-        Math.floor(Number(newHostFee) * 100),
-        { gasLimit: 200000 }
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.setHostFeePercentage.populateTransaction(
+        Math.floor(Number(newHostFee) * 100)
       );
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Host fee updated successfully!");
       setNewHostFee("");
@@ -465,6 +581,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated setTokenAddress with Divvi tracking
   async function setTokenAddress() {
     if (!signer || !account) {
       await connect();
@@ -484,8 +601,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.setTokenAddress(newTokenAddress, { gasLimit: 200000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.setTokenAddress.populateTransaction(newTokenAddress);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Token address updated successfully!");
       setNewTokenAddress("");
@@ -498,6 +632,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated reactivateContriboost with Divvi tracking
   async function reactivateContriboost(participantAddress) {
     if (!signer || !account) {
       await connect();
@@ -515,19 +650,43 @@ export default function PoolDetailsPage() {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
       const amount = ethers.parseEther(poolDetails.contributionAmount);
       
-      // Always use ERC20 tokens on Celo
       const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
       const allowance = await tokenContract.allowance(account, contractAddress);
       if (allowance < amount) {
         console.log("Approving token allowance for reactivation...");
-        const approveTx = await tokenContract.approve(contractAddress, amount, {
+        
+        // 🔵 DIVVI: Track token approval transaction
+        const approvePopulatedTx = await tokenContract.approve.populateTransaction(contractAddress, amount);
+        const approveDataWithTag = appendDivviTag(approvePopulatedTx.data, account);
+        
+        const approveTx = await signer.sendTransaction({
+          to: poolDetails.tokenAddress,
+          data: approveDataWithTag,
           gasLimit: 100000,
         });
-        await approveTx.wait();
+        
+        const approveReceipt = await approveTx.wait();
+        await submitDivviReferral(approveReceipt.hash || approveTx.hash, chainId);
       }
       
-      const tx = await contract.reactivateParticipant(participantAddress, { gasLimit: 300000 });
-      await tx.wait();
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.reactivateParticipant.populateTransaction(participantAddress);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}!`);
     } catch (error) {
@@ -541,7 +700,7 @@ export default function PoolDetailsPage() {
       setIsProcessing(false);
     }
   }
-
+  // 🔵 DIVVI INTEGRATION: Updated distributeContriboostFunds with Divvi tracking
   async function distributeContriboostFunds() {
     if (!signer || !account) {
       await connect();
@@ -557,8 +716,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const tx = await contract.distributeFunds({ gasLimit: 500000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.distributeFunds.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 500000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Funds distributed successfully!");
     } catch (error) {
@@ -573,6 +749,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated transferOwnership with Divvi tracking
   async function transferOwnership() {
     if (!signer || !account) {
       await connect();
@@ -596,8 +773,25 @@ export default function PoolDetailsPage() {
         poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
         signer
       );
-      const tx = await contract.transferOwnership(newOwnerAddress, { gasLimit: 200000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.transferOwnership.populateTransaction(newOwnerAddress);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 200000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Ownership transferred successfully!");
       setNewOwnerAddress("");
@@ -610,6 +804,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated contributeGoalFund with Divvi tracking
   async function contributeGoalFund() {
     if (!signer || !account) {
       await connect();
@@ -639,7 +834,6 @@ export default function PoolDetailsPage() {
         user: account,
       });
 
-      // Both CELO and cUSD are ERC20 tokens on Celo
       const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
       const tokenBalance = await tokenContract.balanceOf(account);
       
@@ -653,14 +847,39 @@ export default function PoolDetailsPage() {
       const allowance = await tokenContract.allowance(account, contractAddress);
       if (allowance < amount) {
         console.log("Approving token allowance...");
-        const approveTx = await tokenContract.approve(contractAddress, amount, {
+        
+        // 🔵 DIVVI: Track token approval transaction
+        const approvePopulatedTx = await tokenContract.approve.populateTransaction(contractAddress, amount);
+        const approveDataWithTag = appendDivviTag(approvePopulatedTx.data, account);
+        
+        const approveTx = await signer.sendTransaction({
+          to: poolDetails.tokenAddress,
+          data: approveDataWithTag,
           gasLimit: 100000,
         });
-        await approveTx.wait();
+        
+        const approveReceipt = await approveTx.wait();
+        await submitDivviReferral(approveReceipt.hash || approveTx.hash, chainId);
       }
       
-      const tx = await contract.contribute(amount, { gasLimit: 300000 });
-      await tx.wait();
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.contribute.populateTransaction(amount);
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Contribution successful!");
       setContributeAmount("");
@@ -682,6 +901,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated withdrawGoalFund with Divvi tracking
   async function withdrawGoalFund() {
     if (!signer || !account) {
       await connect();
@@ -697,8 +917,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.withdrawFunds({ gasLimit: 300000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.withdrawFunds.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 300000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Funds withdrawn successfully!");
     } catch (error) {
@@ -713,6 +950,7 @@ export default function PoolDetailsPage() {
     }
   }
 
+  // 🔵 DIVVI INTEGRATION: Updated refundContributors with Divvi tracking
   async function refundContributors() {
     if (!signer || !account) {
       await connect();
@@ -728,8 +966,25 @@ export default function PoolDetailsPage() {
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
-      const tx = await contract.refundContributors({ gasLimit: 500000 });
-      await tx.wait();
+      
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await contract.refundContributors.populateTransaction();
+      
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+      
+      // 🔵 DIVVI STEP 3: Send transaction
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        data: dataWithTag,
+        gasLimit: 500000,
+      });
+      
+      const receipt = await tx.wait();
+      
+      // 🔵 DIVVI STEP 4: Submit referral
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+      
       await fetchPoolDetails();
       toast.success("Refunds issued successfully!");
     } catch (error) {
@@ -856,7 +1111,7 @@ export default function PoolDetailsPage() {
             </span>
           )}
         </h1>
-        <p className="text-muted-foreground break-words max-w-2xl">{poolDetails.description}</p>
+        <p className="text-muted-foreground wrap-break-words max-w-2xl">{poolDetails.description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

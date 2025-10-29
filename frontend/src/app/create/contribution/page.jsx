@@ -18,10 +18,12 @@ import * as z from "zod";
 import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
+// 🔵 DIVVI INTEGRATION: Import Divvi utilities
+import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const FACTORY_ADDRESS = "0x6580B6E641061D71c809f8EDa8a522f9EB88F180";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -38,7 +40,7 @@ const formSchema = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  tokenType: z.enum(["CELO", "cUSD"]), // Changed from paymentMethod
+  tokenType: z.enum(["CELO", "cUSD"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -52,7 +54,8 @@ const formSchema = z.object({
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  const { signer, account, connect } = useWeb3();
+  // 🔵 DIVVI INTEGRATION: Get chainId from Web3 context
+  const { signer, account, chainId, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -64,7 +67,7 @@ export default function CreateContriboostPage() {
       dayRange: 7,
       expectedNumber: 10,
       contributionAmount: "0.1",
-      tokenType: "CELO", // Default to CELO
+      tokenType: "CELO",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
       startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0],
@@ -87,10 +90,7 @@ export default function CreateContriboostPage() {
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
       
-      // Always use ERC20 payment method (1) for Celo
       const paymentMethod = 1;
-      
-      // Select token address based on user choice
       const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
       
       const config = {
@@ -101,30 +101,43 @@ export default function CreateContriboostPage() {
         platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
-        paymentMethod: paymentMethod, // Always 1 (ERC20)
+        paymentMethod: paymentMethod,
       };
 
       console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
 
-      const estimatedGas = await factoryContract.createContriboost.estimateGas(
+      // 🔵 DIVVI INTEGRATION: Get populated transaction to extract data
+      const populatedTx = await factoryContract.createContriboost.populateTransaction(
         config,
         values.name,
         values.description,
         tokenAddress
       );
+
+      // 🔵 DIVVI INTEGRATION: Append Divvi referral tag to transaction data
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+
+      // Estimate gas for the modified transaction
+      const estimatedGas = await signer.estimateGas({
+        to: FACTORY_ADDRESS,
+        data: dataWithTag,
+      });
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
-      const tx = await factoryContract.createContriboost(
-        config,
-        values.name,
-        values.description,
-        tokenAddress,
-        { gasLimit }
-      );
+      // 🔵 DIVVI INTEGRATION: Send transaction with Divvi-tagged data
+      const tx = await signer.sendTransaction({
+        to: FACTORY_ADDRESS,
+        data: dataWithTag,
+        gasLimit,
+      });
 
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+
+      // 🔵 DIVVI INTEGRATION: Submit referral to Divvi after transaction confirmation
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+
       console.log("Receipt logs:", receipt.logs);
 
       const contriboostCreatedEvent = receipt.logs.find(

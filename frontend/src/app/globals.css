@@ -1,28 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  /* Basic colors */
-  --background: #b1d3f1;
-  --foreground: #171717;
+  /* Light mode - Clean and professional */
+  --background: #ffffff; /* Pure white background */
+  --foreground: #1e2a44; /* Dark slate for text */
 
-  /* Essential shadcn variables with default values */
-  --card: #ffffff;
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #1e293b;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #3b82f6;
+  /* Essential shadcn variables */
+  --card: #ffffff; /* White cards */
+  --card-foreground: #1e2a44; /* Dark text on cards */
+  --popover: #ffffff; /* White popover */
+  --popover-foreground: #1e2a44; /* Dark text on popover */
+  --primary: #3b82f6; /* Vibrant blue for primary actions */
+  --primary-foreground: #ffffff; /* White text on primary */
+  --secondary: #f1f5f9; /* Light gray for secondary elements */
+  --secondary-foreground: #1e2a44; /* Dark text on secondary */
+  --muted: #f8fafc; /* Very light gray for muted backgrounds */
+  --muted-foreground: #64748b; /* Medium gray for muted text */
+  --accent: #eff6ff; /* Light blue accent */
+  --accent-foreground: #1e40af; /* Dark blue text on accent */
+  --destructive: #ef4444; /* Bright red for destructive actions */
+  --destructive-foreground: #ffffff; /* White text on destructive */
+  --border: #e2e8f0; /* Light gray borders */
+  --input: #ffffff; /* White input background */
+  --ring: #3b82f6; /* Blue focus ring */
   --radius: 0.5rem;
 }
 
@@ -33,21 +33,21 @@
 
   /* Dark mode shadcn variables */
   --card: #1e2a44; /* Darker shade for cards */
-  --card-foreground: #b0b8c4; /* Lighter gray for text on cards */
+  --card-foreground: #e2e8f0; /* Light gray for text on cards */
   --popover: #1e2a44; /* Same as card for consistency */
-  --popover-foreground: #b0b8c4; /* Lighter gray for popover text */
+  --popover-foreground: #e2e8f0; /* Light gray for popover text */
   --primary: #3b82f6; /* Vibrant blue for buttons and accents */
   --primary-foreground: #ffffff; /* White text on primary buttons */
   --secondary: #2a3b5b; /* Slightly lighter than card for secondary elements */
-  --secondary-foreground: #ffffff; /* White for contrast on secondary */
-  --muted: #2a3b5b; /* Muted backgrounds for less emphasis */
-  --muted-foreground: #94a3b8; /* Slightly darker gray for muted text */
+  --secondary-foreground: #e2e8f0; /* Light text on secondary */
+  --muted: #1e293b; /* Muted backgrounds for less emphasis */
+  --muted-foreground: #94a3b8; /* Gray for muted text */
   --accent: #3b82f6; /* Same as primary for consistency in accents */
   --accent-foreground: #ffffff; /* White text on accents */
-  --destructive: #7f1d1d; /* Muted red for destructive actions */
+  --destructive: #dc2626; /* Bright red for destructive actions */
   --destructive-foreground: #ffffff; /* White text on destructive */
-  --border: #2a3b5b; /* Subtle dark border */
-  --input: #2a3b5b; /* Dark input background */
+  --border: #334155; /* Subtle dark border */
+  --input: #1e293b; /* Dark input background */
   --ring: #60a5fa; /* Lighter blue for focus rings */
 }
 
@@ -109,4 +109,4 @@ html,
 body {
   overflow-x: hidden;
   width: 100%;
-} 
+}

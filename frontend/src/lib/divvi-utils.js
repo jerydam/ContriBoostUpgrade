@@ -71,30 +71,59 @@ export async function submitDivviReferral(txHash, chainId) {
 }
 
 /**
- * Wrapper for contract write operations that includes Divvi tracking
- * @param {Function} contractMethod - The contract method to call
- * @param {Object} options - Transaction options
+ * Wrapper for ethers.js contract transactions that includes Divvi tracking
+ * This modifies the transaction to include the referral tag in the data field
+ * @param {Object} contract - The ethers.js contract instance
+ * @param {string} methodName - The contract method name to call
+ * @param {Array} args - Arguments for the contract method
+ * @param {Object} txOptions - Transaction options (gasLimit, value, etc.)
  * @param {string} userAddress - The user's wallet address
  * @param {number} chainId - The chain ID
  * @returns {Promise<Object>} Transaction receipt
  */
-export async function executeWithDivviTracking(
-  contractMethod,
-  options,
+export async function executeContractWithDivvi(
+  contract,
+  methodName,
+  args,
+  txOptions,
   userAddress,
   chainId
 ) {
-  // Append referral tag to transaction data if present
-  if (options.data) {
-    options.data = appendDivviTag(options.data, userAddress);
+  try {
+    // Get the populated transaction to extract the data field
+    const populatedTx = await contract[methodName].populateTransaction(...args);
+    
+    // Append referral tag to the transaction data
+    const dataWithTag = appendDivviTag(populatedTx.data, userAddress);
+    
+    // Execute the transaction with modified data
+    const tx = await contract[methodName](...args, {
+      ...txOptions,
+      data: dataWithTag,
+    });
+    
+    // Wait for confirmation
+    const receipt = await tx.wait();
+    
+    // Submit referral to Divvi
+    await submitDivviReferral(receipt.hash || tx.hash, chainId);
+    
+    return receipt;
+  } catch (error) {
+    console.error('Error executing contract with Divvi tracking:', error);
+    throw error;
   }
+}
 
-  // Execute the transaction
-  const tx = await contractMethod(options);
+/**
+ * Simple wrapper to add Divvi tracking to an already-sent transaction
+ * Use this when you need to handle the transaction yourself but still want Divvi tracking
+ * @param {Object} tx - The transaction object (with hash)
+ * @param {number} chainId - The chain ID
+ * @returns {Promise<Object>} Transaction receipt
+ */
+export async function trackTransactionWithDivvi(tx, chainId) {
   const receipt = await tx.wait();
-
-  // Submit referral to Divvi
   await submitDivviReferral(receipt.hash || tx.hash, chainId);
-
   return receipt;
 }

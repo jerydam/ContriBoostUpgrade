@@ -17,10 +17,12 @@ import * as z from "zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
+// 🔵 DIVVI INTEGRATION
+import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const FACTORY_ADDRESS = "0x075fdc4CC845BB7D0049EDEe798b6B208B6ECDaF";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -43,13 +45,14 @@ const formSchema = z.object({
     { message: "Deadline must be in the future" }
   ),
   beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
-  fundType: z.enum(["0", "1"]), // 0 for Group, 1 for Personal
-  tokenType: z.enum(["CELO", "cUSD"]), // Changed from paymentMethod
+  fundType: z.enum(["0", "1"]),
+  tokenType: z.enum(["CELO", "cUSD"]),
 });
 
 export default function CreateGoalFundPage() {
   const router = useRouter();
-  const { signer, account, connect } = useWeb3();
+  // 🔵 DIVVI INTEGRATION: Added chainId to destructuring
+  const { signer, account, chainId, connect } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -62,7 +65,7 @@ export default function CreateGoalFundPage() {
       deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
       beneficiary: account || "",
       fundType: "0",
-      tokenType: "CELO", // Default to CELO
+      tokenType: "CELO",
     },
   });
 
@@ -90,10 +93,7 @@ export default function CreateGoalFundPage() {
     try {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
       
-      // Always use ERC20 payment method (1) for Celo
       const paymentMethod = 1;
-      
-      // Select token address based on user choice
       const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
 
       console.log("Creating GoalFund with values:", {
@@ -102,38 +102,47 @@ export default function CreateGoalFundPage() {
         targetAmount: ethers.parseEther(values.targetAmount).toString(),
         deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
         beneficiary: values.beneficiary,
-        paymentMethod: paymentMethod, // Always 1 (ERC20)
+        paymentMethod: paymentMethod,
         tokenAddress,
         fundType: Number(values.fundType),
       });
 
-      const estimatedGas = await factoryContract.createGoalFund.estimateGas(
+      // 🔵 DIVVI STEP 1: Get populated transaction
+      const populatedTx = await factoryContract.createGoalFund.populateTransaction(
         values.name,
         values.description,
         ethers.parseEther(values.targetAmount),
         Math.floor(new Date(values.deadline).getTime() / 1000),
         values.beneficiary,
-        paymentMethod, // Always 1 (ERC20)
+        paymentMethod,
         tokenAddress,
         Number(values.fundType)
       );
+
+      // 🔵 DIVVI STEP 2: Append Divvi referral tag
+      const dataWithTag = appendDivviTag(populatedTx.data, account);
+
+      // Estimate gas for the modified transaction
+      const estimatedGas = await signer.estimateGas({
+        to: FACTORY_ADDRESS,
+        data: dataWithTag,
+      });
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
-      const tx = await factoryContract.createGoalFund(
-        values.name,
-        values.description,
-        ethers.parseEther(values.targetAmount),
-        Math.floor(new Date(values.deadline).getTime() / 1000),
-        values.beneficiary,
-        paymentMethod, // Always 1 (ERC20)
-        tokenAddress,
-        Number(values.fundType),
-        { gasLimit }
-      );
+      // 🔵 DIVVI STEP 3: Send transaction with Divvi-tagged data
+      const tx = await signer.sendTransaction({
+        to: FACTORY_ADDRESS,
+        data: dataWithTag,
+        gasLimit,
+      });
 
       console.log("Transaction sent:", tx.hash);
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
+
+      // 🔵 DIVVI STEP 4: Submit referral to Divvi
+      await submitDivviReferral(receipt.hash || tx.hash, chainId);
+
       console.log("Receipt logs:", receipt.logs);
 
       const goalFundCreatedEvent = receipt.logs.find(

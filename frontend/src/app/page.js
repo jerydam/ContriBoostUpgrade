@@ -60,7 +60,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
-      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-gradient-to-b from-background to-muted">
+      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-linear-to-b from-background to-muted">
         <div className="container px-4 md:px-6 space-y-10 xl:space-y-16">
           <div className="grid gap-8 max-w-[1300px] mx-auto px-4 sm:px-6 md:px-10 md:grid-cols-2 md:gap-12">
             <div className="flex flex-col justify-center space-y-4">
@@ -77,7 +77,7 @@ export default function LandingPage() {
                     <Button
                       variant="outline"
                       size="lg"
-                      className="w-full sm:w-auto hover:bg-[#6264c7]"
+                      className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
                       disabled={isConnecting}
                     >
                       Create New <span className="ml-1">+</span>
@@ -129,7 +129,7 @@ export default function LandingPage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="w-full sm:w-auto hover:bg-[#6264c7]"
+                    className="w-full sm:w-auto hover:bg-[#1e2a44]  hover:text-amber-50"
                     disabled={isConnecting}
                   >
                     Explore Contribution Pools <ArrowRight className="ml-2 h-4 w-4" />
@@ -186,7 +186,7 @@ export default function LandingPage() {
                       <DialogTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full hover:bg-[#6264c7]"
+                          className="w-full hover:bg-[#1e2a44]  hover:text-amber-50"
                           disabled={isConnecting}
                           aria-label="Get started with Contriboost"
                         >
@@ -339,7 +339,7 @@ export default function LandingPage() {
                   <DialogTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full sm:w-auto hover:bg-[#6264c7]"
+                      className="w-full sm:w-auto hover:bg-[#1e2a44]  hover:text-amber-50"
                       disabled={isConnecting}
                     >
                       Get Started
@@ -349,7 +349,7 @@ export default function LandingPage() {
                 <Link href="/pools">
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto hover:bg-[#6264c7]"
+                    className="w-full sm:w-auto hover:bg-[#1e2a44]  hover:text-amber-50"
                     disabled={isConnecting}
                   >
                     Explore Pools
@@ -374,7 +374,7 @@ export default function LandingPage() {
                 <Button
                   variant="outline"
                   type="submit"
-                  className="w-full sm:w-auto hover:bg-[#6264c7]"
+                  className="w-full sm:w-auto hover:bg-[#1e2a44]  hover:text-amber-50"
                 >
                   Subscribe
                 </Button>

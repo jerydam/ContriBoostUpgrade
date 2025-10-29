@@ -6,9 +6,10 @@
   --foreground: #1e2a44; /* Dark slate for text */
 
   /* Essential shadcn variables */
-  --card: #ffffff; /* White cards */
+  --card: rgba(255, 255, 255, 0.95); /* White cards (95% opaque) */
+  --popover: rgba(255, 255, 255, 0.95); /* White popover (95% opaque) */ /* White cards */
   --card-foreground: #1e2a44; /* Dark text on cards */
-  --popover: #ffffff; /* White popover */
+   /* White popover */
   --popover-foreground: #1e2a44; /* Dark text on popover */
   --primary: #3b82f6; /* Vibrant blue for primary actions */
   --primary-foreground: #ffffff; /* White text on primary */
@@ -32,9 +33,9 @@
   --foreground: #ffffff; /* White for primary text like headings */
 
   /* Dark mode shadcn variables */
-  --card: #1e2a44; /* Darker shade for cards */
+  --card: rgba(30, 42, 68, 0.9); /* Darker shade (90% opaque) */
+  --popover: rgba(30, 42, 68, 0.9); /* Same as card (90% opaque) */
   --card-foreground: #e2e8f0; /* Light gray for text on cards */
-  --popover: #1e2a44; /* Same as card for consistency */
   --popover-foreground: #e2e8f0; /* Light gray for popover text */
   --primary: #3b82f6; /* Vibrant blue for buttons and accents */
   --primary-foreground: #ffffff; /* White text on primary buttons */

@@ -83,7 +83,7 @@ export default function LandingPage() {
                       Create New <span className="ml-1">+</span>
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-card text-card-foreground border">
+                  <DialogContent className="bg-card text-card-foreground backdrop-blur-lg  border">
                     <DialogHeader>
                       <DialogTitle>Choose what to create</DialogTitle>
                     </DialogHeader>

@@ -54,7 +54,7 @@ export default function Header() {
               className="inline-block mr-2"
             />
           </Link>
-          <nav className="hidden md:flex ">
+          <nav className="hidden md:flex">
             <ul className="flex items-center gap-6">
               {navLinks.map((link) => (
                 <li key={link.name}>
@@ -149,7 +149,7 @@ export default function Header() {
           />
           
           {/* Menu Panel */}
-          <div className="absolute top-16 left-0 right-0 bg-background border-b shadow-lg md:hidden z-40 animate-in slide-in-from-top-2">
+          <div className="absolute top-16 left-0 right-0 bg-card/95 dark:bg-card/90 border-b shadow-lg md:hidden z-40 animate-in slide-in-from-top-2 backdrop-blur-lg">
             <div className="container py-4 px-4">
               <nav>
                 <ul className="flex flex-col gap-4">

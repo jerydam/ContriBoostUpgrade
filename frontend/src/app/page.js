@@ -116,7 +116,7 @@ export default function LandingPage() {
                         <div>
                           <h3 className="font-medium">Create Contribution Pool</h3>
                           <p className="text-sm text-muted-foreground">
-                            Start a rotating savings pool with friends or community
+                            Start a rotating savings pool with friends
                           </p>
                         </div>
                         <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
@@ -214,7 +214,7 @@ export default function LandingPage() {
                         <div>
                           <h3 className="font-medium">Create Contribution Pool</h3>
                           <p className="text-sm text-muted-foreground">
-                            Start a rotating savings pool with friends or community
+                            Start a rotating savings pool with friends 
                           </p>
                         </div>
                         <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />

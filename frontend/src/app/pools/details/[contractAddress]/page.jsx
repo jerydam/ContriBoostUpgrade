@@ -1219,14 +1219,6 @@ export default function PoolDetailsPage() {
         
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label>
-                Required Contribution for Segment {poolDetails.currentSegment}:
-                <span className="font-bold ml-1 text-lg">
-                  {poolDetails.contributionAmount} {tokenSymbol}
-                </span>
-              </Label>
-            </div>
             <Button
               // --- STYLE CHANGES HERE ---
               variant="default" // Use the primary/default color

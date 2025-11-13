@@ -24,7 +24,7 @@ import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const IERC20Abi = [
   "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, uint256 amount) external view returns (uint256)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
@@ -295,10 +295,13 @@ export default function PoolDetailsPage() {
       toast.warning("You must be an active participant to deposit");
       return;
     }
-    if (poolDetails.status !== "active") {
-      toast.warning("Deposits are only allowed when the pool is active");
+    
+    // --- UPDATED VALIDATION HERE: Check for "active" OR "full" status
+    if (poolDetails.status !== "active" && poolDetails.status !== "full") {
+      toast.warning("Deposits are only allowed when the pool is active or full");
       return;
     }
+    // --- END UPDATED VALIDATION
 
     // NOTE: For Contriboost, the contract's deposit() function does not take an amount
     // It relies on the pre-configured contributionAmount.
@@ -363,7 +366,6 @@ export default function PoolDetailsPage() {
       
       await fetchPoolDetails();
       toast.success("Deposit successful!");
-      // setDepositAmount(""); // Removed as input is no longer used for Contriboost
     } catch (error) {
       console.error("Error depositing to Contriboost:", error);
       let message = "Failed to deposit";
@@ -1046,6 +1048,8 @@ export default function PoolDetailsPage() {
     !userStatus.isParticipant &&
     poolDetails.status !== "full" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
+
+  // --- UPDATED UI CONDITION HERE: Check for "active" OR "full" status
   const canDepositContriboost =
     isContriboost &&
     userStatus &&
@@ -1053,11 +1057,13 @@ export default function PoolDetailsPage() {
     userStatus.isActive &&
     !userStatus.hasReceivedFunds &&
     (poolDetails.status === "active" || poolDetails.status === "full");
+  // --- END UPDATED UI CONDITION
+    
   const canCheckMissedDeposits =
     isContriboost &&
     userStatus &&
     userStatus.isHost &&
-    (poolDetails.status === "active" || poolDetails.status === "full");
+    poolDetails.status === "active";
   const canEmergencyWithdraw =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -1077,7 +1083,7 @@ export default function PoolDetailsPage() {
     isContriboost &&
     userStatus &&
     userStatus.isHost &&
-    (poolDetails.status === "active" || poolDetails.status === "full");
+    poolDetails.status === "active";
   const canTransferOwnership =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -1211,7 +1217,6 @@ export default function PoolDetailsPage() {
           </div>
         )}
         
-        {/* --- REVISED CONTRIBOOST DEPOSIT UI START --- */}
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">
@@ -1232,7 +1237,6 @@ export default function PoolDetailsPage() {
             </Button>
           </div>
         )}
-        {/* --- REVISED CONTRIBOOST DEPOSIT UI END --- */}
         
         {canContributeGoalFund && (
           <div className="flex flex-wrap gap-2 items-end">

@@ -20,11 +20,11 @@ import { toast } from "react-toastify";
 // 🔵 DIVVI INTEGRATION
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
-const FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+const FACTORY_ADDRESS_GOALFUND = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
+const CELO_ADDRESS_GOALFUND = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS_GOALFUND = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
-const formSchema = z.object({
+const formSchemaGoalFund = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   targetAmount: z.string().refine(
@@ -37,19 +37,21 @@ const formSchema = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
+  // --- UPDATED ZOD VALIDATION ---
   deadline: z.string().refine(
     (value) => {
       const date = new Date(value);
-      return !isNaN(date.getTime()) && date > new Date();
+      return !isNaN(date.getTime()) && date.getTime() > Date.now();
     },
-    { message: "Deadline must be in the future" }
+    { message: "Deadline date and time must be in the future" }
   ),
+  // --- END UPDATED ZOD VALIDATION ---
   beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
   fundType: z.enum(["0", "1"]),
   tokenType: z.enum(["CELO", "cUSD"]),
 });
 
-export default function CreateGoalFundPage() {
+export function CreateGoalFundPage() {
   const router = useRouter();
   // 🔵 DIVVI INTEGRATION: Added chainId to destructuring
   const { signer, account, chainId, connect } = useWeb3();
@@ -57,12 +59,14 @@ export default function CreateGoalFundPage() {
   const [error, setError] = useState(null);
 
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchemaGoalFund),
     defaultValues: {
       name: "",
       description: "",
       targetAmount: "1",
-      deadline: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+      // --- UPDATED DEFAULT VALUE ---
+      deadline: getFutureDateTimeLocal(30), // 30 days in the future
+      // --- END UPDATED DEFAULT VALUE ---
       beneficiary: account || "",
       fundType: "0",
       tokenType: "CELO",
@@ -91,16 +95,17 @@ export default function CreateGoalFundPage() {
     setIsCreating(true);
 
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, GoalFundFactoryAbi, signer);
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS_GOALFUND, GoalFundFactoryAbi, signer);
       
       const paymentMethod = 1;
-      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
+      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS_GOALFUND : CELO_ADDRESS_GOALFUND;
 
       console.log("Creating GoalFund with values:", {
         name: values.name,
         description: values.description,
         targetAmount: ethers.parseEther(values.targetAmount).toString(),
-        deadline: Math.floor(new Date(values.deadline).getTime() / 1000),
+        // Convert the date string (YYYY-MM-DDTHH:MM) to a Unix timestamp (seconds)
+        deadline: Math.floor(new Date(values.deadline).getTime() / 1000), 
         beneficiary: values.beneficiary,
         paymentMethod: paymentMethod,
         tokenAddress,
@@ -124,14 +129,14 @@ export default function CreateGoalFundPage() {
 
       // Estimate gas for the modified transaction
       const estimatedGas = await signer.estimateGas({
-        to: FACTORY_ADDRESS,
+        to: FACTORY_ADDRESS_GOALFUND,
         data: dataWithTag,
       });
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
       // 🔵 DIVVI STEP 3: Send transaction with Divvi-tagged data
       const tx = await signer.sendTransaction({
-        to: FACTORY_ADDRESS,
+        to: FACTORY_ADDRESS_GOALFUND,
         data: dataWithTag,
         gasLimit,
       });
@@ -289,9 +294,16 @@ export default function CreateGoalFundPage() {
                   name="deadline"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Deadline</FormLabel>
+                      <FormLabel>Deadline Date and Time</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        {/* --- UPDATED INPUT TYPE --- */}
+                        <Input 
+                          type="datetime-local" 
+                          {...field} 
+                          // Ensure the browser doesn't block future date/time selection
+                          min={getFutureDateTimeLocal(0)}
+                        />
+                        {/* --- END UPDATED INPUT TYPE --- */}
                       </FormControl>
                       <FormDescription className="text-xs sm:text-sm">
                         When the funding campaign will end

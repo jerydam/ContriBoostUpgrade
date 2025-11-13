@@ -1228,9 +1228,12 @@ export default function PoolDetailsPage() {
               </Label>
             </div>
             <Button
+              // --- STYLE CHANGES HERE ---
+              variant="default" // Use the primary/default color
+              className="min-w-[120px] transition-all hover:scale-[1.02] active:scale-[0.98]" // Optional: Add a subtle animation
+              // --- END STYLE CHANGES ---
               onClick={depositContriboost}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Contribute

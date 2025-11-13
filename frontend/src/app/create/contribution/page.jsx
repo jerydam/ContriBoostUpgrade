@@ -25,7 +25,23 @@ const FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
-const formSchema = z.object({
+// Helper function to format date for datetime-local input (YYYY-MM-DDTHH:MM)
+const getFutureDateTimeLocal = (days = 1) => {
+  const now = new Date(Date.now() + 60000); // 1 minute in the future
+  now.setDate(now.getDate() + days - 1); // Add days minus 1 (since we already have 1 minute buffer)
+  now.setSeconds(0);
+  now.setMilliseconds(0);
+
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formSchemaContriboost = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   dayRange: z.coerce.number().int().min(1, { message: "Must be at least 1 day" }),
@@ -43,13 +59,16 @@ const formSchema = z.object({
   tokenType: z.enum(["CELO", "cUSD"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
+  // --- UPDATED ZOD VALIDATION ---
   startTimestamp: z.string().refine(
     (value) => {
       const date = new Date(value);
-      return !isNaN(date.getTime()) && date > new Date();
+      // Ensure it's a valid date and is greater than the current time
+      return !isNaN(date.getTime()) && date.getTime() > Date.now();
     },
-    { message: "Start date must be in the future" }
+    { message: "Start date and time must be in the future" }
   ),
+  // --- END UPDATED ZOD VALIDATION ---
 });
 
 export default function CreateContriboostPage() {
@@ -60,7 +79,7 @@ export default function CreateContriboostPage() {
   const [error, setError] = useState(null);
 
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchemaContriboost),
     defaultValues: {
       name: "",
       description: "",
@@ -70,7 +89,9 @@ export default function CreateContriboostPage() {
       tokenType: "CELO",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      startTimestamp: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      // --- UPDATED DEFAULT VALUE ---
+      startTimestamp: getFutureDateTimeLocal(),
+      // --- END UPDATED DEFAULT VALUE ---
     },
   });
 
@@ -100,7 +121,8 @@ export default function CreateContriboostPage() {
         hostFeePercentage: values.hostFeePercentage * 100,
         platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
-        startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000),
+        // Convert the date string (YYYY-MM-DDTHH:MM) to a Unix timestamp (seconds)
+        startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000), 
         paymentMethod: paymentMethod,
       };
 
@@ -380,9 +402,16 @@ export default function CreateContriboostPage() {
                 name="startTimestamp"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>Start Date and Time</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      {/* --- UPDATED INPUT TYPE --- */}
+                      <Input 
+                        type="datetime-local" 
+                        {...field} 
+                        // Ensure the browser doesn't block future date/time selection
+                        min={getFutureDateTimeLocal(0)} 
+                      />
+                      {/* --- END UPDATED INPUT TYPE --- */}
                     </FormControl>
                     <FormDescription>When the first cycle will begin</FormDescription>
                     <FormMessage />

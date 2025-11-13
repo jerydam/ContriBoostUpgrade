@@ -24,7 +24,7 @@ import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
 const IERC20Abi = [
   "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) external view returns (uint256)",
+  "function allowance(address owner, uint256 amount) external view returns (uint256)",
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
@@ -44,7 +44,8 @@ export default function PoolDetailsPage() {
   const [error, setError] = useState(null);
   const [userStatus, setUserStatus] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [depositAmount, setDepositAmount] = useState("");
+  // NOTE: depositAmount is now only used in GoalFund UI, but kept here for potential future flexibility
+  const [depositAmount, setDepositAmount] = useState(""); 
   const [contributeAmount, setContributeAmount] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newHostFee, setNewHostFee] = useState("");
@@ -298,19 +299,18 @@ export default function PoolDetailsPage() {
       toast.warning("Deposits are only allowed when the pool is active");
       return;
     }
-    if (!depositAmount || isNaN(depositAmount) || Number(depositAmount) <= 0) {
-      toast.warning("Please enter a valid deposit amount");
-      return;
-    }
+
+    // NOTE: For Contriboost, the contract's deposit() function does not take an amount
+    // It relies on the pre-configured contributionAmount.
+    const amount = ethers.parseEther(poolDetails.contributionAmount);
 
     setIsProcessing(true);
     try {
       const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
-      const amount = ethers.parseEther(depositAmount);
 
       console.log("Depositing to Contriboost:", {
         contractAddress,
-        amount: depositAmount,
+        amount: poolDetails.contributionAmount,
         tokenAddress: poolDetails.tokenAddress,
         user: account,
       });
@@ -363,7 +363,7 @@ export default function PoolDetailsPage() {
       
       await fetchPoolDetails();
       toast.success("Deposit successful!");
-      setDepositAmount("");
+      // setDepositAmount(""); // Removed as input is no longer used for Contriboost
     } catch (error) {
       console.error("Error depositing to Contriboost:", error);
       let message = "Failed to deposit";
@@ -1210,18 +1210,17 @@ export default function PoolDetailsPage() {
             </Button>
           </div>
         )}
+        
+        {/* --- REVISED CONTRIBOOST DEPOSIT UI START --- */}
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">
-              <Label htmlFor="depositAmount">Deposit Amount ({tokenSymbol})</Label>
-              <Input
-                id="depositAmount"
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder={`Min: ${poolDetails.contributionAmount}`}
-                className="w-48"
-              />
+              <Label>
+                Required Contribution for Segment {poolDetails.currentSegment}:
+                <span className="font-bold ml-1 text-lg">
+                  {poolDetails.contributionAmount} {tokenSymbol}
+                </span>
+              </Label>
             </div>
             <Button
               onClick={depositContriboost}
@@ -1229,10 +1228,12 @@ export default function PoolDetailsPage() {
               className="min-w-[120px]"
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Deposit
+              Contribute
             </Button>
           </div>
         )}
+        {/* --- REVISED CONTRIBOOST DEPOSIT UI END --- */}
+        
         {canContributeGoalFund && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">

@@ -1052,12 +1052,12 @@ export default function PoolDetailsPage() {
     userStatus.isParticipant &&
     userStatus.isActive &&
     !userStatus.hasReceivedFunds &&
-    poolDetails.status === "active";
+    (poolDetails.status === "active" || poolDetails.status === "full");
   const canCheckMissedDeposits =
     isContriboost &&
     userStatus &&
     userStatus.isHost &&
-    poolDetails.status === "active";
+    (poolDetails.status === "active" || poolDetails.status === "full");
   const canEmergencyWithdraw =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -1077,7 +1077,7 @@ export default function PoolDetailsPage() {
     isContriboost &&
     userStatus &&
     userStatus.isHost &&
-    poolDetails.status === "active";
+    (poolDetails.status === "active" || poolDetails.status === "full");
   const canTransferOwnership =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);

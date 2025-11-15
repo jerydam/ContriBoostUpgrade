@@ -901,8 +901,8 @@ export default function PoolDetailsPage() {
     toast.error(`Error: ${message}`);
   } finally {
     setIsProcessing(false);
+    }
   }
-}
 
   // 🔵 DIVVI INTEGRATION: Updated withdrawGoalFund with Divvi tracking
   async function withdrawGoalFund() {
@@ -1049,21 +1049,27 @@ export default function PoolDetailsPage() {
     poolDetails.status !== "full" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
 
-  // --- UPDATED UI CONDITION HERE: Check for "active" OR "full" status
+  // --- REVISED: Removed !userStatus.hasReceivedFunds check to allow contribution after payout ---
   const canDepositContriboost =
     isContriboost &&
     userStatus &&
     userStatus.isParticipant &&
     userStatus.isActive &&
-    !userStatus.hasReceivedFunds &&
     (poolDetails.status === "active" || poolDetails.status === "full");
-  // --- END UPDATED UI CONDITION
+  // --- END REVISED CONDITION
     
   const canCheckMissedDeposits =
     isContriboost &&
     userStatus &&
     userStatus.isHost &&
     poolDetails.status === "active";
+
+  const canDistributeContriboost =
+    isContriboost &&
+    userStatus &&
+    userStatus.isHost &&
+    (poolDetails.status === "active" || poolDetails.status === "full");
+
   const canEmergencyWithdraw =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -1079,11 +1085,6 @@ export default function PoolDetailsPage() {
     isContriboost &&
     userStatus &&
     userStatus.isHost;
-  const canDistributeContriboost =
-    isContriboost &&
-    userStatus &&
-    userStatus.isHost &&
-    poolDetails.status === "active";
   const canTransferOwnership =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
@@ -1219,11 +1220,17 @@ export default function PoolDetailsPage() {
         
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
+            <div className="space-y-2">
+              <Label>
+                Required Contribution for Segment {poolDetails.currentSegment}:
+                <span className="font-bold ml-1 text-lg">
+                  {poolDetails.contributionAmount} {tokenSymbol}
+                </span>
+              </Label>
+            </div>
             <Button
-              // --- STYLE CHANGES HERE ---
               variant="default" // Use the primary/default color
               className="min-w-[120px] transition-all hover:scale-[1.02] active:scale-[0.98]" // Optional: Add a subtle animation
-              // --- END STYLE CHANGES ---
               onClick={depositContriboost}
               disabled={isProcessing || isConnecting}
             >
@@ -1431,7 +1438,12 @@ export default function PoolDetailsPage() {
                     </TableCell>
                     <TableCell>
                       {participant.active ? "Active" : "Inactive"}
-                      {participant.receivedFunds && " (Received Funds)"}
+                      {/* Highlight if participant received funds */}
+                      {participant.receivedFunds && (
+                        <span className="ml-1 text-xs bg-green-100 text-green-800 py-0.5 px-1.5 rounded-full">
+                          Received Payout
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>{participant.missedDeposits}</TableCell>
                     {userStatus?.isHost && (

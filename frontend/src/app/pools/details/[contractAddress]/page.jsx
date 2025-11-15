@@ -33,6 +33,9 @@ const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
+// Base styling classes for consistency across all action buttons
+const BUTTON_STYLE_CLASSES = "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
+
 export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
   const router = useRouter();
@@ -1210,7 +1213,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={joinContriboost}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Join
@@ -1220,17 +1223,10 @@ export default function PoolDetailsPage() {
         
         {canDepositContriboost && (
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="space-y-2">
-              <Label>
-                Required Contribution for Segment {poolDetails.currentSegment}:
-                <span className="font-bold ml-1 text-lg">
-                  {poolDetails.contributionAmount} {tokenSymbol}
-                </span>
-              </Label>
-            </div>
+            
             <Button
               variant="default" // Use the primary/default color
-              className="min-w-[120px] transition-all hover:scale-[1.02] active:scale-[0.98]" // Optional: Add a subtle animation
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
               onClick={depositContriboost}
               disabled={isProcessing || isConnecting}
             >
@@ -1256,7 +1252,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={contributeGoalFund}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Contribute
@@ -1268,7 +1264,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={checkMissedDeposits}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Check Missed Deposits
@@ -1278,9 +1274,9 @@ export default function PoolDetailsPage() {
             <Button
               onClick={() => emergencyWithdraw(poolDetails.tokenAddress)}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2 " /> : null}
                Withdraw
             </Button>
           )}
@@ -1288,7 +1284,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={distributeContriboostFunds}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Distribute Funds
@@ -1298,7 +1294,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={withdrawGoalFund}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Withdraw Funds
@@ -1308,7 +1304,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={refundContributors}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Refund Contributors
@@ -1330,7 +1326,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={setDescription}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Set Description
@@ -1353,7 +1349,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={setHostFeePercentage}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Set Host Fee
@@ -1375,7 +1371,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={setTokenAddress}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Set Token Address
@@ -1397,7 +1393,7 @@ export default function PoolDetailsPage() {
             <Button
               onClick={transferOwnership}
               disabled={isProcessing || isConnecting}
-              className="min-w-[120px]"
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Transfer Ownership
@@ -1455,6 +1451,7 @@ export default function PoolDetailsPage() {
                               size="sm"
                               onClick={() => reactivateContriboost(participant.address)}
                               disabled={isProcessing}
+                              className={BUTTON_STYLE_CLASSES}
                             >
                               {isProcessing ? (
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1554,7 +1551,7 @@ export default function PoolDetailsPage() {
         </CardContent>
       </Card>
 
-      <Button variant="outline" asChild>
+      <Button variant="outline" asChild className={BUTTON_STYLE_CLASSES}>
         <a href="/pools">Back to Pools</a>
       </Button>
     </div>

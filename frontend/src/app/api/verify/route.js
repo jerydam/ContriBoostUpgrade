@@ -3,7 +3,6 @@ import {
     SelfBackendVerifier, 
     AllIds, 
     DefaultConfigStore, 
-    UserIdType,
     AttestationId
 } from "@selfxyz/core";
 
@@ -16,6 +15,7 @@ const OFAC_CHECK = false;
 // -----------------------------------------------------------
 
 // Instantiate the verifier once outside the handler
+// FIXED: Replaced UserIdType.HEX with "hex" because the enum is not exported in beta versions
 const selfBackendVerifier = new SelfBackendVerifier(
     SELF_SCOPE,
     SELF_ENDPOINT,
@@ -26,7 +26,7 @@ const selfBackendVerifier = new SelfBackendVerifier(
         excludedCountries: EXCLUDED_COUNTRIES,
         ofac: OFAC_CHECK,
     }),
-    UserIdType.HEX // Must match frontend's userIdType
+    "hex" 
 );
 
 /**
@@ -64,7 +64,7 @@ export async function POST(req) {
                 result: true,
                 message: "Identity verified.",
                 // Optionally return disclosed data if requested
-                // disclosedData: result.discloseOutput 
+                 disclosedData: result.discloseOutput 
             }, { status: 200 });
         } else {
             // Failure: Proof failed cryptographic or rule checks

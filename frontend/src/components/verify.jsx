@@ -1,26 +1,15 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, Smartphone, QrCode, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-// 1. Import the hook here so this component is self-contained
 import { useSelfApp } from "@selfxyz/react"; 
 import { SelfQRcodeWrapper, getUniversalLink } from "@selfxyz/qrcode";
 import { toast } from "react-toastify";
 
 const BUTTON_STYLE_CLASSES = "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
-
-// --- CONFIGURATION (FIXED) ---
-const SELF_CONFIG = {
-    scope: "contriboost",
-    // CRITICAL FIX: Point to the API route, not the homepage
-    endpoint: "https://www.contriboost.xyz/api/verify", 
-    // CRITICAL FIX: Must be 'staging' to match your backend (true)
-    mode: "staging", 
-    userIdType: "hex",
-};
 
 const useIsMobile = (breakpoint = 768) => {
     const [isMobile, setIsMobile] = useState(false);
@@ -35,13 +24,36 @@ const useIsMobile = (breakpoint = 768) => {
 };
 
 /**
- * Now handles the connection logic internally.
- * Removed 'selfApp' and 'isAppLoading' from props since we generate them here.
+ * Props:
+ * - onSuccess: callback function
+ * - onCancel: callback function
+ * - isFlowOpen: boolean
+ * - userAddress: string (The connected wallet address, e.g., "0x123...")
  */
-export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen }) {
+export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen, userAddress }) {
     
-    // 2. Initialize the SDK directly inside this component
-    const { selfApp, isLoading: isAppLoading, error } = useSelfApp(SELF_CONFIG);
+    // CRITICAL FIX: Memoize config so it doesn't reload on every render
+    // Added `disclosures` and `userDefinedData`
+    const selfConfig = useMemo(() => ({
+        scope: "contriboost",
+        endpoint: "https://www.contriboost.xyz/api/verify", // Must match Backend exactly
+        mode: "production", // "staging" for Mock Passports, "production" for Real
+        userIdType: "hex",
+        
+        // 1. Tell the app WHAT to verify (Must match backend rules)
+        disclosures: {
+            minimumAge: 15,
+            nationality: true,
+            ofac: false, 
+            excludedCountries: [] 
+        },
+
+        // 2. Bind the proof to the specific wallet address
+        // If userAddress is null, we send a zero address to prevent crash
+        userDefinedData: userAddress || "0x0000000000000000000000000000000000000000", 
+    }), [userAddress]);
+
+    const { selfApp, isLoading: isAppLoading, error } = useSelfApp(selfConfig);
 
     const isMobile = useIsMobile();
     const [universalLink, setUniversalLink] = useState('');
@@ -56,11 +68,11 @@ export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen }
         }
     }, [selfApp]);
 
-    // 3. If the hook encounters an error (e.g. network issues), log it
     useEffect(() => {
         if (error) {
             console.error("Self SDK Error:", error);
-            toast.error("Failed to initialize identity system.");
+            // Don't show toast immediately on mount, only if persistent error
+            if (error.code !== 'ERR_NETWORK') toast.error("Identity system error: " + error.message);
         }
     }, [error]);
 
@@ -97,8 +109,8 @@ export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen }
                         >
                             Open Self App to Verify
                         </Button>
-                        <p className="text-sm text-muted-foreground pt-2">
-                            *This will open the Self app directly.*
+                        <p className="text-sm text-muted-foreground pt-2 text-center">
+                            Tap above to open the Self App and prove you are human.
                         </p>
                     </div>
                 ) : (
@@ -111,7 +123,8 @@ export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen }
                             onSuccess={onSuccess}
                             onError={(e) => {
                                 console.error("Self Verification Error:", e);
-                                toast.error(e.reason || "Verification failed. Please try again.");
+                                // The app sends generic error codes often, check logs for specifics
+                                toast.error("Verification failed. Please ensure you meet the requirements.");
                             }}
                             size={256}
                         />
@@ -146,7 +159,9 @@ export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen }
                 {selfApp ? <VerificationContent /> : (
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>Verification initialization failed.</AlertDescription>
+                        <AlertDescription>
+                            Failed to load QR code. Please check your internet connection.
+                        </AlertDescription>
                     </Alert>
                 )}
             </Card>

@@ -7,7 +7,10 @@ import {
 
 // --- SELF CONFIGURATION ---
 const SELF_SCOPE = "contriboost";
-const SELF_ENDPOINT = "/api/verify";
+
+// CRITICAL FIX: Must be the full absolute URL, exactly matching the frontend
+const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; 
+
 const MINIMUM_AGE = 15;
 const EXCLUDED_COUNTRIES = []; 
 const OFAC_CHECK = false; 
@@ -16,8 +19,6 @@ const OFAC_CHECK = false;
 // Global variable to store the instance (Singleton Pattern)
 let verifierInstance = null;
 
-// Helper function to create or return the existing verifier
-// This prevents the code from running during "next build"
 function getVerifier() {
     if (!verifierInstance) {
         // Define the specific attestations you want to support
@@ -32,14 +33,14 @@ function getVerifier() {
         verifierInstance = new SelfBackendVerifier(
             SELF_SCOPE,
             SELF_ENDPOINT,
-            true, // staging/devMode
+            false, // true = staging/devMode (Mock Passports), false = production
             EnabledIds,
             new DefaultConfigStore({
                 minimumAge: MINIMUM_AGE,
                 excludedCountries: EXCLUDED_COUNTRIES,
                 ofac: OFAC_CHECK,
             }),
-            "hex" 
+            "hex" // Expecting a wallet address or hex string
         );
     }
     return verifierInstance;
@@ -56,7 +57,6 @@ export async function POST(req) {
             );
         }
 
-        // Initialize verifier ONLY when the request comes in (Runtime)
         const verifier = getVerifier();
 
         const result = await verifier.verify(
@@ -65,6 +65,8 @@ export async function POST(req) {
             publicSignals,
             userContextData
         );
+
+        // console.log("Verification Result:", JSON.stringify(result, null, 2));
 
         if (result.isValidDetails.isValid && result.isValidDetails.isMinimumAgeValid) {
             const { userIdentifier } = result.userData;
@@ -76,7 +78,9 @@ export async function POST(req) {
                 message: "Identity verified.",
             }, { status: 200 });
         } else {
-            const reason = result.isValidDetails.isMinimumAgeValid ? "Proof failed hub check." : "Did not meet age/rule requirements.";
+            const reason = result.isValidDetails.isMinimumAgeValid 
+                ? "Proof signature invalid or parameters mismatch." 
+                : "User is under 15.";
             
             return NextResponse.json(
                 { status: "error", result: false, reason: reason, details: result.isValidDetails },

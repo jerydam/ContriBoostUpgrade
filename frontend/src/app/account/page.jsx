@@ -9,7 +9,9 @@ import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlusCircle, AlertCircle } from "lucide-react";
+import { Loader2, PlusCircle, AlertCircle, CheckCircle, Tag, X } from "lucide-react";
+import { useSelfVerification } from "@/hooks/use-self";
+import SelfVerificationFlow from "@/components/verify";
 
 // Contract addresses
 const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
@@ -25,6 +27,16 @@ export default function AccountPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
+
+  const { 
+    isVerified, 
+    isFlowOpen, 
+    selfApp, 
+    isAppLoading,
+    startVerification, 
+    handleSuccess, 
+    cancelVerification 
+  } = useSelfVerification(account);
 
   useEffect(() => {
     if (provider && account) {
@@ -202,57 +214,108 @@ export default function AccountPage() {
         Manage your pools, funds, and contributions
       </p>
 
-      {/* Wallet Overview */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="text-lg md:text-xl">Wallet Overview</CardTitle>
-          <CardDescription className="text-sm">Your account details and balance</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Address</h3>
-                <p className="font-mono text-xs sm:text-sm break-all">{formatAddress(account)}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
-                <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} CELO</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        {/* Wallet Overview */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl">Wallet Overview</CardTitle>
+            <CardDescription className="text-sm">Your account details and balance</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Address</h3>
+                  <p className="font-mono text-xs sm:text-sm break-all">{formatAddress(account)}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
+                  <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} CELO</p>
+                </div>
               </div>
             </div>
+          </CardContent>
+          <CardFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => handleCreateNavigation("/create/contribution")}
+              disabled={isConnecting}
+            >
+              {isConnecting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PlusCircle className="mr-2 h-4 w-4" />
+              )}
+              Create Contriboost Pool
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => handleCreateNavigation("/create/goalfund")}
+              disabled={isConnecting}
+            >
+              {isConnecting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PlusCircle className="mr-2 h-4 w-4" />
+              )}
+              Create GoalFund
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* Verification Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl">Identity Verification</CardTitle>
+            <CardDescription className="text-sm">Verify your identity to join Contriboost pools</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center py-6">
+            {isVerified ? (
+              <div className="text-center">
+                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                <p className="text-lg font-semibold">Verified</p>
+                <p className="text-sm text-muted-foreground">You can now join Contriboost pools.</p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+                <p className="text-lg font-semibold">Not Verified</p>
+                <p className="text-sm text-muted-foreground mb-4">Please verify your identity to participate.</p>
+                <Button onClick={startVerification}>
+                  {isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Verify Identity
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Verification Flow Modal */}
+      {isFlowOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative">
+            <button
+                onClick={cancelVerification}
+                className="absolute top-2 right-2 text-white hover:text-gray-300 z-10 p-1 rounded-full bg-gray-800/50"
+                aria-label="Close verification"
+            >
+                <X className="h-6 w-6" />
+            </button>
+            <SelfVerificationFlow
+                selfApp={selfApp}
+                onSuccess={handleSuccess}
+                onCancel={cancelVerification}
+                isFlowOpen={true} 
+                isAppLoading={isAppLoading}
+            />
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => handleCreateNavigation("/create/contribution")}
-            disabled={isConnecting}
-          >
-            {isConnecting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <PlusCircle className="mr-2 h-4 w-4" />
-            )}
-            Create Contriboost Pool
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => handleCreateNavigation("/create/goalfund")}
-            disabled={isConnecting}
-          >
-            {isConnecting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <PlusCircle className="mr-2 h-4 w-4" />
-            )}
-            Create GoalFund
-          </Button>
-        </CardFooter>
-      </Card>
+        </div>
+      )}
 
       {/* Tabs for different account sections */}
       <Tabs defaultValue="pools" className="w-full">
@@ -302,11 +365,18 @@ export default function AccountPage() {
                       </div>
                     </CardContent>
                     <CardFooter>
-                      <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
-                        <Link href={`/pools/details/${pool.contractAddress}`}>
-                          View Details
-                        </Link>
-                      </Button>
+                      {isVerified ? (
+                        <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
+                          <Link href={`/pools/details/${pool.contractAddress}`}>
+                            View Details
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button variant="outline" className="w-full text-xs sm:text-sm" disabled>
+                          <Tag className="h-4 w-4 mr-2" />
+                          Verify to Join
+                        </Button>
+                      )}
                     </CardFooter>
                   </Card>
                 );

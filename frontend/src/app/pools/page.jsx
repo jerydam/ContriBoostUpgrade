@@ -1,3 +1,5 @@
+// app/pools/page.jsx
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
 import { toast } from "react-toastify";
+import { useSelfVerification } from "@/hooks/use-self";
 // 🔵 DIVVI INTEGRATION
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 
@@ -55,6 +58,10 @@ export default function PoolsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const router = useRouter();
+
+  // --- CONSUME SELF VERIFICATION HOOK ---
+  const { isVerified } = useSelfVerification(account);
+  // ------------------------------------
 
   useEffect(() => {
     if (provider && chainId) {
@@ -616,12 +623,17 @@ export default function PoolsPage() {
                           ? contributeGoalFund(pool)
                           : exitContriboost(pool)
                       }
-                      disabled={isConnecting}
+                      disabled={isConnecting || (canJoin && !isVerified)}
                     >
                       {isConnecting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : canJoin ? (
-                        "Join"
+                        isVerified ? "Join" : (
+                          <>
+                            <Tag className="mr-2 h-4 w-4" />
+                            Verify to Join
+                          </>
+                        )
                       ) : canContribute ? (
                         "Contribute"
                       ) : (

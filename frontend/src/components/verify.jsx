@@ -5,8 +5,7 @@ import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/c
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, Smartphone, QrCode, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useSelfApp } from "@selfxyz/react"; 
-import { SelfQRcodeWrapper, getUniversalLink } from "@selfxyz/qrcode";
+import { SelfQRcodeWrapper, getUniversalLink, SelfAppBuilder } from "@selfxyz/qrcode";
 import { toast } from "react-toastify";
 
 const BUTTON_STYLE_CLASSES = "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";

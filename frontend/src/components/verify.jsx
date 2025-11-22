@@ -1,169 +1,343 @@
+// ============================================================================
+// FILE: src/components/self-verification-flow.jsx
+// SELF PROTOCOL - VERIFICATION FLOW COMPONENT
+// ============================================================================
+
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from "react";
 import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, Smartphone, QrCode, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { SelfQRcodeWrapper, getUniversalLink, SelfAppBuilder } from "@selfxyz/qrcode";
+import { SelfQRcodeWrapper, SelfAppBuilder, getUniversalLink } from "@selfxyz/qrcode";
 import { toast } from "react-toastify";
 
-const BUTTON_STYLE_CLASSES = "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
 
-const useIsMobile = (breakpoint = 768) => {
-    const [isMobile, setIsMobile] = useState(false);
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, [breakpoint]);
-    return isMobile;
+const SELF_CONFIG = {
+  scope: process.env.NEXT_PUBLIC_SELF_SCOPE || "contriboost",
+  endpoint:
+    process.env.NEXT_PUBLIC_SELF_ENDPOINT || "https://www.contriboost.xyz/api/verify",
+  mode: process.env.NEXT_PUBLIC_SELF_MODE || "mainnet",
+  appName: process.env.NEXT_PUBLIC_SELF_APP_NAME || "Contriboost",
+  minimumAge: parseInt(process.env.NEXT_PUBLIC_MINIMUM_AGE || "15"),
+  logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || "https://www.contriboost.xyz/logo.png",
 };
 
-/**
- * Props:
- * - onSuccess: callback function
- * - onCancel: callback function
- * - isFlowOpen: boolean
- * - userAddress: string (The connected wallet address, e.g., "0x123...")
- */
-export default function SelfVerificationFlow({ onSuccess, onCancel, isFlowOpen, userAddress }) {
-    
-    // CRITICAL FIX: Memoize config so it doesn't reload on every render
-    // Added `disclosures` and `userDefinedData`
-    const selfConfig = useMemo(() => ({
-        scope: "contriboost",
-        endpoint: "https://www.contriboost.xyz/api/verify", // Must match Backend exactly
-        mode: "production", // "staging" for Mock Passports, "production" for Real
-        userIdType: "hex",
-        
-        // 1. Tell the app WHAT to verify (Must match backend rules)
-        disclosures: {
-            minimumAge: 15,
-            nationality: true,
-            ofac: false, 
-            excludedCountries: [] 
-        },
+const BUTTON_STYLE_CLASSES =
+  "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
 
-        // 2. Bind the proof to the specific wallet address
-        // If userAddress is null, we send a zero address to prevent crash
-        userDefinedData: userAddress || "0x0000000000000000000000000000000000000000", 
-    }), [userAddress]);
+// ============================================================================
+// CUSTOM HOOK: DETECT MOBILE
+// ============================================================================
 
-    const { selfApp, isLoading: isAppLoading, error } = useSelfApp(selfConfig);
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(false);
 
-    const isMobile = useIsMobile();
-    const [universalLink, setUniversalLink] = useState('');
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-    useEffect(() => {
-        if (selfApp) {
-            try {
-                setUniversalLink(getUniversalLink(selfApp));
-            } catch (e) {
-                console.error("Failed to generate universal link:", e);
-            }
-        }
-    }, [selfApp]);
-
-    useEffect(() => {
-        if (error) {
-            console.error("Self SDK Error:", error);
-            // Don't show toast immediately on mount, only if persistent error
-            if (error.code !== 'ERR_NETWORK') toast.error("Identity system error: " + error.message);
-        }
-    }, [error]);
-
-    if (!isFlowOpen) return null;
-
-    if (isAppLoading) {
-        return (
-             <Card className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-6 max-w-sm w-full flex justify-center items-center h-48 bg-white shadow-xl">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">Initializing Verification...</span>
-            </Card>
-        );
-    }
-
-    const handleOpenSelfApp = () => {
-        if (universalLink) {
-            window.open(universalLink, '_blank');
-        } else {
-            toast.error("Verification link not ready.");
-        }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < breakpoint);
     };
 
-    const VerificationContent = () => (
-        <CardContent className="p-0">
-            <div className="flex flex-col items-center space-y-4">
-                {isMobile ? (
-                    // --- MOBILE VIEW ---
-                    <div className="flex flex-col items-center space-y-3 w-full">
-                        <Smartphone className="h-10 w-10 text-primary mb-2" />
-                        <Button 
-                            onClick={handleOpenSelfApp}
-                            disabled={!universalLink}
-                            className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
-                        >
-                            Open Self App to Verify
-                        </Button>
-                        <p className="text-sm text-muted-foreground pt-2 text-center">
-                            Tap above to open the Self App and prove you are human.
-                        </p>
-                    </div>
-                ) : (
-                    // --- DESKTOP VIEW ---
-                    <div className="flex flex-col items-center">
-                         <QrCode className="h-6 w-6 text-muted-foreground mb-2" />
-                         <p className="text-sm text-muted-foreground mb-3">Scan with your Self mobile app:</p>
-                        <SelfQRcodeWrapper
-                            selfApp={selfApp}
-                            onSuccess={onSuccess}
-                            onError={(e) => {
-                                console.error("Self Verification Error:", e);
-                                // The app sends generic error codes often, check logs for specifics
-                                toast.error("Verification failed. Please ensure you meet the requirements.");
-                            }}
-                            size={256}
-                        />
-                    </div>
-                )}
-                
-                <Button 
-                    variant="outline" 
-                    onClick={onCancel}
-                    className={BUTTON_STYLE_CLASSES}
-                >
-                    Cancel
-                </Button>
-            </div>
-        </CardContent>
-    );
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
 
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+};
+
+// ============================================================================
+// BUILD SELF APP
+// ============================================================================
+
+function buildSelfApp(userAddress) {
+  try {
+    const app = new SelfAppBuilder({
+      version: 2,
+      appName: SELF_CONFIG.appName,
+      scope: SELF_CONFIG.scope,
+      endpoint: SELF_CONFIG.endpoint,
+      logoBase64: SELF_CONFIG.logoUrl,
+      userId: userAddress || "0x0",
+      endpointType: SELF_CONFIG.mode === "mainnet" ? "mainnet" : "staging_celo",
+      userIdType: "hex",
+      userDefinedData: userAddress || "",
+      disclosures: {
+        minimumAge: SELF_CONFIG.minimumAge,
+        excludedCountries: ["KP", "IR", "SY", "CU"],
+        ofac: true,
+        nationality: true,
+      },
+    }).build();
+
+    console.log("✓ Self app built successfully");
+    return app;
+  } catch (error) {
+    console.error("❌ Failed to build Self app:", error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+/**
+ * SelfVerificationFlow Component
+ * 
+ * Displays QR code for desktop or deep link button for mobile.
+ * Handles identity verification via Self Protocol.
+ * 
+ * Props:
+ * - onSuccess: Callback when verification succeeds
+ * - onCancel: Callback when user cancels
+ * - isFlowOpen: Boolean to show/hide the flow
+ * - userAddress: User's wallet address (optional)
+ */
+export default function SelfVerificationFlow({
+  onSuccess,
+  onCancel,
+  isFlowOpen,
+  userAddress,
+}) {
+  const isMobile = useIsMobile();
+  const [selfApp, setSelfApp] = useState(null);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [universalLink, setUniversalLink] = useState("");
+  const [error, setError] = useState(null);
+
+  // ========================================================================
+  // INITIALIZE SELF APP
+  // ========================================================================
+
+  useEffect(() => {
+    if (!isFlowOpen) return;
+
+    const initializeApp = async () => {
+      try {
+        setIsAppLoading(true);
+        setError(null);
+        console.log("🚀 Initializing Self verification flow...");
+
+        // Build Self app with user address
+        const app = buildSelfApp(userAddress);
+        setSelfApp(app);
+
+        // Generate universal link for mobile
+        try {
+          const link = getUniversalLink(app);
+          setUniversalLink(link);
+          console.log("✓ Universal link generated");
+        } catch (linkError) {
+          console.warn("Warning: Failed to generate universal link:", linkError);
+          // Don't fail completely, QR code will still work on desktop
+        }
+
+        console.log("✓ Verification flow ready");
+      } catch (err) {
+        console.error("❌ Initialization error:", err);
+        setError(err.message || "Failed to initialize verification");
+        toast.error("Failed to initialize verification");
+      } finally {
+        setIsAppLoading(false);
+      }
+    };
+
+    initializeApp();
+  }, [isFlowOpen, userAddress]);
+
+  // ========================================================================
+  // HANDLE OPEN SELF APP (MOBILE)
+  // ========================================================================
+
+  const handleOpenSelfApp = () => {
+    if (!universalLink) {
+      toast.error("Verification link not ready");
+      return;
+    }
+
+    console.log("📱 Opening Self app...");
+    window.open(universalLink, "_blank");
+  };
+
+  // ========================================================================
+  // HANDLE VERIFICATION SUCCESS
+  // ========================================================================
+
+  const handleVerificationSuccess = async (proofData) => {
+    console.log("✅ Proof received from Self app");
+
+    try {
+      // Extract proof components
+      const { attestationId, proof, publicSignals } = proofData;
+
+      console.log("📤 Sending proof to backend for verification...");
+
+      // Call backend verification endpoint
+      const response = await fetch("/api/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          attestationId,
+          proof,
+          publicSignals,
+          userContextData: userAddress || "0x0",
+        }),
+      });
+
+      const result = await response.json();
+
+      console.log("Backend Response:", result);
+
+      if (result.status === "success" && result.result === true) {
+        console.log("✅ Identity verified successfully!");
+        toast.success("Identity verified successfully!");
+
+        // Call parent callback with verified user data
+        if (onSuccess) {
+          onSuccess(result.user);
+        }
+      } else {
+        const reason = result.reason || "Verification failed";
+        console.warn(`❌ Verification failed: ${reason}`);
+        toast.error(reason);
+      }
+    } catch (error) {
+      console.error("❌ Verification error:", error);
+      toast.error("Verification error: " + error.message);
+    }
+  };
+
+  // ========================================================================
+  // HANDLE VERIFICATION ERROR
+  // ========================================================================
+
+  const handleVerificationError = (err) => {
+    console.error("❌ Verification error:", err);
+    const reason = err?.reason || err?.message || "Verification failed";
+    toast.error(reason);
+  };
+
+  // ========================================================================
+  // RENDER: CLOSED STATE
+  // ========================================================================
+
+  if (!isFlowOpen) return null;
+
+  // ========================================================================
+  // RENDER: LOADING STATE
+  // ========================================================================
+
+  if (isAppLoading) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <Card className="p-6 mt-4 max-w-sm mx-auto relative w-full bg-white">
-                <button
-                    onClick={onCancel}
-                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 z-10 p-2 rounded-full"
-                    aria-label="Close verification"
-                >
-                    <X className="h-6 w-6" />
-                </button>
-                <CardTitle className="mb-2 text-xl">Identity Verification</CardTitle>
-                <CardDescription className="mb-4">
-                    Prove your identity to join the Contriboost Circle.
-                </CardDescription>
-                {selfApp ? <VerificationContent /> : (
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                            Failed to load QR code. Please check your internet connection.
-                        </AlertDescription>
-                    </Alert>
-                )}
-            </Card>
-        </div>
+      <Card className="p-6 mt-4 max-w-sm mx-auto flex justify-center items-center h-48 fixed inset-0 z-50 m-auto bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Initializing Verification...</span>
+      </Card>
     );
+  }
+
+  // ========================================================================
+  // RENDER: VERIFICATION CONTENT
+  // ========================================================================
+
+  const VerificationContent = () => (
+    <CardContent className="p-0">
+      <div className="flex flex-col items-center space-y-4">
+        {isMobile ? (
+          // ================================================================
+          // MOBILE VIEW: Deep Link Button
+          // ================================================================
+          <div className="flex flex-col items-center space-y-3 w-full">
+            <Smartphone className="h-10 w-10 text-primary mb-2" />
+            <Button
+              onClick={handleOpenSelfApp}
+              disabled={!universalLink}
+              className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
+            >
+              Open Self App to Verify
+            </Button>
+            <p className="text-sm text-muted-foreground pt-2">
+              *This will open the Self app directly.*
+            </p>
+          </div>
+        ) : (
+          // ================================================================
+          // DESKTOP VIEW: QR Code
+          // ================================================================
+          <div className="flex flex-col items-center">
+            <QrCode className="h-6 w-6 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground mb-3">
+              Scan with your Self mobile app:
+            </p>
+            <SelfQRcodeWrapper
+              selfApp={selfApp}
+              onSuccess={handleVerificationSuccess}
+              onError={handleVerificationError}
+              size={256}
+            />
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          onClick={onCancel}
+          className={BUTTON_STYLE_CLASSES}
+        >
+          Cancel
+        </Button>
+      </div>
+    </CardContent>
+  );
+
+  // ========================================================================
+  // RENDER: MAIN MODAL
+  // ========================================================================
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <Card className="p-6 mt-4 max-w-sm mx-auto relative w-full">
+        {/* Close Button */}
+        <button
+          onClick={onCancel}
+          className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 z-10 p-2 rounded-full hover:bg-gray-100 transition-colors"
+          aria-label="Close verification"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        {/* Header */}
+        <CardTitle className="mb-2 text-xl">Identity Verification</CardTitle>
+        <CardDescription className="mb-4">
+          Prove your identity to join the Contriboost Circle.
+        </CardDescription>
+
+        {/* Content or Error */}
+        {error ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : selfApp ? (
+          <VerificationContent />
+        ) : (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Verification initialization failed.
+            </AlertDescription>
+          </Alert>
+        )}
+      </Card>
+    </div>
+  );
 }

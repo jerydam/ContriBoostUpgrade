@@ -74,7 +74,9 @@ function getVerifier() {
 
 export async function POST(req) {
   const startTime = Date.now();
-
+  console.log("✅ Verification request received!");
+  console.log("📍 Request URL:", req.url);
+  console.log("📍 Request method:", req.method);
   try {
     console.log("📥 Verification request received");
 

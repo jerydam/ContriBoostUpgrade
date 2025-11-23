@@ -1,6 +1,6 @@
 // ============================================================================
-// FILE: app/api/verify/route.ts
-// SELF PROTOCOL - FIXED BACKEND VERIFICATION
+// FILE: app/api/verify/route.js
+// SELF PROTOCOL - DIRECT CONFIGURATION (NO ENV VARIABLES)
 // ============================================================================
 
 import { NextResponse } from "next/server";
@@ -11,29 +11,26 @@ import {
 } from "@selfxyz/core";
 
 // ============================================================================
-// CONFIGURATION - CORRECTED
+// HARDCODED CONFIGURATION
 // ============================================================================
 
-// ✅ FIX: Use environment variables for flexibility
-const SELF_SCOPE = process.env.SELF_SCOPE || "contriboost";
-const SELF_ENDPOINT =
-  process.env.SELF_ENDPOINT ||
-  "https://www.contriboost.xyz/api/verify"; // ✅ FIXED: Added missing slash (https://)
-const MINIMUM_AGE = parseInt(process.env.MINIMUM_AGE || "15");
-const EXCLUDED_COUNTRIES = (process.env.EXCLUDED_COUNTRIES || "").split(",").filter(Boolean);
-const OFAC_CHECK = process.env.OFAC_CHECK === "true";
+const SELF_SCOPE = "contriboost"; // Your app's unique scope
+const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; // Your backend verification endpoint
+const MINIMUM_AGE = 15; // Minimum age requirement
+const EXCLUDED_COUNTRIES = []; // Array of 2-letter country codes, e.g., ["US", "IR"]
+const OFAC_CHECK = false; // Set to true to enable OFAC sanctions check
 
-// ✅ FIX: Set devMode based on environment
-// For production: NODE_ENV=production (devMode = false = mainnet)
-// For staging: NODE_ENV=development (devMode = true = testnet)
-const DEV_MODE = process.env.NODE_ENV !== "production";
+// Set to true for testnet/staging, false for mainnet/production
+// For this example, we'll default to testnet (staging)
+const DEV_MODE = true;
 
-console.log("🔐 Backend Configuration:");
+console.log("🔐 Backend Configuration (Hardcoded):");
 console.log(`   Scope: ${SELF_SCOPE}`);
 console.log(`   Endpoint: ${SELF_ENDPOINT}`);
 console.log(`   Dev Mode: ${DEV_MODE}`);
 console.log(`   Minimum Age: ${MINIMUM_AGE}`);
 console.log(`   OFAC Check: ${OFAC_CHECK}`);
+console.log(`   Excluded Countries: ${EXCLUDED_COUNTRIES.join(", ") || "None"}`);
 
 // ============================================================================
 // SINGLETON VERIFIER
@@ -54,7 +51,7 @@ function getVerifier() {
     verifierInstance = new SelfBackendVerifier(
       SELF_SCOPE,
       SELF_ENDPOINT,
-      DEV_MODE, // ✅ FIX: Matches frontend mode
+      DEV_MODE,
       EnabledIds,
       new DefaultConfigStore({
         minimumAge: MINIMUM_AGE,
@@ -84,7 +81,7 @@ export async function POST(req) {
       await req.json();
 
     console.log(`   Attestation ID: ${attestationId}`);
-    console.log(`   User Context: ${userContextData?.substring(0, 20)}...`);
+    console.log(`   User Context (userAddress): ${userContextData}`);
 
     // Validate required fields
     if (!proof || !publicSignals || !attestationId || !userContextData) {
@@ -116,12 +113,6 @@ export async function POST(req) {
       isMinimumAgeValid: result.isValidDetails.isMinimumAgeValid,
       isOfacValid: result.isValidDetails.isOfacValid,
     });
-
-    // Extract user data
-    const { userIdentifier } = result.userData;
-    const userAddress = `0x${userIdentifier.substring(userIdentifier.length - 40)}`;
-
-    console.log(`👤 User Address: ${userAddress}`);
 
     // Check verification status
     if (!result.isValidDetails.isValid) {
@@ -187,8 +178,10 @@ export async function POST(req) {
       }
     }
 
-    // ✅ SUCCESS
+    // ✅ SUCCESS: Use userContextData as userAddress
     const verificationTime = Date.now() - startTime;
+    const userAddress = userContextData;
+
     console.log(`✅ Verification successful in ${verificationTime}ms`);
     console.log(`   User: ${userAddress}`);
 
@@ -199,7 +192,7 @@ export async function POST(req) {
         message: "Identity verified.",
         user: {
           address: userAddress,
-          identifier: userIdentifier,
+          identifier: result.userData?.userIdentifier || userAddress,
           verified_at: new Date().toISOString(),
         },
         verification_details: {

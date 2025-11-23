@@ -1,6 +1,6 @@
 // ============================================================================
 // FILE: app/api/verify/route.js
-// SELF PROTOCOL - DIRECT CONFIGURATION (NO ENV VARIABLES)
+// SELF PROTOCOL - BACKEND VERIFICATION
 // ============================================================================
 
 import { NextResponse } from "next/server";
@@ -11,23 +11,24 @@ import {
 } from "@selfxyz/core";
 
 // ============================================================================
-// HARDCODED CONFIGURATION
+// CONFIGURATION
 // ============================================================================
 
 const SELF_SCOPE = "contriboost"; // Your app's unique scope
-const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; // Your backend verification endpoint
+const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; // Your backend endpoint
 const MINIMUM_AGE = 15; // Minimum age requirement
-const EXCLUDED_COUNTRIES = []; // Array of 2-letter country codes, e.g., ["US", "IR"]
+const EXCLUDED_COUNTRIES = []; // Array of 2-letter country codes
 const OFAC_CHECK = false; // Set to true to enable OFAC sanctions check
 
-// Set to true for testnet/staging, false for mainnet/production
-// For this example, we'll default to testnet (staging)
-const DEV_MODE = false;
+// ✅ CRITICAL: Must match frontend SELF_CONFIG.mode
+// Set to true if frontend mode is "staging" (testnet)
+// Set to false if frontend mode is "mainnet" (production)
+const DEV_MODE = false; // ✅ MUST MATCH: mainnet = false, staging = true
 
-console.log("🔐 Backend Configuration (Hardcoded):");
+console.log("🔐 Backend Configuration:");
 console.log(`   Scope: ${SELF_SCOPE}`);
 console.log(`   Endpoint: ${SELF_ENDPOINT}`);
-console.log(`   Dev Mode: ${DEV_MODE}`);
+console.log(`   Dev Mode (Testnet): ${DEV_MODE}`);
 console.log(`   Minimum Age: ${MINIMUM_AGE}`);
 console.log(`   OFAC Check: ${OFAC_CHECK}`);
 console.log(`   Excluded Countries: ${EXCLUDED_COUNTRIES.join(", ") || "None"}`);
@@ -51,7 +52,7 @@ function getVerifier() {
     verifierInstance = new SelfBackendVerifier(
       SELF_SCOPE,
       SELF_ENDPOINT,
-      DEV_MODE,
+      DEV_MODE, // ✅ This must match frontend mode
       EnabledIds,
       new DefaultConfigStore({
         minimumAge: MINIMUM_AGE,
@@ -63,6 +64,7 @@ function getVerifier() {
 
     console.log("✓ SelfBackendVerifier initialized");
   }
+
   return verifierInstance;
 }
 
@@ -81,7 +83,7 @@ export async function POST(req) {
       await req.json();
 
     console.log(`   Attestation ID: ${attestationId}`);
-    console.log(`   User Context (userAddress): ${userContextData}`);
+    console.log(`   User Address: ${userContextData}`);
 
     // Validate required fields
     if (!proof || !publicSignals || !attestationId || !userContextData) {
@@ -163,9 +165,7 @@ export async function POST(req) {
     if (EXCLUDED_COUNTRIES.length > 0) {
       const userNationality = result.discloseOutput?.nationality;
       if (userNationality && EXCLUDED_COUNTRIES.includes(userNationality)) {
-        console.warn(
-          `❌ User from excluded country: ${userNationality}`
-        );
+        console.warn(`❌ User from excluded country: ${userNationality}`);
         return NextResponse.json(
           {
             status: "error",
@@ -178,7 +178,7 @@ export async function POST(req) {
       }
     }
 
-    // ✅ SUCCESS: Use userContextData as userAddress
+    // ✅ SUCCESS: Use userContextData (connected wallet address)
     const verificationTime = Date.now() - startTime;
     const userAddress = userContextData;
 

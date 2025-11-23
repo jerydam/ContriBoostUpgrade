@@ -24,13 +24,12 @@ import { toast } from "react-toastify";
 // CONFIGURATION - FRONTEND
 // ============================================================================
 
-// ✅ FIX: Match backend configuration exactly
 const SELF_CONFIG = {
   scope: process.env.NEXT_PUBLIC_SELF_SCOPE || "contriboost",
   endpoint:
     process.env.NEXT_PUBLIC_SELF_ENDPOINT ||
-    "https://www.contriboost.xyz/api/verify", // ✅ FIXED: Full URL with https://
-  mode: process.env.NEXT_PUBLIC_SELF_MODE || "mainnet", // ✅ FIX: staging for testnet
+    "https://www.contriboost.xyz/api/verify",
+  mode: process.env.NEXT_PUBLIC_SELF_MODE || "mainnet", // ✅ Match backend: mainnet or staging
   appName: process.env.NEXT_PUBLIC_SELF_APP_NAME || "Contriboost App",
   minimumAge: parseInt(process.env.NEXT_PUBLIC_MINIMUM_AGE || "15"),
   logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || "https://i.postimg.cc/mrmVf9hm/self.png",
@@ -75,6 +74,16 @@ const useIsMobile = (breakpoint = 768) => {
 function buildSelfApp(userAddress) {
   try {
     console.log("🚀 Building Self app...");
+    console.log(`   Using connected address: ${userAddress}`);
+
+    if (!userAddress || userAddress === "0x0") {
+      throw new Error("Valid user address is required for verification");
+    }
+
+    // ✅ Convert address to proper format (remove 0x if present for hex type)
+    const cleanAddress = userAddress.startsWith("0x") 
+      ? userAddress.slice(2) 
+      : userAddress;
 
     const app = new SelfAppBuilder({
       version: 2,
@@ -82,17 +91,16 @@ function buildSelfApp(userAddress) {
       scope: SELF_CONFIG.scope,
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
-      userId: userAddress || "0x3207d4728c32391405c7122e59ccb115a4af31ea",
-      endpointType:
-        SELF_CONFIG.mode === "mainnet", // ✅ FIX: Correct endpointType
+      userId: cleanAddress, // ✅ Use connected wallet address
+      endpointType: SELF_CONFIG.mode === "mainnet", // ✅ true for mainnet, false for staging
       userIdType: "hex",
-      userDefinedData: userAddress || "",
+      userDefinedData: userAddress, // Keep full address for backend context
 
-      // ✅ FIX: Disclosures must match backend config
+      // ✅ Disclosures must match backend config
       disclosures: {
-        minimumAge: SELF_CONFIG.minimumAge, // ✅ Must match backend MINIMUM_AGE
-        excludedCountries: [], // ✅ Must match backend EXCLUDED_COUNTRIES
-        ofac: false, // ✅ Must match backend OFAC_CHECK
+        minimumAge: SELF_CONFIG.minimumAge,
+        excludedCountries: [],
+        ofac: false,
         nationality: true,
       },
     }).build();
@@ -115,7 +123,7 @@ export default function SelfVerificationFlow({
   onCancel,
   isFlowOpen,
   isAppLoading: externalIsAppLoading,
-  userAddress,
+  userAddress, // Connected wallet address
 }) {
   const isMobile = useIsMobile();
 
@@ -133,6 +141,13 @@ export default function SelfVerificationFlow({
   useEffect(() => {
     if (!isFlowOpen) return;
 
+    // Validate userAddress
+    if (!userAddress || userAddress === "0x0") {
+      setErrorMessage("Connected wallet address is required");
+      setVerificationStatus("error");
+      return;
+    }
+
     // If selfApp not provided externally, build it
     if (!externalSelfApp) {
       const initializeApp = async () => {
@@ -141,7 +156,7 @@ export default function SelfVerificationFlow({
           setErrorMessage("");
           console.log("🚀 Initializing Self verification flow...");
 
-          const app = buildSelfApp(userAddress);
+          const app = buildSelfApp(userAddress); // ✅ Pass connected address
           setSelfApp(app);
 
           // Generate universal link
@@ -221,7 +236,7 @@ export default function SelfVerificationFlow({
           attestationId,
           proof,
           publicSignals,
-          userContextData: userAddress || "0x0",
+          userContextData: userAddress, // ✅ Use connected address
         }),
       });
 

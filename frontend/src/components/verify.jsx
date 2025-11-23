@@ -22,7 +22,7 @@ import { toast } from "react-toastify";
 const SELF_CONFIG = {
   scope: "contriboost",
   endpoint: "https://www.contriboost.xyz/api/verify",
-  mode: "mainnet", 
+  mode: "celo", 
   appName: "Contriboost App",
   minimumAge: parseInt("15"),
   logoUrl: "https://i.postimg.cc/mrmVf9hm/self.png",

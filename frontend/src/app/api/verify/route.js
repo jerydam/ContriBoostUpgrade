@@ -15,7 +15,7 @@ import {
 // ============================================================================
 
 const SELF_SCOPE = "contriboost"; // Your app's unique scope
-const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; // Your backend endpoint
+const SELF_ENDPOINT = "celo"; // Your backend endpoint
 const MINIMUM_AGE = 15; // Minimum age requirement
 const EXCLUDED_COUNTRIES = []; // Array of 2-letter country codes
 const OFAC_CHECK = false; // Set to true to enable OFAC sanctions check

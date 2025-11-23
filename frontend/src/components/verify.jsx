@@ -96,7 +96,7 @@ function buildSelfApp(userAddress) {
       userId: hexAddress, // ✅ Use hex address WITH 0x prefix
       endpointType: SELF_CONFIG.mode === "mainnet", // ✅ true for mainnet, false for staging
       userIdType: "hex",
-      userDefinedData: userAddress, // Keep full address for backend context
+      userDefinedData: "", // ✅ Leave empty - or use minimal data
 
       // ✅ Disclosures must match backend config
       disclosures: {
@@ -254,12 +254,14 @@ export default function SelfVerificationFlow({
 
   const handleVerificationSuccess = async (proofData) => {
     console.log("✅ Proof received from Self app");
+    console.log("📦 Proof data:", proofData);
     setVerificationStatus("loading");
 
     try {
       // Extract proof components
       const { attestationId, proof, publicSignals } = proofData;
 
+      console.log("📋 Attestation ID:", attestationId);
       console.log("📤 Sending proof to backend for verification...");
 
       // Call backend verification endpoint
@@ -272,7 +274,7 @@ export default function SelfVerificationFlow({
           attestationId,
           proof,
           publicSignals,
-          userContextData: userAddress, // ✅ Use connected address
+          userContextData: userAddress, // ✅ Use connected address with 0x
         }),
       });
 
@@ -310,6 +312,17 @@ export default function SelfVerificationFlow({
 
   const handleVerificationError = (err) => {
     console.error("❌ Verification error:", err);
+    
+    // Log detailed error info
+    if (err && typeof err === 'object') {
+      console.log("Error details:", {
+        status: err.status,
+        error_code: err.error_code,
+        reason: err.reason,
+        message: err.message,
+      });
+    }
+    
     const reason = err?.reason || err?.message || "Verification failed";
     setErrorMessage(reason);
     setVerificationStatus("error");

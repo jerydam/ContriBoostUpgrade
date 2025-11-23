@@ -22,7 +22,7 @@ const OFAC_CHECK = false; // Set to true to enable OFAC sanctions check
 
 // Set to true for testnet/staging, false for mainnet/production
 // For this example, we'll default to testnet (staging)
-const DEV_MODE = true;
+const DEV_MODE = false;
 
 console.log("🔐 Backend Configuration (Hardcoded):");
 console.log(`   Scope: ${SELF_SCOPE}`);

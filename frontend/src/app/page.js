@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
+// 1. Import Farcaster SDK
+import { sdk } from "@farcaster/miniapp-sdk";
 
 export default function LandingPage() {
   const { account, walletType, connect, isConnecting } = useWeb3();
@@ -21,12 +23,27 @@ export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
+  const [isMiniApp, setIsMiniApp] = useState(false); // 2. State for Mini App
   const router = useRouter();
+
+  // 3. Check for Mini App environment on mount
+  useEffect(() => {
+    const checkMiniApp = async () => {
+      const isMini = await sdk.isInMiniApp();
+      setIsMiniApp(isMini);
+    };
+    checkMiniApp();
+  }, []);
 
   const handleCreateNavigation = (path) => {
     setIsCreateDialogOpen(false);
     if (!account) {
-      setIsConnectDialogOpen(true);
+      if (isMiniApp) {
+        // If in Mini App, connect directly without dialog
+        connect(); 
+      } else {
+        setIsConnectDialogOpen(true);
+      }
     } else {
       router.push(path);
     }
@@ -35,6 +52,19 @@ export default function LandingPage() {
   const handleConnect = async (connectorId) => {
     setIsConnectDialogOpen(false);
     await connect(connectorId);
+  };
+
+  // Wrapper for the main CTA to handle Mini App logic
+  const handleMainCta = () => {
+    if (isMiniApp) {
+      if (!account) {
+        connect(); // Connect directly using Farcaster provider
+      } else {
+        setIsCreateDialogOpen(true); // Open create menu if already connected
+      }
+    } else {
+      setIsConnectDialogOpen(true); // Standard flow
+    }
   };
 
   const handleSubscription = async (e) => {
@@ -159,7 +189,8 @@ export default function LandingPage() {
 
               {account && (
                 <p className="text-sm text-muted-foreground">
-                  Connected with {walletType === "eoa" ? "EOA Wallet" : "Smart Contract Wallet"}: {account.slice(0, 6)}...{account.slice(-4)}
+                  Connected: {account.slice(0, 6)}...{account.slice(-4)}
+                  {isMiniApp && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Farcaster</span>}
                 </p>
               )}
             </div>
@@ -189,58 +220,38 @@ export default function LandingPage() {
                       ))}
                     </ul>
 
-                    {/* GET STARTED → Wallet Connect Dialog */}
-                    <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full hover:bg-[#1e2a44] hover:text-amber-50"
-                          disabled={isConnecting}
-                        >
-                          {isConnecting ? "Connecting..." : "Get Started"}
-                        </Button>
-                      </DialogTrigger>
+                    {/* GET STARTED → Logic split for Mini App vs Web */}
+                    {isMiniApp ? (
+                      <Button
+                        variant="outline"
+                        className="w-full hover:bg-[#1e2a44] hover:text-amber-50"
+                        disabled={isConnecting}
+                        onClick={handleMainCta}
+                      >
+                         {isConnecting ? "Connecting..." : account ? "Create New" : "Connect Farcaster Wallet"}
+                      </Button>
+                    ) : (
+                      <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full hover:bg-[#1e2a44] hover:text-amber-50"
+                            disabled={isConnecting}
+                          >
+                            {isConnecting ? "Connecting..." : "Get Started"}
+                          </Button>
+                        </DialogTrigger>
 
-                      <ResponsiveDialogContent title="Choose what to create">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start h-auto py-4 text-left"
-                      onClick={() => handleCreateNavigation("/create/contribution")}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="bg-primary/10 p-2 rounded-full">
-                          <Wallet className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium">Create Contribution Pool</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Start a rotating savings pool with friends 
-                          </p>
-                        </div>
-                        <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
-                      </div>
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start h-auto py-4 text-left"
-                      onClick={() => handleCreateNavigation("/create/goalfund")}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="bg-primary/10 p-2 rounded-full">
-                          <Coins className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium">Create GoalFund</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Create a goal-based funding campaign
-                          </p>
-                        </div>
-                        <ChevronRight className="ml-auto h-5 w-5 self-center text-muted-foreground" />
-                      </div>
-                    </Button>
-                  </ResponsiveDialogContent>
-                    </Dialog>
+                        <ResponsiveDialogContent title="Connect Wallet">
+                           <div className="grid gap-4">
+                             <Button onClick={() => handleConnect("injected")} variant="outline" className="h-12 justify-start">
+                               Metamask / Injected
+                             </Button>
+                             {/* Add other connectors here */}
+                           </div>
+                        </ResponsiveDialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 </div>
               </div>
@@ -301,17 +312,14 @@ export default function LandingPage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 min-[400px]:gap-4">
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
-                      disabled={isConnecting}
-                    >
-                      Get Started
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                  disabled={isConnecting}
+                  onClick={() => handleCreateNavigation("/create/contribution")}
+                >
+                  Get Started
+                </Button>
 
                 <Link href="/pools">
                   <Button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
@@ -18,17 +18,16 @@ import * as z from "zod";
 import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
-// 🔵 DIVVI INTEGRATION: Import Divvi utilities
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 const FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
 const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
-// Helper function to format date for datetime-local input (YYYY-MM-DDTHH:MM)
 const getFutureDateTimeLocal = (days = 1) => {
-  const now = new Date(Date.now() + 60000); // 1 minute in the future
-  now.setDate(now.getDate() + days - 1); // Add days minus 1 (since we already have 1 minute buffer)
+  const now = new Date(Date.now() + 60000);
+  now.setDate(now.getDate() + days - 1);
   now.setSeconds(0);
   now.setMilliseconds(0);
 
@@ -59,24 +58,29 @@ const formSchemaContriboost = z.object({
   tokenType: z.enum(["CELO", "cUSD"]),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
-  // --- UPDATED ZOD VALIDATION ---
   startTimestamp: z.string().refine(
     (value) => {
       const date = new Date(value);
-      // Ensure it's a valid date and is greater than the current time
       return !isNaN(date.getTime()) && date.getTime() > Date.now();
     },
     { message: "Start date and time must be in the future" }
   ),
-  // --- END UPDATED ZOD VALIDATION ---
 });
 
 export default function CreateContriboostPage() {
   const router = useRouter();
-  // 🔵 DIVVI INTEGRATION: Get chainId from Web3 context
-  const { signer, account, chainId, connect } = useWeb3();
+  const { signer, account, chainId, connect, isConnecting } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [isMiniApp, setIsMiniApp] = useState(false);
+
+  useEffect(() => {
+    const checkContext = async () => {
+      const isMini = await sdk.isInMiniApp();
+      setIsMiniApp(isMini);
+    };
+    checkContext();
+  }, []);
 
   const form = useForm({
     resolver: zodResolver(formSchemaContriboost),
@@ -89,15 +93,14 @@ export default function CreateContriboostPage() {
       tokenType: "CELO",
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
-      // --- UPDATED DEFAULT VALUE ---
       startTimestamp: getFutureDateTimeLocal(),
-      // --- END UPDATED DEFAULT VALUE ---
     },
   });
 
   async function onSubmit(values) {
     if (!signer || !account) {
       await connect();
+      // Retry check after connect attempt
       if (!account) {
         setError("Please connect your wallet first");
         toast.warning("Please connect your wallet first");
@@ -121,14 +124,12 @@ export default function CreateContriboostPage() {
         hostFeePercentage: values.hostFeePercentage * 100,
         platformFeePercentage: 50,
         maxMissedDeposits: values.maxMissedDeposits,
-        // Convert the date string (YYYY-MM-DDTHH:MM) to a Unix timestamp (seconds)
         startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000), 
         paymentMethod: paymentMethod,
       };
 
       console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
 
-      // 🔵 DIVVI INTEGRATION: Get populated transaction to extract data
       const populatedTx = await factoryContract.createContriboost.populateTransaction(
         config,
         values.name,
@@ -136,17 +137,15 @@ export default function CreateContriboostPage() {
         tokenAddress
       );
 
-      // 🔵 DIVVI INTEGRATION: Append Divvi referral tag to transaction data
       const dataWithTag = appendDivviTag(populatedTx.data, account);
 
-      // Estimate gas for the modified transaction
+      // Estimate gas
       const estimatedGas = await signer.estimateGas({
         to: FACTORY_ADDRESS,
         data: dataWithTag,
       });
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
-      // 🔵 DIVVI INTEGRATION: Send transaction with Divvi-tagged data
       const tx = await signer.sendTransaction({
         to: FACTORY_ADDRESS,
         data: dataWithTag,
@@ -157,10 +156,7 @@ export default function CreateContriboostPage() {
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      // 🔵 DIVVI INTEGRATION: Submit referral to Divvi after transaction confirmation
       await submitDivviReferral(receipt.hash || tx.hash, chainId);
-
-      console.log("Receipt logs:", receipt.logs);
 
       const contriboostCreatedEvent = receipt.logs.find(
         (log) => {
@@ -178,7 +174,6 @@ export default function CreateContriboostPage() {
       }
 
       const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      console.log("Parsed ContriboostCreated event:", parsedLog);
       const newContractAddress = parsedLog.args.contriboostAddress;
 
       if (!ethers.isAddress(newContractAddress)) {
@@ -202,8 +197,6 @@ export default function CreateContriboostPage() {
         message = error.reason;
       } else if (error.message.includes("ContriboostCreated event")) {
         message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
       }
       setError(`Error: ${message}`);
       toast.error(`Error: ${message}`);
@@ -217,9 +210,20 @@ export default function CreateContriboostPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
-        <Button variant="outline" asChild>
-          <a href="/">Go Home</a>
+        <Button 
+            variant="outline" 
+            onClick={() => connect()} 
+            disabled={isConnecting}
+        >
+          {isConnecting ? "Connecting..." : isMiniApp ? "Connect Farcaster Wallet" : "Connect Wallet"}
         </Button>
+        {!isMiniApp && (
+            <div className="mt-4">
+                <Button variant="link" asChild>
+                <a href="/">Go Home</a>
+                </Button>
+            </div>
+        )}
       </div>
     );
   }
@@ -404,14 +408,11 @@ export default function CreateContriboostPage() {
                   <FormItem>
                     <FormLabel>Start Date and Time</FormLabel>
                     <FormControl>
-                      {/* --- UPDATED INPUT TYPE --- */}
                       <Input 
                         type="datetime-local" 
                         {...field} 
-                        // Ensure the browser doesn't block future date/time selection
                         min={getFutureDateTimeLocal(0)} 
                       />
-                      {/* --- END UPDATED INPUT TYPE --- */}
                     </FormControl>
                     <FormDescription>When the first cycle will begin</FormDescription>
                     <FormMessage />

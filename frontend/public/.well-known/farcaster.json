@@ -1,0 +1,17 @@
+{
+  "accountAssociation": {
+    "header": "...", 
+    "payload": "...",
+    "signature": "..."
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Contriboost",
+    "iconUrl": "https://www.Contriboost.xyz/icon.png",
+    "homeUrl": "https://www.Contriboost.xyz",
+    "imageUrl": "https://www.Contriboost.xyz/og-image.png",
+    "buttonTitle": "Start Saving",
+    "splashImageUrl": "https://www.Contriboost.xyz/splash.png",
+    "splashBackgroundColor": "#101b31"
+  }
+}

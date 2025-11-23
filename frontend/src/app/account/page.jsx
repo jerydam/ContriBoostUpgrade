@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, AlertCircle, CheckCircle, Tag, X } from "lucide-react";
 import { useSelfVerification } from "@/hooks/use-self";
 import SelfVerificationFlow from "@/components/verify";
+// Import Farcaster SDK
+import { sdk } from "@farcaster/miniapp-sdk";
 
 // Contract addresses
 const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
@@ -26,6 +28,7 @@ export default function AccountPage() {
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isMiniApp, setIsMiniApp] = useState(false);
   const router = useRouter();
 
   const { 
@@ -38,13 +41,28 @@ export default function AccountPage() {
     cancelVerification 
   } = useSelfVerification(account);
 
+  // Check for Mini App context
+  useEffect(() => {
+    const checkContext = async () => {
+      const isMini = await sdk.isInMiniApp();
+      setIsMiniApp(isMini);
+    };
+    checkContext();
+  }, []);
+
+  // Fetch data
   useEffect(() => {
     if (provider && account) {
       fetchUserData();
     } else {
-      setIsLoading(false);
+      // If no account but in MiniApp, try to connect automatically once
+      if (isMiniApp && !isConnecting && !account) {
+        connect();
+      } else {
+        setIsLoading(false);
+      }
     }
-  }, [provider, account]);
+  }, [provider, account, isMiniApp]);
 
   async function fetchUserData() {
     if (!provider || !account) return;
@@ -175,9 +193,15 @@ export default function AccountPage() {
           <p className="text-muted-foreground mb-6 text-sm md:text-base">
             Please connect your wallet to view your account details, pools, and funds.
           </p>
-          <Button variant="outline" asChild disabled={isConnecting}>
-            <Link href="/">Go to Home</Link>
-          </Button>
+          {isMiniApp ? (
+             <Button onClick={() => connect()} disabled={isConnecting}>
+                {isConnecting ? "Connecting..." : "Connect Farcaster Wallet"}
+             </Button>
+          ) : (
+             <Button variant="outline" asChild disabled={isConnecting}>
+                <Link href="/">Go to Home</Link>
+             </Button>
+          )}
         </div>
       </div>
     );
@@ -285,7 +309,7 @@ export default function AccountPage() {
                 <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
                 <p className="text-lg font-semibold">Not Verified</p>
                 <p className="text-sm text-muted-foreground mb-4">Please verify your identity to participate.</p>
-                <Button onClick={startVerification}>
+                <Button onClick={startVerification} disabled={isAppLoading}>
                   {isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Verify Identity
                 </Button>

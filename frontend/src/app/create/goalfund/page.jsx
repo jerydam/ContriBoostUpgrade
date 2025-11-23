@@ -1,33 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { GoalFundFactoryAbi } from "@/lib/contractabi";
+import { ContriboostFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "react-toastify";
-// 🔵 DIVVI INTEGRATION
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
+import { sdk } from "@farcaster/miniapp-sdk";
 
-const FACTORY_ADDRESS_GOALFUND = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
-const CELO_ADDRESS_GOALFUND = "0x471ece3750da237f93b8e339c536989b8978a438";
-const CUSD_ADDRESS_GOALFUND = "0x765de816845861e75a25fca122bb6898b8b1282a";
+const FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
-const formSchemaGoalFund = z.object({
+const getFutureDateTimeLocal = (days = 1) => {
+  const now = new Date(Date.now() + 60000);
+  now.setDate(now.getDate() + days - 1);
+  now.setSeconds(0);
+  now.setMilliseconds(0);
+
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formSchemaContriboost = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
-  targetAmount: z.string().refine(
+  dayRange: z.coerce.number().int().min(1, { message: "Must be at least 1 day" }),
+  expectedNumber: z.coerce.number().int().min(2, { message: "Must have at least 2 participants" }),
+  contributionAmount: z.string().refine(
     (value) => {
       try {
         return ethers.parseEther(value) > 0n;
@@ -37,53 +55,52 @@ const formSchemaGoalFund = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  // --- UPDATED ZOD VALIDATION ---
-  deadline: z.string().refine(
+  tokenType: z.enum(["CELO", "cUSD"]),
+  hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
+  maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
+  startTimestamp: z.string().refine(
     (value) => {
       const date = new Date(value);
       return !isNaN(date.getTime()) && date.getTime() > Date.now();
     },
-    { message: "Deadline date and time must be in the future" }
+    { message: "Start date and time must be in the future" }
   ),
-  // --- END UPDATED ZOD VALIDATION ---
-  beneficiary: z.string().refine(ethers.isAddress, { message: "Must be a valid Ethereum address" }),
-  fundType: z.enum(["0", "1"]),
-  tokenType: z.enum(["CELO", "cUSD"]),
 });
 
-export function CreateGoalFundPage() {
+export default function CreateContriboostPage() {
   const router = useRouter();
-  // 🔵 DIVVI INTEGRATION: Added chainId to destructuring
-  const { signer, account, chainId, connect } = useWeb3();
+  const { signer, account, chainId, connect, isConnecting } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [isMiniApp, setIsMiniApp] = useState(false);
+
+  useEffect(() => {
+    const checkContext = async () => {
+      const isMini = await sdk.isInMiniApp();
+      setIsMiniApp(isMini);
+    };
+    checkContext();
+  }, []);
 
   const form = useForm({
-    resolver: zodResolver(formSchemaGoalFund),
+    resolver: zodResolver(formSchemaContriboost),
     defaultValues: {
       name: "",
       description: "",
-      targetAmount: "1",
-      // --- UPDATED DEFAULT VALUE ---
-      deadline: getFutureDateTimeLocal(30), // 30 days in the future
-      // --- END UPDATED DEFAULT VALUE ---
-      beneficiary: account || "",
-      fundType: "0",
+      dayRange: 7,
+      expectedNumber: 10,
+      contributionAmount: "0.1",
       tokenType: "CELO",
+      hostFeePercentage: 2,
+      maxMissedDeposits: 2,
+      startTimestamp: getFutureDateTimeLocal(),
     },
   });
-
-  const fundType = form.watch("fundType");
-
-  useEffect(() => {
-    if (account && fundType === "1") {
-      form.setValue("beneficiary", account);
-    }
-  }, [account, fundType, form]);
 
   async function onSubmit(values) {
     if (!signer || !account) {
       await connect();
+      // Retry check after connect attempt
       if (!account) {
         setError("Please connect your wallet first");
         toast.warning("Please connect your wallet first");
@@ -95,48 +112,42 @@ export function CreateGoalFundPage() {
     setIsCreating(true);
 
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS_GOALFUND, GoalFundFactoryAbi, signer);
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
       
       const paymentMethod = 1;
-      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS_GOALFUND : CELO_ADDRESS_GOALFUND;
-
-      console.log("Creating GoalFund with values:", {
-        name: values.name,
-        description: values.description,
-        targetAmount: ethers.parseEther(values.targetAmount).toString(),
-        // Convert the date string (YYYY-MM-DDTHH:MM) to a Unix timestamp (seconds)
-        deadline: Math.floor(new Date(values.deadline).getTime() / 1000), 
-        beneficiary: values.beneficiary,
+      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
+      
+      const config = {
+        dayRange: values.dayRange,
+        expectedNumber: values.expectedNumber,
+        contributionAmount: ethers.parseEther(values.contributionAmount),
+        hostFeePercentage: values.hostFeePercentage * 100,
+        platformFeePercentage: 50,
+        maxMissedDeposits: values.maxMissedDeposits,
+        startTimestamp: Math.floor(new Date(values.startTimestamp).getTime() / 1000), 
         paymentMethod: paymentMethod,
-        tokenAddress,
-        fundType: Number(values.fundType),
-      });
+      };
 
-      // 🔵 DIVVI STEP 1: Get populated transaction
-      const populatedTx = await factoryContract.createGoalFund.populateTransaction(
+      console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
+
+      const populatedTx = await factoryContract.createContriboost.populateTransaction(
+        config,
         values.name,
         values.description,
-        ethers.parseEther(values.targetAmount),
-        Math.floor(new Date(values.deadline).getTime() / 1000),
-        values.beneficiary,
-        paymentMethod,
-        tokenAddress,
-        Number(values.fundType)
+        tokenAddress
       );
 
-      // 🔵 DIVVI STEP 2: Append Divvi referral tag
       const dataWithTag = appendDivviTag(populatedTx.data, account);
 
-      // Estimate gas for the modified transaction
+      // Estimate gas
       const estimatedGas = await signer.estimateGas({
-        to: FACTORY_ADDRESS_GOALFUND,
+        to: FACTORY_ADDRESS,
         data: dataWithTag,
       });
       const gasLimit = Math.floor(Number(estimatedGas) * 1.2);
 
-      // 🔵 DIVVI STEP 3: Send transaction with Divvi-tagged data
       const tx = await signer.sendTransaction({
-        to: FACTORY_ADDRESS_GOALFUND,
+        to: FACTORY_ADDRESS,
         data: dataWithTag,
         gasLimit,
       });
@@ -145,40 +156,36 @@ export function CreateGoalFundPage() {
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      // 🔵 DIVVI STEP 4: Submit referral to Divvi
       await submitDivviReferral(receipt.hash || tx.hash, chainId);
 
-      console.log("Receipt logs:", receipt.logs);
-
-      const goalFundCreatedEvent = receipt.logs.find(
+      const contriboostCreatedEvent = receipt.logs.find(
         (log) => {
           try {
             const parsedLog = factoryContract.interface.parseLog(log);
-            return parsedLog?.name === "GoalFundCreated";
+            return parsedLog?.name === "ContriboostCreated";
           } catch {
             return false;
           }
         }
       );
 
-      if (!goalFundCreatedEvent) {
-        throw new Error("Could not find GoalFundCreated event in transaction receipt");
+      if (!contriboostCreatedEvent) {
+        throw new Error("Could not find ContriboostCreated event in transaction receipt");
       }
 
-      const parsedLog = factoryContract.interface.parseLog(goalFundCreatedEvent);
-      console.log("Parsed GoalFundCreated event:", parsedLog);
-      const newContractAddress = parsedLog.args.goalFundAddress;
+      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
+      const newContractAddress = parsedLog.args.contriboostAddress;
 
       if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from GoalFundCreated event");
+        throw new Error("Invalid contract address received from ContriboostCreated event");
       }
 
-      toast.success("GoalFund created successfully!");
+      toast.success("Contriboost pool created successfully!");
       setTimeout(() => {
         router.push(`/pools/details/${newContractAddress}`);
       }, 500);
     } catch (error) {
-      console.error("Error creating GoalFund:", error);
+      console.error("Error creating Contriboost:", error);
       let message = "Transaction failed. Please try again.";
       if (error.code === 4001) {
         message = "Transaction rejected by wallet";
@@ -188,10 +195,8 @@ export function CreateGoalFundPage() {
         message = "Insufficient funds for gas or contract error";
       } else if (error.reason) {
         message = error.reason;
-      } else if (error.message.includes("GoalFundCreated event")) {
+      } else if (error.message.includes("ContriboostCreated event")) {
         message = "Failed to parse contract creation event";
-      } else if (error.message.includes("Invalid contract address")) {
-        message = "Invalid contract address received from transaction";
       }
       setError(`Error: ${message}`);
       toast.error(`Error: ${message}`);
@@ -203,21 +208,30 @@ export function CreateGoalFundPage() {
   if (!account) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4">Connect Your Wallet</h1>
-        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a GoalFund</p>
-        <Button variant="outline" asChild>
-          <a href="/">Go Home</a>
+        <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
+        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
+        <Button 
+            variant="outline" 
+            onClick={() => connect()} 
+            disabled={isConnecting}
+        >
+          {isConnecting ? "Connecting..." : isMiniApp ? "Connect Farcaster Wallet" : "Connect Wallet"}
         </Button>
+        {!isMiniApp && (
+            <div className="mt-4">
+                <Button variant="link" asChild>
+                <a href="/">Go Home</a>
+                </Button>
+            </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-2">Create GoalFund</h1>
-      <p className="text-muted-foreground mb-8 text-sm sm:text-base">
-        Deploy a new goal-based funding campaign
-      </p>
+      <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
+      <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
 
       {error && (
         <Alert variant="destructive" className="mb-6">
@@ -226,14 +240,12 @@ export function CreateGoalFundPage() {
         </Alert>
       )}
 
-      <Card className="w-full">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-xl sm:text-2xl">Fund Details</CardTitle>
-          <CardDescription className="text-sm">
-            Configure your new GoalFund campaign
-          </CardDescription>
+          <CardTitle>Pool Details</CardTitle>
+          <CardDescription>Configure your new Contriboost rotating savings pool</CardDescription>
         </CardHeader>
-        <CardContent className="pb-4">
+        <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -241,13 +253,11 @@ export function CreateGoalFundPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fund Name</FormLabel>
+                    <FormLabel>Pool Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Community Project Fund" {...field} />
+                      <Input placeholder="Friends Savings Pool" {...field} />
                     </FormControl>
-                    <FormDescription className="text-xs sm:text-sm">
-                      A clear name for your funding campaign
-                    </FormDescription>
+                    <FormDescription>A descriptive name for your Contriboost pool</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -259,31 +269,55 @@ export function CreateGoalFundPage() {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Raising funds to support our local community garden"
-                        {...field}
-                        className="min-h-[100px]"
-                      />
+                      <Textarea placeholder="Weekly savings pool for our friend group" {...field} />
                     </FormControl>
-                    <FormDescription className="text-xs sm:text-sm">
-                      Explain the purpose of this fund to potential contributors
-                    </FormDescription>
+                    <FormDescription>Explain the purpose of this pool to potential participants</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
-                  name="targetAmount"
+                  name="dayRange"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Target Amount</FormLabel>
+                      <FormLabel>Days Per Cycle</FormLabel>
                       <FormControl>
-                        <Input placeholder="1" {...field} />
+                        <Input type="number" min="1" {...field} />
                       </FormControl>
-                      <FormDescription className="text-xs sm:text-sm">
-                        Amount you aim to raise
+                      <FormDescription>Number of days in each distribution cycle</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="expectedNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expected Participants</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="2" {...field} />
+                      </FormControl>
+                      <FormDescription>Maximum number of participants in the pool</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="contributionAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contribution Amount</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Amount each participant contributes per cycle
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -291,22 +325,76 @@ export function CreateGoalFundPage() {
                 />
                 <FormField
                   control={form.control}
-                  name="deadline"
+                  name="tokenType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Deadline Date and Time</FormLabel>
+                      <FormLabel>Token</FormLabel>
                       <FormControl>
-                        {/* --- UPDATED INPUT TYPE --- */}
-                        <Input 
-                          type="datetime-local" 
-                          {...field} 
-                          // Ensure the browser doesn't block future date/time selection
-                          min={getFutureDateTimeLocal(0)}
-                        />
-                        {/* --- END UPDATED INPUT TYPE --- */}
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex flex-col space-y-1"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="CELO" />
+                            </FormControl>
+                            <FormLabel className="font-normal">CELO</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="cUSD" />
+                            </FormControl>
+                            <FormLabel className="font-normal">cUSD</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
                       </FormControl>
-                      <FormDescription className="text-xs sm:text-sm">
-                        When the funding campaign will end
+                      <FormDescription>Choose the token for contributions</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="hostFeePercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Host Fee Percentage</FormLabel>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="w-[200px] text-xs">
+                                The percentage fee you receive as the host of this pool. Max 5%.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <FormControl>
+                        <Input type="number" min="0" max="5" step="0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>Your fee for hosting (0-5%)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxMissedDeposits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Missed Deposits</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        How many deposits a participant can miss before becoming inactive
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -315,108 +403,28 @@ export function CreateGoalFundPage() {
               </div>
               <FormField
                 control={form.control}
-                name="fundType"
+                name="startTimestamp"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fund Type</FormLabel>
+                    <FormLabel>Start Date and Time</FormLabel>
                     <FormControl>
-                      <RadioGroup
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          if (value === "1" && account) {
-                            form.setValue("beneficiary", account);
-                          }
-                        }}
-                        defaultValue={field.value}
-                        className="flex flex-col space-y-2"
-                      >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="0" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Group Fund</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="1" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Personal Fund</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormDescription className="text-xs sm:text-sm">
-                      Group funds allow refunding contributors if the goal isn't met
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="beneficiary"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Beneficiary</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="0x..."
-                        {...field}
-                        disabled={fundType === "1"}
+                      <Input 
+                        type="datetime-local" 
+                        {...field} 
+                        min={getFutureDateTimeLocal(0)} 
                       />
                     </FormControl>
-                    <FormDescription className="text-xs sm:text-sm">
-                      {fundType === "1"
-                        ? "For personal funds, you are automatically the beneficiary"
-                        : "Address that will receive the funds when the goal is met"}
-                    </FormDescription>
+                    <FormDescription>When the first cycle will begin</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="tokenType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Token</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex flex-col space-y-2"
-                      >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="CELO" />
-                          </FormControl>
-                          <FormLabel className="font-normal">CELO</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="cUSD" />
-                          </FormControl>
-                          <FormLabel className="font-normal">cUSD</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormDescription className="text-xs sm:text-sm">
-                      Choose the token for contributions
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex justify-end pt-4">
-                <Button
-                  variant="outline"
-                  type="submit"
-                  disabled={isCreating}
-                  className="w-full sm:w-auto"
-                >
+              <CardFooter className="flex justify-end px-0">
+                <Button variant="outline" type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Fund
+                  Create Pool
                 </Button>
-              </div>
+              </CardFooter>
             </form>
           </Form>
         </CardContent>

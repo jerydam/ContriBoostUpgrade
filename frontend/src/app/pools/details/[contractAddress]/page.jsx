@@ -22,6 +22,10 @@ import { toast } from "react-toastify";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+// --- FARCASTER SDK IMPORT ---
+import { sdk } from "@farcaster/miniapp-sdk";
+// ----------------------------
+
 // --- NEW IMPORTS ---
 import { useSelfVerification } from "@/hooks/use-self";
 import SelfVerificationFlow from "@/components/verify";
@@ -55,6 +59,10 @@ export default function PoolDetailsPage() {
   const [error, setError] = useState(null);
   const [userStatus, setUserStatus] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Farcaster State
+  const [isMiniApp, setIsMiniApp] = useState(false);
+
   // NOTE: depositAmount is now only used in GoalFund UI, but kept here for potential future flexibility
   const [depositAmount, setDepositAmount] = useState(""); 
   const [contributeAmount, setContributeAmount] = useState("");
@@ -63,6 +71,32 @@ export default function PoolDetailsPage() {
   const [newTokenAddress, setNewTokenAddress] = useState("");
   const [newOwnerAddress, setNewOwnerAddress] = useState("");
   const [participants, setParticipants] = useState([]);
+
+  // --- FARCASTER INITIALIZATION ---
+  useEffect(() => {
+    const initFarcaster = async () => {
+      try {
+        const isMini = await sdk.isInMiniApp();
+        setIsMiniApp(isMini);
+        
+        if (isMini) {
+          // 1. Hide the Farcaster Splash Screen
+          await sdk.actions.ready();
+          
+          // 2. Auto-connect wallet if in Farcaster context and not connected
+          // This assumes your connect() function handles 'injected' or 'window.ethereum'
+          if (!account && !isConnecting) {
+             console.log("Auto-connecting Farcaster wallet...");
+             await connect(); 
+          }
+        }
+      } catch (err) {
+        console.error("Farcaster SDK Init Error:", err);
+      }
+    };
+    initFarcaster();
+  }, [account, isConnecting, connect]);
+  // --------------------------------
   
   // Define the core join function ahead of the hook initialization
   const joinContriboost = useCallback(async () => {
@@ -136,8 +170,11 @@ export default function PoolDetailsPage() {
       return;
     }
     if (!provider) {
-      setError("Web3 provider not connected");
-      setIsLoading(false);
+      // Don't show error immediately if we are connecting (common in Farcaster)
+      if(!isConnecting) {
+        setError("Web3 provider not connected");
+        setIsLoading(false);
+      }
       return;
     }
     if (ethers.isAddress(contractAddress)) {
@@ -146,7 +183,7 @@ export default function PoolDetailsPage() {
       setError("Invalid contract address");
       setIsLoading(false);
     }
-  }, [provider, contractAddress, router, account]);
+  }, [provider, contractAddress, router, account, isConnecting]);
 
   async function fetchPoolDetails() {
     console.log("Fetching details for contract:", contractAddress);

@@ -80,10 +80,12 @@ function buildSelfApp(userAddress) {
       throw new Error("Valid user address is required for verification");
     }
 
-    // ✅ Convert address to proper format (remove 0x if present for hex type)
-    const cleanAddress = userAddress.startsWith("0x") 
-      ? userAddress.slice(2) 
-      : userAddress;
+    // ✅ Keep the 0x prefix - SelfAppBuilder expects hex format WITH 0x
+    const hexAddress = userAddress.startsWith("0x") 
+      ? userAddress 
+      : `0x${userAddress}`;
+
+    console.log(`   Hex address: ${hexAddress}`);
 
     const app = new SelfAppBuilder({
       version: 2,
@@ -91,7 +93,7 @@ function buildSelfApp(userAddress) {
       scope: SELF_CONFIG.scope,
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
-      userId: cleanAddress, // ✅ Use connected wallet address
+      userId: hexAddress, // ✅ Use hex address WITH 0x prefix
       endpointType: SELF_CONFIG.mode === "mainnet", // ✅ true for mainnet, false for staging
       userIdType: "hex",
       userDefinedData: userAddress, // Keep full address for backend context
@@ -106,6 +108,13 @@ function buildSelfApp(userAddress) {
     }).build();
 
     console.log("✓ Self app built successfully");
+    console.log(`   App Config:`, {
+      scope: SELF_CONFIG.scope,
+      appName: SELF_CONFIG.appName,
+      userId: hexAddress,
+      endpointType: SELF_CONFIG.mode === "mainnet",
+    });
+    
     return app;
   } catch (error) {
     console.error("❌ Failed to build Self app:", error);
@@ -126,6 +135,17 @@ export default function SelfVerificationFlow({
   userAddress, // Connected wallet address
 }) {
   const isMobile = useIsMobile();
+  
+  // ✅ DEBUG: Log props on mount and when they change
+  useEffect(() => {
+    console.log("🔍 SelfVerificationFlow Props:", {
+      isFlowOpen,
+      userAddress,
+      hasOnSuccess: !!onSuccess,
+      hasOnCancel: !!onCancel,
+      externalSelfApp: !!externalSelfApp,
+    });
+  }, [isFlowOpen, userAddress, onSuccess, onCancel, externalSelfApp]);
 
   // Internal state management
   const [selfApp, setSelfApp] = useState(externalSelfApp || null);
@@ -139,14 +159,24 @@ export default function SelfVerificationFlow({
   // ========================================================================
 
   useEffect(() => {
-    if (!isFlowOpen) return;
+    if (!isFlowOpen) {
+      console.log("⏸️ Flow is closed, skipping initialization");
+      return;
+    }
+
+    console.log("🎯 Flow opened, checking userAddress...");
+    console.log(`   userAddress value: "${userAddress}"`);
+    console.log(`   userAddress type: ${typeof userAddress}`);
 
     // Validate userAddress
     if (!userAddress || userAddress === "0x0") {
+      console.error("❌ Invalid userAddress:", userAddress);
       setErrorMessage("Connected wallet address is required");
       setVerificationStatus("error");
       return;
     }
+
+    console.log("✅ userAddress is valid, proceeding...");
 
     // If selfApp not provided externally, build it
     if (!externalSelfApp) {
@@ -155,17 +185,21 @@ export default function SelfVerificationFlow({
           setIsAppLoading(true);
           setErrorMessage("");
           console.log("🚀 Initializing Self verification flow...");
+          console.log(`📋 User Address: ${userAddress}`);
 
           const app = buildSelfApp(userAddress); // ✅ Pass connected address
+          console.log("✓ App object created:", app);
+          
           setSelfApp(app);
 
           // Generate universal link
           try {
             const link = getUniversalLink(app);
             setUniversalLink(link);
-            console.log("✓ Universal link generated");
+            console.log("✓ Universal link generated:", link);
           } catch (linkError) {
-            console.warn("Warning: Failed to generate universal link:", linkError);
+            console.warn("⚠️ Warning: Failed to generate universal link:", linkError);
+            // Don't fail - QR code should still work even if universal link fails
           }
 
           console.log("✓ Verification flow ready");
@@ -183,6 +217,7 @@ export default function SelfVerificationFlow({
       initializeApp();
     } else {
       // Use externally provided selfApp
+      console.log("✓ Using external selfApp");
       setSelfApp(externalSelfApp);
       setIsAppLoading(externalIsAppLoading ?? false);
 
@@ -191,8 +226,9 @@ export default function SelfVerificationFlow({
         try {
           const link = getUniversalLink(externalSelfApp);
           setUniversalLink(link);
+          console.log("✓ Universal link from external app:", link);
         } catch (e) {
-          console.error("Failed to generate universal link:", e);
+          console.warn("⚠️ Warning: Failed to generate universal link:", e);
         }
       }
     }
@@ -392,17 +428,29 @@ export default function SelfVerificationFlow({
           // ================================================================
           // DESKTOP VIEW: QR Code
           // ================================================================
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center w-full">
             <QrCode className="h-6 w-6 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground mb-3">
+            <p className="text-sm text-muted-foreground mb-4">
               Scan with your Self mobile app:
             </p>
-            <SelfQRcodeWrapper
-              selfApp={selfApp}
-              onSuccess={handleVerificationSuccess}
-              onError={handleVerificationError}
-              size={256}
-            />
+            
+            {selfApp ? (
+              <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                <SelfQRcodeWrapper
+                  selfApp={selfApp}
+                  onSuccess={handleVerificationSuccess}
+                  onError={handleVerificationError}
+                  size={256}
+                />
+              </div>
+            ) : (
+              <Alert variant="destructive" className="w-full">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Failed to generate QR code. Please try again.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 

@@ -307,6 +307,7 @@ export default function AccountPage() {
                 <X className="h-6 w-6" />
             </button>
             <SelfVerificationFlow
+                userAddress={account}
                 selfApp={selfApp}
                 onSuccess={handleSuccess}
                 onCancel={cancelVerification}

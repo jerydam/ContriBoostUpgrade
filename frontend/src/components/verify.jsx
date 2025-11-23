@@ -86,7 +86,7 @@ function buildSelfApp(userAddress) {
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
       userId: hexAddress,
-      endpointType: "celo",
+      endpointType: SELF_CONFIG.mode === "celo",
       userIdType: "hex",
       userDefinedData: userAddress, 
 

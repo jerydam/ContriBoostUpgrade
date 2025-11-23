@@ -21,7 +21,7 @@ import { toast } from "react-toastify";
 
 const SELF_CONFIG = {
   scope: "contriboost",
-  endpoint: "celo",
+  endpoint: "https://www.contriboost.xyz/api/verify",
   mode: "mainnet", 
   appName: "Contriboost App",
   minimumAge: parseInt("15"),
@@ -86,7 +86,7 @@ function buildSelfApp(userAddress) {
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
       userId: hexAddress,
-      endpointType: SELF_CONFIG.mode === "mainnet",
+      endpointType: "celo",
       userIdType: "hex",
       userDefinedData: userAddress, 
 

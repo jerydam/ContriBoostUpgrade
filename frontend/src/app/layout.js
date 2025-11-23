@@ -14,14 +14,14 @@ const inter = Inter({ subsets: ["latin"] });
 // Define the Mini App metadata
 const miniAppMetadata = JSON.stringify({
   version: "1",
-  imageUrl: "https://www.contriboost.xyz/og-image.png", 
+  imageUrl: "https://www.contriboost.xyz/icon.jpg", 
   button: {
     title: "Launch Contriboost",
     action: {
       type: "launch_frame",
       name: "Contriboost",
       url: "https://www.contriboost.xyz",
-      splashImageUrl: "https://www.contriboost.xyz/icon.png",
+      splashImageUrl: "https://www.contriboost.xyz/favicon.png",
       splashBackgroundColor: "#101b31",
     },
   },

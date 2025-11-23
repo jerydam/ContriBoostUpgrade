@@ -12,6 +12,7 @@
     "imageUrl": "https://www.contriboost.xyz/og-image.png",
     "buttonTitle": "Start Saving",
     "splashImageUrl": "https://www.contriboost.xyz/splash.png",
-    "splashBackgroundColor": "#101b31"
+    "splashBackgroundColor": "#101b31",
+    "webhookUrl": "https://www.contriboost.xyz/api/webhook"
   }
 }

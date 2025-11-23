@@ -7,9 +7,9 @@
   "miniapp": {
     "version": "1",
     "name": "Contriboost",
-    "iconUrl": "https://www.contriboost.xyz/icon.png",
+    "iconUrl": "https://www.contriboost.xyz/favicon.png",
     "homeUrl": "https://www.contriboost.xyz",
-    "imageUrl": "https://www.contriboost.xyz/og-image.png",
+    "imageUrl": "https://www.contriboost.xyz/icon.jpg",
     "buttonTitle": "Start Saving",
     "splashImageUrl": "https://www.contriboost.xyz/splash.png",
     "splashBackgroundColor": "#101b31",

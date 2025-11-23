@@ -1,17 +1,17 @@
 {
   "accountAssociation": {
-    "header": "...", 
-    "payload": "...",
-    "signature": "..."
+    "header": "eyJmaWQiOjgxMjkzMCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDk4OTVFMzg1OTEzODlmZmE4N0I3QjU2MURFNTFhNGQ3RGU1MjFlY2UifQ",
+    "payload": "eyJkb21haW4iOiJ3d3cuY29udHJpYm9vc3QueHl6In0",
+    "signature": "buZMATpJTu3lQf6gNDSsPrDToso1qdNUlz9o3wgbindrih9ByZs8LpUuk2F1qHKWrasBcmIzXu01bs2gBM4kbRw="
   },
   "miniapp": {
     "version": "1",
     "name": "Contriboost",
-    "iconUrl": "https://www.Contriboost.xyz/icon.png",
-    "homeUrl": "https://www.Contriboost.xyz",
-    "imageUrl": "https://www.Contriboost.xyz/og-image.png",
+    "iconUrl": "https://www.contriboost.xyz/icon.png",
+    "homeUrl": "https://www.contriboost.xyz",
+    "imageUrl": "https://www.contriboost.xyz/og-image.png",
     "buttonTitle": "Start Saving",
-    "splashImageUrl": "https://www.Contriboost.xyz/splash.png",
+    "splashImageUrl": "https://www.contriboost.xyz/splash.png",
     "splashBackgroundColor": "#101b31"
   }
 }

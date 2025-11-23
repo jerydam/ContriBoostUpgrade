@@ -4,25 +4,24 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { Web3Provider } from "@/components/providers/web3-provider";
-// 1. Import the new provider
-import MiniAppProvider from "@/components/providers/miniapp-provider"; 
+import MiniAppProvider from "@/components/providers/miniapp-provider";
 import { ThemeScript } from "./theme-script";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// 2. Add Farcaster Frame Metadata
-const frameMetadata = JSON.stringify({
+// Define the Mini App metadata
+const miniAppMetadata = JSON.stringify({
   version: "1",
-  imageUrl: "https://www.Contriboost.xyz/og-image.png", // Replace with your actual URL
+  imageUrl: "https://www.contriboost.xyz/og-image.png", 
   button: {
     title: "Launch Contriboost",
     action: {
       type: "launch_frame",
       name: "Contriboost",
-      url: "https://www.Contriboost.xyz", // Replace with your actual URL
-      splashImageUrl: "https://www.Contriboost.xyz/icon.png",
+      url: "https://www.contriboost.xyz",
+      splashImageUrl: "https://www.contriboost.xyz/icon.png",
       splashBackgroundColor: "#101b31",
     },
   },
@@ -35,7 +34,9 @@ export const metadata = {
     icon: "/favicon.png",
   },
   other: {
-    "fc:frame": frameMetadata,
+    // Add BOTH tags for maximum compatibility
+    "fc:frame": miniAppMetadata,
+    "fc:miniapp": miniAppMetadata,
   },
 };
 
@@ -47,7 +48,6 @@ export default function RootLayout({ children }) {
       </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {/* 3. Wrap everything in MiniAppProvider */}
           <MiniAppProvider>
             <Web3Provider>
               <div className="flex min-h-screen flex-col">

@@ -1,8 +1,3 @@
-// ============================================================================
-// FILE: components/self-verification-flow.jsx
-// SELF PROTOCOL - FIXED FRONTEND VERIFICATION
-// ============================================================================
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -25,14 +20,12 @@ import { toast } from "react-toastify";
 // ============================================================================
 
 const SELF_CONFIG = {
-  scope: process.env.NEXT_PUBLIC_SELF_SCOPE || "contriboost",
-  endpoint:
-    process.env.NEXT_PUBLIC_SELF_ENDPOINT ||
-    "https://www.contriboost.xyz/api/verify",
-  mode: process.env.NEXT_PUBLIC_SELF_MODE || "mainnet", // ✅ Match backend: mainnet or staging
-  appName: process.env.NEXT_PUBLIC_SELF_APP_NAME || "Contriboost App",
-  minimumAge: parseInt(process.env.NEXT_PUBLIC_MINIMUM_AGE || "15"),
-  logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || "https://i.postimg.cc/mrmVf9hm/self.png",
+  scope: "contriboost",
+  endpoint: "celo",
+  mode: "mainnet", 
+  appName: "Contriboost App",
+  minimumAge: parseInt("15"),
+  logoUrl: "https://i.postimg.cc/mrmVf9hm/self.png",
 };
 
 console.log("🔐 Frontend Configuration:");
@@ -80,7 +73,6 @@ function buildSelfApp(userAddress) {
       throw new Error("Valid user address is required for verification");
     }
 
-    // ✅ Keep the 0x prefix - SelfAppBuilder expects hex format WITH 0x
     const hexAddress = userAddress.startsWith("0x") 
       ? userAddress 
       : `0x${userAddress}`;
@@ -93,12 +85,11 @@ function buildSelfApp(userAddress) {
       scope: SELF_CONFIG.scope,
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
-      userId: hexAddress, // ✅ Use hex address WITH 0x prefix
-      endpointType: SELF_CONFIG.mode === "mainnet", // ✅ true for mainnet, false for staging
+      userId: hexAddress,
+      endpointType: SELF_CONFIG.mode === "mainnet",
       userIdType: "hex",
-      userDefinedData: "", // ✅ Leave empty - or use minimal data
+      userDefinedData: userAddress, 
 
-      // ✅ Disclosures must match backend config
       disclosures: {
         minimumAge: SELF_CONFIG.minimumAge,
         excludedCountries: [],
@@ -254,14 +245,12 @@ export default function SelfVerificationFlow({
 
   const handleVerificationSuccess = async (proofData) => {
     console.log("✅ Proof received from Self app");
-    console.log("📦 Proof data:", proofData);
     setVerificationStatus("loading");
 
     try {
       // Extract proof components
       const { attestationId, proof, publicSignals } = proofData;
 
-      console.log("📋 Attestation ID:", attestationId);
       console.log("📤 Sending proof to backend for verification...");
 
       // Call backend verification endpoint
@@ -274,7 +263,7 @@ export default function SelfVerificationFlow({
           attestationId,
           proof,
           publicSignals,
-          userContextData: userAddress, // ✅ Use connected address with 0x
+          userContextData: userAddress, // ✅ Use connected address
         }),
       });
 
@@ -312,17 +301,6 @@ export default function SelfVerificationFlow({
 
   const handleVerificationError = (err) => {
     console.error("❌ Verification error:", err);
-    
-    // Log detailed error info
-    if (err && typeof err === 'object') {
-      console.log("Error details:", {
-        status: err.status,
-        error_code: err.error_code,
-        reason: err.reason,
-        message: err.message,
-      });
-    }
-    
     const reason = err?.reason || err?.message || "Verification failed";
     setErrorMessage(reason);
     setVerificationStatus("error");

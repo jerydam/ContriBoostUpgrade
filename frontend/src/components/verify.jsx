@@ -1,6 +1,6 @@
 // ============================================================================
 // FILE: components/self-verification-flow.jsx
-// SELF PROTOCOL - FIXED FRONTEND VERIFICATION
+// SELF PROTOCOL - HARDCODED CONFIGURATION (NO ENV)
 // ============================================================================
 
 "use client";
@@ -21,19 +21,16 @@ import { SelfQRcodeWrapper, SelfAppBuilder, getUniversalLink } from "@selfxyz/qr
 import { toast } from "react-toastify";
 
 // ============================================================================
-// CONFIGURATION - FRONTEND
+// CONFIGURATION - HARDCODED
 // ============================================================================
 
-// ✅ FIX: Match backend configuration exactly
 const SELF_CONFIG = {
-  scope: process.env.NEXT_PUBLIC_SELF_SCOPE || "contriboost",
-  endpoint:
-    process.env.NEXT_PUBLIC_SELF_ENDPOINT ||
-    "https://www.contriboost.xyz/api/verify", // ✅ FIXED: Full URL with https://
-  mode: process.env.NEXT_PUBLIC_SELF_MODE || "mainnet", // ✅ FIX: staging for testnet
-  appName: process.env.NEXT_PUBLIC_SELF_APP_NAME || "Contriboost App",
-  minimumAge: parseInt(process.env.NEXT_PUBLIC_MINIMUM_AGE || "15"),
-  logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || "https://i.postimg.cc/mrmVf9hm/self.png",
+  scope: "contriboost",
+  endpoint: "https://www.contriboost.xyz/api/verify",
+  mode: "mainnet", // Options: "mainnet" or "staging"
+  appName: "Contriboost App",
+  minimumAge: 15,
+  logoUrl: "https://i.postimg.cc/mrmVf9hm/self.png",
 };
 
 console.log("🔐 Frontend Configuration:");
@@ -73,8 +70,13 @@ const useIsMobile = (breakpoint = 768) => {
 // ============================================================================
 
 function buildSelfApp(userAddress) {
+  // 🔴 STRICT CHECK: Fail immediately if address is missing
+  if (!userAddress) {
+    throw new Error("User address is required to build Self App.");
+  }
+
   try {
-    console.log("🚀 Building Self app...");
+    console.log("🚀 Building Self app for:", userAddress);
 
     const app = new SelfAppBuilder({
       version: 2,
@@ -82,17 +84,16 @@ function buildSelfApp(userAddress) {
       scope: SELF_CONFIG.scope,
       endpoint: SELF_CONFIG.endpoint,
       logoBase64: SELF_CONFIG.logoUrl,
-      userId: userAddress || "0x0",
-      endpointType:
-        SELF_CONFIG.mode === "staging" ? "staging_celo" : "mainnet", // ✅ FIX: Correct endpointType
+      userId: userAddress, // ✅ Direct assignment
+      // ✅ FIX: endpointType must be a string, not a boolean
+      endpointType: SELF_CONFIG.mode === "mainnet",
       userIdType: "hex",
-      userDefinedData: userAddress || "",
+      userDefinedData: userAddress, // ✅ Direct assignment
 
-      // ✅ FIX: Disclosures must match backend config
       disclosures: {
-        minimumAge: SELF_CONFIG.minimumAge, // ✅ Must match backend MINIMUM_AGE
-        excludedCountries: [], // ✅ Must match backend EXCLUDED_COUNTRIES
-        ofac: false, // ✅ Must match backend OFAC_CHECK
+        minimumAge: SELF_CONFIG.minimumAge,
+        excludedCountries: [],
+        ofac: false,
         nationality: true,
       },
     }).build();
@@ -127,11 +128,18 @@ export default function SelfVerificationFlow({
   const [errorMessage, setErrorMessage] = useState("");
 
   // ========================================================================
-  // BUILD SELF APP IF NOT PROVIDED
+  // INITIALIZATION EFFECT
   // ========================================================================
 
   useEffect(() => {
     if (!isFlowOpen) return;
+
+    // 🔴 STRICT CHECK: Stop if userAddress is missing
+    if (!userAddress && !externalSelfApp) {
+      setErrorMessage("Wallet not connected. Please connect your wallet.");
+      setVerificationStatus("error");
+      return;
+    }
 
     // If selfApp not provided externally, build it
     if (!externalSelfApp) {
@@ -159,7 +167,7 @@ export default function SelfVerificationFlow({
           console.error("❌ Initialization error:", error);
           setErrorMessage(error.message || "Failed to initialize verification");
           setVerificationStatus("error");
-          toast.error("Failed to initialize verification");
+          toast.error(error.message || "Failed to initialize verification");
         } finally {
           setIsAppLoading(false);
         }
@@ -171,7 +179,6 @@ export default function SelfVerificationFlow({
       setSelfApp(externalSelfApp);
       setIsAppLoading(externalIsAppLoading ?? false);
 
-      // Generate universal link from external app
       if (externalSelfApp) {
         try {
           const link = getUniversalLink(externalSelfApp);
@@ -203,6 +210,17 @@ export default function SelfVerificationFlow({
 
   const handleVerificationSuccess = async (proofData) => {
     console.log("✅ Proof received from Self app");
+    
+    // 🔴 STRICT CHECK: Ensure userAddress is present before sending to backend
+    if (!userAddress) {
+      const msg = "User address missing. Cannot verify.";
+      console.error("❌ " + msg);
+      setErrorMessage(msg);
+      setVerificationStatus("error");
+      toast.error(msg);
+      return;
+    }
+
     setVerificationStatus("loading");
 
     try {
@@ -221,7 +239,7 @@ export default function SelfVerificationFlow({
           attestationId,
           proof,
           publicSignals,
-          userContextData: userAddress || "0x0",
+          userContextData: userAddress, // ✅ Passed strictly
         }),
       });
 
@@ -357,9 +375,7 @@ export default function SelfVerificationFlow({
     <CardContent className="p-0">
       <div className="flex flex-col items-center space-y-4">
         {isMobile ? (
-          // ================================================================
-          // MOBILE VIEW: Deep Link Button
-          // ================================================================
+          // MOBILE VIEW
           <div className="flex flex-col items-center space-y-3 w-full">
             <Smartphone className="h-10 w-10 text-primary mb-2" />
             <Button
@@ -374,9 +390,7 @@ export default function SelfVerificationFlow({
             </p>
           </div>
         ) : (
-          // ================================================================
-          // DESKTOP VIEW: QR Code
-          // ================================================================
+          // DESKTOP VIEW
           <div className="flex flex-col items-center">
             <QrCode className="h-6 w-6 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground mb-3">

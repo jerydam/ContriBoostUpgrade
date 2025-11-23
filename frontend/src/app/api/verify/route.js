@@ -19,7 +19,7 @@ const SELF_ENDPOINT = "https://www.contriboost.xyz/api/verify"; // Your backend 
 const MINIMUM_AGE = 15; // Minimum age requirement
 const EXCLUDED_COUNTRIES = []; // Array of 2-letter country codes
 const OFAC_CHECK = false; // Set to true to enable OFAC sanctions check
-const endpointType = true; // true for mainnet, false for staging
+
 // ✅ CRITICAL: Must match frontend SELF_CONFIG.mode
 // Set to true if frontend mode is "staging" (testnet)
 // Set to false if frontend mode is "mainnet" (production)
@@ -52,7 +52,6 @@ function getVerifier() {
     verifierInstance = new SelfBackendVerifier(
       SELF_SCOPE,
       SELF_ENDPOINT,
-      endpointType,
       DEV_MODE, // ✅ This must match frontend mode
       EnabledIds,
       new DefaultConfigStore({

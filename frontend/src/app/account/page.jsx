@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
+import { useMiniApp } from "@/components/providers/miniapp-provider"; // Add this import
 import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,12 +24,12 @@ const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
+  const { isMiniApp } = useMiniApp(); // Use the context
   const [balance, setBalance] = useState("0");
   const [userPools, setUserPools] = useState([]);
   const [userFunds, setUserFunds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isMiniApp, setIsMiniApp] = useState(false);
   const router = useRouter();
 
   const { 
@@ -40,15 +41,6 @@ export default function AccountPage() {
     handleSuccess, 
     cancelVerification 
   } = useSelfVerification(account);
-
-  // Check for Mini App context
-  useEffect(() => {
-    const checkContext = async () => {
-      const isMini = await sdk.isInMiniApp();
-      setIsMiniApp(isMini);
-    };
-    checkContext();
-  }, []);
 
   // Fetch data
   useEffect(() => {
@@ -62,7 +54,7 @@ export default function AccountPage() {
         setIsLoading(false);
       }
     }
-  }, [provider, account, isMiniApp]);
+  }, [provider, account, isMiniApp, connect, isConnecting]);
 
   async function fetchUserData() {
     if (!provider || !account) return;

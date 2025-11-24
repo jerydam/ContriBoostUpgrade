@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { ethers } from "ethers";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { useMiniApp } from "./miniapp-provider"; // Assuming relative path; adjust as needed
 
 const Web3Context = createContext({
   provider: null,
@@ -20,6 +21,8 @@ export function Web3Provider({ children }) {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [hasAutoConnected, setHasAutoConnected] = useState(false); // Flag to prevent race conditions
+  const { isMiniApp: isMiniAppFromContext } = useMiniApp(); // Use context for consistency
 
   // Constants
   const CELO_MAINNET_ID = 42220;
@@ -32,6 +35,7 @@ export function Web3Provider({ children }) {
   };
 
   const connect = useCallback(async () => {
+    if (isConnecting) return; // Prevent multiple connects
     setIsConnecting(true);
 
     try {
@@ -39,12 +43,14 @@ export function Web3Provider({ children }) {
       // In Farcaster, window.ethereum might be undefined, so we use the SDK getter
       let ethProvider = typeof window !== "undefined" ? window.ethereum : null;
 
-      const isMiniApp = await sdk.isInMiniApp();
+      const isMiniApp = isMiniAppFromContext || await sdk.isInMiniApp();
+      console.log('Is in Mini App?', isMiniApp); // Debug log
       
       if (isMiniApp) {
         // Explicitly get the provider from Farcaster SDK
         // This is the most reliable way in Mini Apps
         const sdkProvider = sdk.wallet.getEthereumProvider();
+        console.log('SDK Provider:', sdkProvider ? 'Available' : 'NULL/Undefined'); // Debug log
         if (sdkProvider) {
             ethProvider = sdkProvider;
             console.log("Using Farcaster SDK Provider");
@@ -52,6 +58,7 @@ export function Web3Provider({ children }) {
       }
 
       if (!ethProvider) {
+        console.error('No Ethereum provider available'); // Debug log
         if (!isMiniApp) {
            alert("Please install a Web3 Wallet to use this app");
         }
@@ -62,17 +69,27 @@ export function Web3Provider({ children }) {
       // 2. INITIALIZE ETHERS WITH THE FOUND PROVIDER
       // vital: pass ethProvider here, not window.ethereum
       const browserProvider = new ethers.BrowserProvider(ethProvider); 
+      
+      // Add delay for provider readiness in hosted environments
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const network = await browserProvider.getNetwork();
       const currentChainId = Number(network.chainId);
+      console.log('Current chain ID:', currentChainId); // Debug log
 
-      // 3. NETWORK SWITCHING LOGIC
+      // 3. NETWORK SWITCHING LOGIC (Temporarily optional for testing)
+      let switched = false;
       if (currentChainId !== CELO_MAINNET_ID) {
         try {
+          console.log('Attempting chain switch to Celo...'); // Debug log
           await ethProvider.request({
             method: "wallet_switchEthereumChain",
             params: [{ chainId: `0x${CELO_MAINNET_ID.toString(16)}` }],
           });
+          switched = true;
+          console.log('Chain switch successful'); // Debug log
         } catch (switchError) {
+          console.error('Switch error details:', switchError.code, switchError.message); // Debug log
           // This error code indicates that the chain has not been added to the wallet
           if (switchError.code === 4902) {
             try {
@@ -85,12 +102,23 @@ export function Web3Provider({ children }) {
                     },
                 ],
                 });
+                console.log('Chain added successfully'); // Debug log
+                switched = true;
             } catch (addError) {
                 console.error("Failed to add chain:", addError);
                 // If the wallet (like Warpcast internal) refuses to add Celo, we must stop here
-                alert("This wallet does not support adding Celo Mainnet automatically. Please switch manually.");
-                throw addError;
+                // For now, allow connection on current chain for testing; alert user
+                if (isMiniApp) {
+                  alert("Celo not supported automatically. Please add/switch to Celo manually in Warpcast Wallet settings.");
+                }
+                // Continue with current chain for demo/testing
+                console.log('Continuing on current chain for now'); // Debug log
             }
+          } else if (switchError.code === 4001) {
+            // User rejected - common in wallets
+            console.log('User rejected chain switch'); // Debug log
+            alert("Please approve the chain switch in your wallet.");
+            return;
           } else {
             console.error("Failed to switch chain:", switchError);
             throw switchError;
@@ -98,10 +126,15 @@ export function Web3Provider({ children }) {
         }
       }
       
-      setChainId(CELO_MAINNET_ID);
+      // Verify chain after switch/add
+      const updatedNetwork = await browserProvider.getNetwork();
+      const finalChainId = Number(updatedNetwork.chainId);
+      setChainId(finalChainId);
+      console.log('Final chain ID:', finalChainId); // Debug log
 
       // 4. REQUEST ACCOUNTS
       const accounts = await ethProvider.request({ method: "eth_requestAccounts" });
+      console.log('Accounts requested:', accounts); // Debug log
       
       // Re-initialize provider/signer after network switch to be safe
       const updatedProvider = new ethers.BrowserProvider(ethProvider); 
@@ -112,10 +145,14 @@ export function Web3Provider({ children }) {
       setAccount(accounts[0]);
     } catch (error) {
       console.error("Error connecting to wallet:", error);
+      // Optional: Alert in non-miniapp mode
+      if (!isMiniAppFromContext) {
+        alert("Connection failed. Please check console for details.");
+      }
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [isMiniAppFromContext]);
 
   const disconnect = useCallback(() => {
     setProvider(null);
@@ -127,25 +164,27 @@ export function Web3Provider({ children }) {
   // --- Farcaster Auto-Connect ---
   useEffect(() => {
     const handleFarcasterAutoConnect = async () => {
+      if (hasAutoConnected || account || isConnecting) return; // Prevent races
       try {
-        const isMiniApp = await sdk.isInMiniApp();
-        if (isMiniApp && !account) {
+        const isMiniApp = isMiniAppFromContext || await sdk.isInMiniApp();
+        if (isMiniApp) {
             console.log("Farcaster context: Auto-connecting...");
             await connect();
+            setHasAutoConnected(true);
         }
       } catch (err) {
         console.error("Farcaster auto-connect error:", err);
       }
     };
     handleFarcasterAutoConnect();
-  }, [connect, account]);
+  }, [connect, account, isConnecting, hasAutoConnected, isMiniAppFromContext]);
 
   // --- Standard Web Persistence ---
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const checkConnection = async () => {
-      const isMiniApp = await sdk.isInMiniApp();
+      const isMiniApp = isMiniAppFromContext || await sdk.isInMiniApp();
       if (isMiniApp) return; // Skip standard persistence in Mini App to avoid conflicts
 
       if (window.ethereum) {
@@ -156,7 +195,7 @@ export function Web3Provider({ children }) {
       }
     };
     checkConnection();
-  }, [connect]);
+  }, [connect, isMiniAppFromContext]);
 
   // --- Listeners ---
   useEffect(() => {

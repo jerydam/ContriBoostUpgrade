@@ -27,14 +27,12 @@ export default function Header() {
   };
 
   const getChainName = (chainId) => {
-    switch (chainId) {
-      case 42220:
-        return "Celo Mainnet";
-      case 44787:
-        return "Celo Alfajores";
-      default:
-        return `Unknown Chain (${chainId})`;
+    if (chainId === 42220) {
+      return "Celo Mainnet";
     }
+    // Since we force switch in provider, this shouldn't happen often, 
+    // but good to handle the 'loading' or 'wrong network' state visually
+    return chainId ? `Chain ID: ${chainId}` : "";
   };
 
   const toggleMobileMenu = () => {

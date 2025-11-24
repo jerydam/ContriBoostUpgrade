@@ -13,34 +13,24 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
-// 1. Import Farcaster SDK
-import { sdk } from "@farcaster/miniapp-sdk";
+import { useMiniApp } from "@/components/providers/miniapp-provider";
 
 export default function LandingPage() {
-  const { account, walletType, connect, isConnecting } = useWeb3();
+  const { account, connect, isConnecting } = useWeb3();
+  const { isMiniApp } = useMiniApp();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
-  const [isMiniApp, setIsMiniApp] = useState(false); // 2. State for Mini App
   const router = useRouter();
-
-  // 3. Check for Mini App environment on mount
-  useEffect(() => {
-    const checkMiniApp = async () => {
-      const isMini = await sdk.isInMiniApp();
-      setIsMiniApp(isMini);
-    };
-    checkMiniApp();
-  }, []);
 
   const handleCreateNavigation = (path) => {
     setIsCreateDialogOpen(false);
     if (!account) {
       if (isMiniApp) {
-        // If in Mini App, connect directly without dialog
-        connect(); 
+        // Connect directly in miniapp
+        connect();
       } else {
         setIsConnectDialogOpen(true);
       }
@@ -54,16 +44,15 @@ export default function LandingPage() {
     await connect(connectorId);
   };
 
-  // Wrapper for the main CTA to handle Mini App logic
   const handleMainCta = () => {
     if (isMiniApp) {
       if (!account) {
-        connect(); // Connect directly using Farcaster provider
+        connect();
       } else {
-        setIsCreateDialogOpen(true); // Open create menu if already connected
+        setIsCreateDialogOpen(true);
       }
     } else {
-      setIsConnectDialogOpen(true); // Standard flow
+      setIsConnectDialogOpen(true);
     }
   };
 
@@ -86,7 +75,6 @@ export default function LandingPage() {
     }
   };
 
-  // Reusable Responsive Dialog Content
   const ResponsiveDialogContent = ({ children, title }) => (
     <DialogContent
       className={`
@@ -220,7 +208,7 @@ export default function LandingPage() {
                       ))}
                     </ul>
 
-                    {/* GET STARTED → Logic split for Mini App vs Web */}
+                    {/* GET STARTED BUTTON */}
                     {isMiniApp ? (
                       <Button
                         variant="outline"
@@ -228,7 +216,7 @@ export default function LandingPage() {
                         disabled={isConnecting}
                         onClick={handleMainCta}
                       >
-                         {isConnecting ? "Connecting..." : account ? "Create New" : "Connect Farcaster Wallet"}
+                        {isConnecting ? "Connecting..." : account ? "Create New" : "Connect Wallet"}
                       </Button>
                     ) : (
                       <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
@@ -243,12 +231,11 @@ export default function LandingPage() {
                         </DialogTrigger>
 
                         <ResponsiveDialogContent title="Connect Wallet">
-                           <div className="grid gap-4">
-                             <Button onClick={() => handleConnect("injected")} variant="outline" className="h-12 justify-start">
-                               Metamask / Injected
-                             </Button>
-                             {/* Add other connectors here */}
-                           </div>
+                          <div className="grid gap-4">
+                            <Button onClick={() => handleConnect("injected")} variant="outline" className="h-12 justify-start">
+                              MetaMask / Injected
+                            </Button>
+                          </div>
                         </ResponsiveDialogContent>
                       </Dialog>
                     )}
@@ -300,7 +287,6 @@ export default function LandingPage() {
       <section className="w-full py-12 md:py-24 lg:py-32 border-t">
         <div className="container px-4 md:px-6">
           <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 xl:grid-cols-2">
-            {/* LEFT: Call to Action */}
             <div className="flex flex-col justify-center space-y-4">
               <div className="space-y-2">
                 <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
@@ -333,7 +319,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* RIGHT: Subscribe Form */}
             <div className="flex flex-col justify-center space-y-4 rounded-xl border bg-card p-6">
               <div className="space-y-2">
                 <h3 className="text-xl font-bold">Subscribe to updates</h3>

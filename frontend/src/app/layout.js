@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { Web3Provider } from "@/components/providers/web3-provider";
-import MiniAppProvider from "@/components/providers/miniapp-provider";
+import {MiniAppProvider} from "@/components/providers/miniapp-provider";
 import { ThemeScript } from "./theme-script";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";

@@ -32,67 +32,86 @@ export function Web3Provider({ children }) {
   };
 
   const connect = useCallback(async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
-      // Don't alert if we are in a MiniApp loading state
-      const isMiniApp = await sdk.isInMiniApp();
-      if (!isMiniApp) {
-        alert("Please install MetaMask (or a web3 wallet) to use this app");
-      }
-      return;
-    }
-
     setIsConnecting(true);
+
     try {
-      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      // 1. DETERMINE THE PROVIDER
+      // In Farcaster, window.ethereum might be undefined, so we use the SDK getter
+      let ethProvider = typeof window !== "undefined" ? window.ethereum : null;
+
+      const isMiniApp = await sdk.isInMiniApp();
+      
+      if (isMiniApp) {
+        // Explicitly get the provider from Farcaster SDK
+        // This is the most reliable way in Mini Apps
+        const sdkProvider = sdk.wallet.getEthereumProvider();
+        if (sdkProvider) {
+            ethProvider = sdkProvider;
+            console.log("Using Farcaster SDK Provider");
+        }
+      }
+
+      if (!ethProvider) {
+        if (!isMiniApp) {
+           alert("Please install a Web3 Wallet to use this app");
+        }
+        setIsConnecting(false);
+        return;
+      }
+
+      // 2. INITIALIZE ETHERS WITH THE FOUND PROVIDER
+      // vital: pass ethProvider here, not window.ethereum
+      const browserProvider = new ethers.BrowserProvider(ethProvider); 
       const network = await browserProvider.getNetwork();
       const currentChainId = Number(network.chainId);
 
-      // --- Network Switching Logic ---
-      // STRICT CHECK: If not on Celo Mainnet, force switch
+      // 3. NETWORK SWITCHING LOGIC
       if (currentChainId !== CELO_MAINNET_ID) {
         try {
-          await window.ethereum.request({
+          await ethProvider.request({
             method: "wallet_switchEthereumChain",
             params: [{ chainId: `0x${CELO_MAINNET_ID.toString(16)}` }],
           });
         } catch (switchError) {
-          // Error 4902 means the chain hasn't been added to the wallet yet
+          // This error code indicates that the chain has not been added to the wallet
           if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: `0x${CELO_MAINNET_ID.toString(16)}`,
-                  ...CELO_MAINNET_CONFIG,
-                },
-              ],
-            });
+            try {
+                await ethProvider.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                    {
+                    chainId: `0x${CELO_MAINNET_ID.toString(16)}`,
+                    ...CELO_MAINNET_CONFIG,
+                    },
+                ],
+                });
+            } catch (addError) {
+                console.error("Failed to add chain:", addError);
+                // If the wallet (like Warpcast internal) refuses to add Celo, we must stop here
+                alert("This wallet does not support adding Celo Mainnet automatically. Please switch manually.");
+                throw addError;
+            }
           } else {
+            console.error("Failed to switch chain:", switchError);
             throw switchError;
           }
         }
-        
-        // Refresh network info after switch
-        // Note: browserProvider.getNetwork() might cache, so we might need to rely on the event listener, 
-        // but getting the signer usually triggers a refresh internally in ethers v6
       }
       
-      // Update state with the correct chain ID
       setChainId(CELO_MAINNET_ID);
 
-      // Request accounts
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      const userSigner = await browserProvider.getSigner();
+      // 4. REQUEST ACCOUNTS
+      const accounts = await ethProvider.request({ method: "eth_requestAccounts" });
+      
+      // Re-initialize provider/signer after network switch to be safe
+      const updatedProvider = new ethers.BrowserProvider(ethProvider); 
+      const userSigner = await updatedProvider.getSigner();
 
-      setProvider(browserProvider);
+      setProvider(updatedProvider);
       setSigner(userSigner);
       setAccount(accounts[0]);
     } catch (error) {
       console.error("Error connecting to wallet:", error);
-      // Ignore user rejection error (4001) to prevent annoying alerts
-      if (error.code !== 4001) {
-        alert(`Failed to connect wallet: ${error.message}`);
-      }
     } finally {
       setIsConnecting(false);
     }
@@ -110,9 +129,7 @@ export function Web3Provider({ children }) {
     const handleFarcasterAutoConnect = async () => {
       try {
         const isMiniApp = await sdk.isInMiniApp();
-        // If inside Farcaster and not connected, connect immediately
-        // This will trigger the Network Switch logic above if they are on Base/Optimism default
-        if (isMiniApp && window.ethereum && !account) {
+        if (isMiniApp && !account) {
             console.log("Farcaster context: Auto-connecting...");
             await connect();
         }
@@ -128,9 +145,8 @@ export function Web3Provider({ children }) {
     if (typeof window === "undefined") return;
 
     const checkConnection = async () => {
-      // Skip if in MiniApp (handled above)
       const isMiniApp = await sdk.isInMiniApp();
-      if (isMiniApp) return;
+      if (isMiniApp) return; // Skip standard persistence in Mini App to avoid conflicts
 
       if (window.ethereum) {
         const accounts = await window.ethereum.request({ method: "eth_accounts" });
@@ -139,12 +155,13 @@ export function Web3Provider({ children }) {
         }
       }
     };
-
     checkConnection();
   }, [connect]);
 
   // --- Listeners ---
   useEffect(() => {
+    // Only set listeners if window.ethereum is available 
+    // (Farcaster SDK provider doesn't always support .on directly the same way)
     if (!window.ethereum) return;
 
     const handleAccountsChanged = async (accounts) => {
@@ -156,10 +173,8 @@ export function Web3Provider({ children }) {
     };
 
     const handleChainChanged = (chainIdHex) => {
-      // Ethers/Metamask returns chainId in hex via this event
       const newChainId = parseInt(chainIdHex, 16);
       if (newChainId !== CELO_MAINNET_ID) {
-        // Optionally reload or force disconnect if they switch network manually
         window.location.reload(); 
       } else {
         setChainId(newChainId);

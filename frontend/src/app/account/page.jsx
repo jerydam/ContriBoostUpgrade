@@ -13,9 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { BalanceCard } from "@/components/dashboard/balance-card";
 import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
-import { Loader2, PlusCircle, AlertCircle, CheckCircle, Tag, X, Layers, Target, Zap } from "lucide-react";
-import { useSelfVerification } from "@/hooks/use-self";
-import SelfVerificationFlow from "@/components/verify";
+import { Loader2, PlusCircle, AlertCircle, Layers, Target, Zap } from "lucide-react";
 // Import Farcaster SDK
 import { sdk } from "@farcaster/miniapp-sdk";
 
@@ -34,16 +32,6 @@ export default function AccountPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
-
-  const { 
-    isVerified, 
-    isFlowOpen, 
-    selfApp, 
-    isAppLoading,
-    startVerification, 
-    handleSuccess, 
-    cancelVerification 
-  } = useSelfVerification(account);
 
   // Fetch data
   useEffect(() => {
@@ -286,56 +274,6 @@ export default function AccountPage() {
         />
       </StatTileRow>
 
-      {/* Verification Status */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="text-lg md:text-xl">Identity Verification</CardTitle>
-          <CardDescription className="text-sm">Verify your identity to join Contriboost pools</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center py-6">
-          {isVerified ? (
-            <div className="text-center">
-              <CheckCircle className="h-16 w-16 text-primary mx-auto mb-4" />
-              <p className="text-lg font-semibold">Verified</p>
-              <p className="text-sm text-muted-foreground">You can now join Contriboost pools.</p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
-              <p className="text-lg font-semibold">Not Verified</p>
-              <p className="text-sm text-muted-foreground mb-4">Please verify your identity to participate.</p>
-              <Button onClick={startVerification} disabled={isAppLoading}>
-                {isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Verify Identity
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Verification Flow Modal */}
-      {isFlowOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative">
-            <button
-                onClick={cancelVerification}
-                className="absolute top-2 right-2 text-white hover:text-gray-300 z-10 p-1 rounded-full bg-gray-800/50"
-                aria-label="Close verification"
-            >
-                <X className="h-6 w-6" />
-            </button>
-            <SelfVerificationFlow
-                userAddress={account}
-                selfApp={selfApp}
-                onSuccess={handleSuccess}
-                onCancel={cancelVerification}
-                isFlowOpen={true} 
-                isAppLoading={isAppLoading}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Tabs for different account sections */}
       <Tabs defaultValue="pools" className="w-full">
         <TabsList className="w-full mb-6 grid grid-cols-2">
@@ -388,18 +326,11 @@ export default function AccountPage() {
                       </div>
                     </CardContent>
                     <CardFooter>
-                      {isVerified ? (
-                        <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
-                          <Link href={`/pools/details/${pool.contractAddress}`}>
-                            View Details
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button variant="outline" className="w-full text-xs sm:text-sm" disabled>
-                          <Tag className="h-4 w-4 mr-2" />
-                          Verify to Join
-                        </Button>
-                      )}
+                      <Button variant="outline" className="w-full text-xs sm:text-sm" asChild>
+                        <Link href={`/pools/details/${pool.contractAddress}`}>
+                          View Details
+                        </Link>
+                      </Button>
                     </CardFooter>
                   </Card>
                 );

@@ -4,10 +4,13 @@ pragma solidity ^0.8.19;
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./goalFund.sol";
 
 
 contract GoalFundFactory is ReentrancyGuard, Ownable {
+    using SafeERC20 for IERC20;
+
     address[] public allGoalFunds;
     mapping(address => address[]) public userGoalFunds;
     uint public platformFeePercentage = 200; // Fixed at 2%
@@ -164,7 +167,7 @@ contract GoalFundFactory is ReentrancyGuard, Ownable {
             IERC20 token = IERC20(_tokenAddress);
             uint balance = token.balanceOf(address(this));
             require(balance > 0, "No tokens to withdraw");
-            require(token.transfer(owner(), balance), "Token withdrawal failed");
+            token.safeTransfer(owner(), balance);
         }
     }
 

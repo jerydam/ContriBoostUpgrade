@@ -2,11 +2,14 @@
 pragma solidity ^0.8.19;
 
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "./contriboost.sol"; 
+import "./contriboost.sol";
 
 contract ContriboostFactory is ReentrancyGuard, Ownable {
+    using SafeERC20 for IERC20;
+
     address[] public allContriboosts;
     mapping(address => address[]) public userContriboosts;
     uint public platformFeePercentage = 200; // Fixed at 2%
@@ -44,7 +47,8 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
             _name,
             _description,
             _tokenAddress,
-            platformOwner
+            platformOwner,
+            msg.sender
         );
         allContriboosts.push(address(newContriboost));
         userContriboosts[msg.sender].push(address(newContriboost));
@@ -145,7 +149,7 @@ contract ContriboostFactory is ReentrancyGuard, Ownable {
             IERC20 token = IERC20(_tokenAddress);
             uint balance = token.balanceOf(address(this));
             require(balance > 0, "No tokens to withdraw");
-            require(token.transfer(owner(), balance), "Token withdrawal failed");
+            token.safeTransfer(owner(), balance);
         }
     }
 

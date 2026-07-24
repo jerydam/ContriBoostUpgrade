@@ -14,7 +14,7 @@ import {
 } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle, DollarSign, Calendar, Users, Tag, X } from "lucide-react";
+import { Loader2, AlertCircle, DollarSign, Calendar, Users, Tag } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
@@ -27,11 +27,6 @@ import { Label } from "@/components/ui/label";
 // --- FARCASTER SDK IMPORT ---
 import { sdk } from "@farcaster/miniapp-sdk";
 // ----------------------------
-
-// --- NEW IMPORTS ---
-import { useSelfVerification } from "@/hooks/use-self";
-import SelfVerificationFlow from "@/components/verify";
-// -------------------
 
 // 🔵 DIVVI INTEGRATION
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
@@ -150,19 +145,6 @@ export default function PoolDetailsPage() {
         setIsProcessing(false);
     }
   }, [signer, account, userStatus, contractAddress, chainId, connect]);
-
-  // --- CONSUME SELF VERIFICATION HOOK ---
-  // Pass joinContriboost as the success callback
-  const { 
-    isVerified, 
-    isFlowOpen, 
-    selfApp, 
-    isAppLoading,
-    startVerification, 
-    handleSuccess, 
-    cancelVerification 
-  } = useSelfVerification(account, contractAddress, joinContriboost);
-  // ------------------------------------
 
   useEffect(() => {
     if (!contractAddress || typeof contractAddress !== "string") {
@@ -1242,45 +1224,18 @@ export default function PoolDetailsPage() {
 
       <div className="mb-8 space-y-4">
         
-        {/* --- JOIN BUTTON LOGIC WITH VERIFICATION GATE --- */}
         {isContriboost && canJoinContriboost && (
           <div className="flex flex-wrap gap-2">
             <Button
-                // If verified, call the join function directly.
-                // If not verified, call startVerification to open the flow.
-                onClick={isVerified ? joinContriboost : startVerification}
-                disabled={isProcessing || isConnecting || isAppLoading}
+                onClick={joinContriboost}
+                disabled={isProcessing || isConnecting}
                 className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
-                {isProcessing || isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {isVerified ? "Join Pool" : "Verify Identity to Join"}
-                {isVerified && <Tag className="h-4 w-4 ml-1 text-primary" />}
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Join Pool
             </Button>
           </div>
         )}
-        
-        {/* --- VERIFICATION FLOW MODAL RENDER --- */}
-        {isContriboost && canJoinContriboost && isFlowOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-              <div className="relative">
-                <button
-                    onClick={cancelVerification}
-                    className="absolute top-2 right-2 text-white hover:text-gray-300 z-10 p-1 rounded-full bg-gray-800/50"
-                    aria-label="Close verification"
-                >
-                    <X className="h-6 w-6" />
-                </button>
-                <SelfVerificationFlow
-                    selfApp={selfApp}
-                    onSuccess={handleSuccess}
-                    onCancel={cancelVerification}
-                    isFlowOpen={true} 
-                    isAppLoading={isAppLoading}
-                />
-              </div>
-            </div>
-        )}
-        {/* ------------------------------------------- */}
 
         
         {canDepositContriboost && (

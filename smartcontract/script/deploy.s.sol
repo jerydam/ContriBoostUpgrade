@@ -13,6 +13,7 @@ contract DeployContriboost is Script {
     uint constant EXPECTED_NUMBER = 3;
     uint constant CONTRIBUTION_AMOUNT = 100 * 10**18;
     uint constant HOST_FEE_PERCENTAGE = 200; // 2%
+    uint constant PLATFORM_FEE_PERCENTAGE = 200; // 2%
     uint constant MAX_MISSED_DEPOSITS = 2;
 
     function run() external {
@@ -41,16 +42,19 @@ contract DeployContriboost is Script {
         // Deploy a sample Contriboost instance via factory (ERC20)
         uint startTimestamp = block.timestamp + 1 days;
         factory.createContriboost(
-            DAY_RANGE,
-            EXPECTED_NUMBER,
-            CONTRIBUTION_AMOUNT,
+            Contriboost.Config({
+                dayRange: DAY_RANGE,
+                expectedNumber: EXPECTED_NUMBER,
+                contributionAmount: CONTRIBUTION_AMOUNT,
+                hostFeePercentage: HOST_FEE_PERCENTAGE,
+                platformFeePercentage: PLATFORM_FEE_PERCENTAGE,
+                maxMissedDeposits: MAX_MISSED_DEPOSITS,
+                startTimestamp: startTimestamp,
+                paymentMethod: Contriboost.PaymentMethod.ERC20
+            }),
             "Sample ERC20 Contriboost",
             "A test Contriboost with ERC20",
-            address(token),
-            HOST_FEE_PERCENTAGE,
-            MAX_MISSED_DEPOSITS,
-            startTimestamp,
-            Contriboost.PaymentMethod.ERC20
+            address(token)
         );
         address[] memory userContriboosts = factory.getUserContriboosts(deployer);
         address erc20Contriboost = userContriboosts[0];
@@ -58,16 +62,19 @@ contract DeployContriboost is Script {
 
         // Deploy a sample Contriboost instance via factory (Ether)
         factory.createContriboost(
-            DAY_RANGE,
-            EXPECTED_NUMBER,
-            CONTRIBUTION_AMOUNT,
+            Contriboost.Config({
+                dayRange: DAY_RANGE,
+                expectedNumber: EXPECTED_NUMBER,
+                contributionAmount: CONTRIBUTION_AMOUNT,
+                hostFeePercentage: HOST_FEE_PERCENTAGE,
+                platformFeePercentage: PLATFORM_FEE_PERCENTAGE,
+                maxMissedDeposits: MAX_MISSED_DEPOSITS,
+                startTimestamp: startTimestamp,
+                paymentMethod: Contriboost.PaymentMethod.Ether
+            }),
             "Sample Ether Contriboost",
             "A test Contriboost with Ether",
-            address(0),
-            HOST_FEE_PERCENTAGE,
-            MAX_MISSED_DEPOSITS,
-            startTimestamp,
-            Contriboost.PaymentMethod.Ether
+            address(0)
         );
         userContriboosts = factory.getUserContriboosts(deployer);
         address etherContriboost = userContriboosts[1];

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.19;
 
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
-import "../lib/openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract Contriboost is ReentrancyGuard, Ownable {
-    using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     enum PaymentMethod {
         Ether,
@@ -23,7 +23,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
         bool active;
         uint missedDeposits;
     }
-   
+
     struct Config {
         uint dayRange;
         uint expectedNumber;
@@ -34,7 +34,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
         uint startTimestamp;
         PaymentMethod paymentMethod;
     }
-    
+
     string public name;
     string public description;
     address public host;
@@ -70,7 +70,8 @@ contract Contriboost is ReentrancyGuard, Ownable {
         string memory _name,
         string memory _description,
         address _tokenAddress,
-        address _platformOwner
+        address _platformOwner,
+        address _host
     ) Ownable() {
         require(_config.dayRange > 0, "Day range must be greater than zero");
         require(_config.expectedNumber > 0, "Expected number must be greater than zero");
@@ -79,8 +80,9 @@ contract Contriboost is ReentrancyGuard, Ownable {
         require(_config.hostFeePercentage <= 500, "Host fee cannot exceed 5%");
         require(_config.platformFeePercentage <= 500, "Platform fee cannot exceed 5%");
         require(_platformOwner != address(0), "Invalid platform owner address");
+        require(_host != address(0), "Invalid host address");
 
-        host = msg.sender;
+        host = _host;
         dayRange = _config.dayRange;
         expectedNumber = _config.expectedNumber;
         contributionAmount = _config.contributionAmount;
@@ -101,6 +103,13 @@ contract Contriboost is ReentrancyGuard, Ownable {
         } else {
             revert("Invalid payment method configuration");
         }
+
+        // Ownable() defaults the owner to msg.sender, which is the Factory contract
+        // when this constructor runs via `new Contriboost(...)` inside
+        // ContriboostFactory.createContriboost. Transfer ownership to the actual
+        // host so onlyOwner functions (setTokenAddress, emergencyWithdraw, ...)
+        // remain callable.
+        _transferOwnership(_host);
     }
 
     modifier onlyHost() {
@@ -116,7 +125,8 @@ contract Contriboost is ReentrancyGuard, Ownable {
     modifier canJoin() {
         require(msg.sender != address(0), "Invalid participant address");
         require(!participants[msg.sender].exists, "You are already a participant");
-        require(participantList.length < expectedNumber || block.timestamp >= startTimestamp, "Maximum participants reached or not yet started");
+        require(participantList.length < expectedNumber, "Maximum participants reached");
+        require(block.timestamp < startTimestamp, "Joining period has ended");
         _;
     }
 
@@ -179,13 +189,15 @@ contract Contriboost is ReentrancyGuard, Ownable {
 
         if (paymentMethod == PaymentMethod.ERC20) {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
-            bool success = token.transferFrom(msg.sender, address(this), contributionAmount);
-            require(success, "Token transfer failed");
+            uint balanceBefore = token.balanceOf(address(this));
+            token.safeTransferFrom(msg.sender, address(this), contributionAmount);
+            uint received = token.balanceOf(address(this)) - balanceBefore;
+            require(received == contributionAmount, "Fee-on-transfer tokens not supported");
         } else {
             require(msg.value == contributionAmount, "Incorrect Ether amount");
         }
 
-        participant.depositAmount = participant.depositAmount.add(contributionAmount);
+        participant.depositAmount = participant.depositAmount + contributionAmount;
         participant.lastDepositTime = block.timestamp;
         segmentParticipation[currentSegment][msg.sender] = true;
 
@@ -196,10 +208,10 @@ contract Contriboost is ReentrancyGuard, Ownable {
         for (uint i = 0; i < participantList.length; i++) {
             address participantAddress = participantList[i];
             Participant storage participant = participants[participantAddress];
-            if (participant.active && 
-                block.timestamp > participant.lastDepositTime.add(dayRange * 1 days) && 
+            if (participant.active &&
+                block.timestamp > participant.lastDepositTime + (dayRange * 1 days) &&
                 !segmentParticipation[currentSegment][participantAddress]) {
-                participant.missedDeposits = participant.missedDeposits.add(1);
+                participant.missedDeposits = participant.missedDeposits + 1;
                 if (participant.missedDeposits >= maxMissedDeposits) {
                     participant.active = false;
                     emit ParticipantInactive(participantAddress);
@@ -212,16 +224,18 @@ contract Contriboost is ReentrancyGuard, Ownable {
         Participant storage participant = participants[msg.sender];
         require(!participant.active, "Your account is already active");
 
-        uint missedAmount = contributionAmount.mul(participant.missedDeposits);
+        uint missedAmount = contributionAmount * participant.missedDeposits;
         if (paymentMethod == PaymentMethod.ERC20) {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
-            bool success = token.transferFrom(msg.sender, address(this), missedAmount);
-            require(success, "Token transfer failed");
+            uint balanceBefore = token.balanceOf(address(this));
+            token.safeTransferFrom(msg.sender, address(this), missedAmount);
+            uint received = token.balanceOf(address(this)) - balanceBefore;
+            require(received == missedAmount, "Fee-on-transfer tokens not supported");
         } else {
             require(msg.value == missedAmount, "Incorrect Ether amount");
         }
 
-        participant.depositAmount = participant.depositAmount.add(missedAmount);
+        participant.depositAmount = participant.depositAmount + missedAmount;
         participant.lastDepositTime = block.timestamp;
         participant.active = true;
         participant.missedDeposits = 0;
@@ -238,17 +252,16 @@ contract Contriboost is ReentrancyGuard, Ownable {
         uint totalAmount = paymentMethod == PaymentMethod.Ether ? address(this).balance : token.balanceOf(address(this));
         require(totalAmount > 0, "No funds to distribute");
 
-        uint hostFee = totalAmount.mul(hostFeePercentage).div(PERCENTAGE_BASE);
-        uint platformFee = totalAmount.mul(platformFeePercentage).div(PERCENTAGE_BASE);
-        uint recipientAmount = totalAmount.sub(hostFee).sub(platformFee);
+        uint hostFee = (totalAmount * hostFeePercentage) / PERCENTAGE_BASE;
+        uint platformFee = (totalAmount * platformFeePercentage) / PERCENTAGE_BASE;
+        uint recipientAmount = totalAmount - hostFee - platformFee;
 
         if (hostFee > 0) {
             if (paymentMethod == PaymentMethod.Ether) {
                 (bool success, ) = host.call{value: hostFee}("");
                 require(success, "Host fee transfer failed");
             } else {
-                bool success = token.transfer(host, hostFee);
-                require(success, "Host fee transfer failed");
+                token.safeTransfer(host, hostFee);
             }
         }
 
@@ -257,8 +270,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
                 (bool success, ) = platformOwner.call{value: platformFee}("");
                 require(success, "Platform fee transfer failed");
             } else {
-                bool success = token.transfer(platformOwner, platformFee);
-                require(success, "Platform fee transfer failed");
+                token.safeTransfer(platformOwner, platformFee);
             }
             emit PlatformFeeTransferred(platformOwner, platformFee);
         }
@@ -270,8 +282,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
             (bool success, ) = recipient.call{value: recipientAmount}("");
             require(success, "Recipient transfer failed");
         } else {
-            bool success = token.transfer(recipient, recipientAmount);
-            require(success, "Recipient transfer failed");
+            token.safeTransfer(recipient, recipientAmount);
         }
 
         participants[recipient].receivedFunds = true;
@@ -291,7 +302,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
                 activeCount++;
             }
         }
-        
+
         address[] memory activeParticipants = new address[](activeCount);
         uint index = 0;
         for (uint i = 0; i < participantList.length; i++) {
@@ -340,8 +351,7 @@ contract Contriboost is ReentrancyGuard, Ownable {
             IERC20 tokenToWithdraw = IERC20(_tokenAddress);
             uint balance = tokenToWithdraw.balanceOf(address(this));
             require(balance > 0, "No tokens to withdraw");
-            bool success = tokenToWithdraw.transfer(owner(), balance);
-            require(success, "Token withdrawal failed");
+            tokenToWithdraw.safeTransfer(owner(), balance);
         } else {
             revert("Unsupported payment method");
         }

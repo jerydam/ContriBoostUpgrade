@@ -2,12 +2,12 @@
 pragma solidity ^0.8.19;
 
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
-import "../lib/openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract GoalFund is ReentrancyGuard, Ownable() {
-    using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     enum PaymentMethod {
         Ether,
@@ -110,8 +110,8 @@ contract GoalFund is ReentrancyGuard, Ownable() {
         if (contributions[contributor] == 0) {
             contributors.push(contributor);
         }
-        contributions[contributor] = contributions[contributor].add(amount);
-        goal.currentAmount = goal.currentAmount.add(amount);
+        contributions[contributor] = contributions[contributor] + amount;
+        goal.currentAmount = goal.currentAmount + amount;
 
         emit Contribution(contributor, amount);
 
@@ -121,26 +121,22 @@ contract GoalFund is ReentrancyGuard, Ownable() {
         }
     }
 
-    function contribute() external payable nonReentrant onlyBeforeDeadline {
-        uint amount;
+    /// @param amount Token amount to contribute. Ignored for the Ether payment method
+    ///        (msg.value is used instead) — pass 0 in that case.
+    function contribute(uint amount) external payable nonReentrant onlyBeforeDeadline {
+        uint contributedAmount;
         if (paymentMethod == PaymentMethod.Ether) {
             require(msg.value > 0, "Must send Ether");
-            amount = msg.value;
+            contributedAmount = msg.value;
         } else {
             require(msg.value == 0, "Ether not accepted for ERC20 payment");
-            amount = getTokenContribution();
+            require(amount > 0, "Amount must be greater than zero");
+            uint balanceBefore = token.balanceOf(address(this));
+            token.safeTransferFrom(msg.sender, address(this), amount);
+            contributedAmount = token.balanceOf(address(this)) - balanceBefore;
+            require(contributedAmount == amount, "Fee-on-transfer tokens not supported");
         }
-        _contribute(msg.sender, amount);
-    }
-
-    function getTokenContribution() internal returns (uint) {
-        uint allowance = token.allowance(msg.sender, address(this));
-        uint balance = token.balanceOf(msg.sender);
-        uint amount = allowance < balance ? allowance : balance;
-        require(amount > 0, "No tokens approved or available");
-        bool success = token.transferFrom(msg.sender, address(this), amount);
-        require(success, "Token transfer failed");
-        return amount;
+        _contribute(msg.sender, contributedAmount);
     }
 
     function withdrawFunds() external onlyOwner nonReentrant onlyWhenNotWithdrawn {
@@ -153,8 +149,8 @@ contract GoalFund is ReentrancyGuard, Ownable() {
         uint totalAmount = getBalance();
         require(totalAmount > 0, "No funds to withdraw");
 
-        uint platformFee = totalAmount.mul(platformFeePercentage).div(PERCENTAGE_BASE);
-        uint beneficiaryAmount = totalAmount.sub(platformFee);
+        uint platformFee = (totalAmount * platformFeePercentage) / PERCENTAGE_BASE;
+        uint beneficiaryAmount = totalAmount - platformFee;
 
         if (platformFee > 0) {
             transferFunds(payable(platformOwner), platformFee);
@@ -190,8 +186,7 @@ contract GoalFund is ReentrancyGuard, Ownable() {
             (bool success, ) = recipient.call{value: amount}("");
             require(success, "Ether transfer failed");
         } else {
-            bool success = token.transfer(recipient, amount);
-            require(success, "Token transfer failed");
+            token.safeTransfer(recipient, amount);
         }
     }
 

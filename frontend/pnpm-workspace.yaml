@@ -7,3 +7,41 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   utf-8-validate: true
+# Pinned to the lowest patched version within the SAME major line the
+# transitive dependency tree already uses (caret range), not the absolute
+# latest — several of these (ajv, h3, minimatch, uuid, brace-expansion)
+# have done major-version rewrites with breaking API changes, and nothing
+# in this tree has been tested against them.
+overrides:
+  ajv: "^6.14.0"
+  axios: "^1.18.0"
+  bn.js: "^5.2.3"
+  # brace-expansion, form-data, minimatch, picomatch, and ws each have two
+  # independent consumers on different majors in this tree (e.g. an old
+  # glob/eslint chain on minimatch@3 vs a newer one on minimatch@9) — a
+  # single blanket override forces both to the same major and breaks
+  # whichever consumer expected the other one (confirmed: minimatch broke
+  # ESLint's build step this way). Scope each fix to its own major instead.
+  "brace-expansion@1": "^1.1.16"
+  "brace-expansion@2": "^2.1.2"
+  defu: "^6.1.5"
+  flatted: "^3.4.2"
+  follow-redirects: "^1.15.12"
+  "form-data@2": "^2.5.6"
+  "form-data@4": "^4.0.6"
+  h3: "^1.15.9"
+  hono: "^4.12.27"
+  js-yaml: "^4.3.0"
+  lodash: "^4.17.24"
+  "minimatch@3": "^3.1.4"
+  "minimatch@9": "^9.0.7"
+  "picomatch@2": "^2.3.2"
+  "picomatch@4": "^4.0.4"
+  postcss: "^8.5.12"
+  preact: "^10.27.3"
+  qs: "^6.15.2"
+  sharp: "^0.35.0"
+  socket.io-parser: "^4.2.6"
+  uuid: "^11.1.1"
+  "ws@7": "^7.5.11"
+  "ws@8": "^8.21.0"

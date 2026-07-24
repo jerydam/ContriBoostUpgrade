@@ -210,9 +210,9 @@ export default function CreateContriboostPage() {
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
         <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
-        <Button 
-            variant="outline" 
-            onClick={() => connect()} 
+        <Button
+            variant="default"
+            onClick={() => connect()}
             disabled={isConnecting}
         >
           {isConnecting ? "Connecting..." : isMiniApp ? "Connect Farcaster Wallet" : "Connect Wallet"}
@@ -420,7 +420,7 @@ export default function CreateContriboostPage() {
                 )}
               />
               <CardFooter className="flex justify-end px-0">
-                <Button variant="outline" type="submit" disabled={isCreating}>
+                <Button variant="default" type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Pool
                 </Button>

@@ -37,7 +37,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
+import { Loader2, Plus, Search, Users, Wallet, Coins, ChevronRight, Tag, Layers, Zap } from "lucide-react";
 import { toast } from "react-toastify";
 import { useSelfVerification } from "@/hooks/use-self";
 // 🔵 DIVVI INTEGRATION
@@ -345,7 +347,7 @@ export default function PoolsPage() {
               Create New
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#101b31]">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Choose what to create</DialogTitle>
             </DialogHeader>
@@ -391,6 +393,20 @@ export default function PoolsPage() {
         </Dialog>
       </div>
 
+      <StatTileRow className="grid-cols-3 mb-8">
+        <StatTile icon={Layers} label="Total Pools" value={pools.length} />
+        <StatTile
+          icon={Zap}
+          label="Active Now"
+          value={pools.filter((p) => p.status === "active").length}
+        />
+        <StatTile
+          icon={Users}
+          label="Your Pools"
+          value={pools.filter((p) => p.userStatus?.isParticipant).length}
+        />
+      </StatTileRow>
+
       <div className="flex flex-col sm:flex-row gap-4 mb-8">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -405,7 +421,7 @@ export default function PoolsPage() {
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
-          <SelectContent className="bg-[#101b31]">
+          <SelectContent>
             <SelectItem value="all">All Pools</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="full">Full (Contriboost)</SelectItem>
@@ -417,9 +433,24 @@ export default function PoolsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2">Loading pools...</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-live="polite">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border bg-card p-6 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="h-5 w-32 rounded-md bg-muted animate-pulse" />
+                <div className="h-5 w-14 rounded-full bg-muted animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3.5 w-full rounded-md bg-muted animate-pulse" />
+                <div className="h-3.5 w-3/4 rounded-md bg-muted animate-pulse" />
+                <div className="h-3.5 w-2/3 rounded-md bg-muted animate-pulse" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <div className="h-9 flex-1 rounded-md bg-muted animate-pulse" />
+                <div className="h-9 flex-1 rounded-md bg-muted animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredPools.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-muted/50">
@@ -434,7 +465,7 @@ export default function PoolsPage() {
                 Create New Pool
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-[#101b31]">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>Choose what to create</DialogTitle>
               </DialogHeader>
@@ -500,7 +531,7 @@ export default function PoolsPage() {
                       <CardTitle className="flex items-center gap-2">
                         {pool.name}
                         {!isContriboost && (
-                          <span className="text-xs bg-purple-100 text-purple-800 py-0.5 px-1.5 rounded-full flex items-center">
+                          <span className="text-xs bg-accent text-accent-foreground py-0.5 px-1.5 rounded-full flex items-center">
                             <Tag className="h-3 w-3 mr-1" />
                             GoalFund
                           </span>
@@ -516,7 +547,7 @@ export default function PoolsPage() {
                           {pool.tags.map((tag, index) => (
                             <span
                               key={index}
-                              className="text-xs bg-blue-100 text-blue-800 py-0.5 px-2 rounded-full"
+                              className="text-xs bg-secondary text-secondary-foreground py-0.5 px-2 rounded-full"
                             >
                               {tag}
                             </span>
@@ -527,14 +558,14 @@ export default function PoolsPage() {
                     <div
                       className={`text-xs font-medium py-1 px-2 rounded-full ${
                         pool.status === "active"
-                          ? "bg-green-100 text-green-800"
+                          ? "bg-primary/15 text-primary"
                           : pool.status === "full"
-                          ? "bg-amber-100 text-amber-800"
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                           : pool.status === "not-started"
-                          ? "bg-blue-100 text-blue-800"
+                          ? "bg-muted text-muted-foreground"
                           : pool.status === "achieved"
-                          ? "bg-teal-100 text-teal-800"
-                          : "bg-red-100 text-red-800"
+                          ? "bg-primary/15 text-primary"
+                          : "bg-destructive/15 text-destructive"
                       }`}
                     >
                       {pool.status === "active"
@@ -549,48 +580,49 @@ export default function PoolsPage() {
                     </div>
                   </div>
                 </CardHeader>
+                <CardContent className="pb-2">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold font-numeric">
+                      {isContriboost ? pool.contributionAmount : pool.currentAmount}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {getTokenSymbol(pool.tokenAddress)}
+                      {isContriboost ? " / cycle" : ` of ${pool.targetAmount} target`}
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      isContriboost
+                        ? Math.min((pool.currentParticipants / pool.expectedNumber) * 100, 100)
+                        : Math.min(
+                            (Number(pool.currentAmount) / Number(pool.targetAmount || 1)) * 100,
+                            100
+                          )
+                    }
+                    className="h-1.5 mt-3"
+                  />
+                </CardContent>
                 <CardContent>
                   <div className="space-y-2">
                     {isContriboost ? (
                       <>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Contribution</span>
-                          <span className="font-medium">
-                            {pool.contributionAmount}{" "}
-                            {getTokenSymbol(pool.tokenAddress)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Participants</span>
-                          <span className="font-medium flex items-center">
+                          <span className="font-medium font-numeric flex items-center">
                             <Users className="h-3.5 w-3.5 mr-1" />
                             {pool.currentParticipants}/{pool.expectedNumber}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Host Fee</span>
-                          <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
+                          <span className="font-medium font-numeric">{pool.hostFeePercentage / 100}%</span>
                         </div>
                       </>
                     ) : (
                       <>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Target</span>
-                          <span className="font-medium">
-                            {pool.targetAmount}{" "}
-                            {getTokenSymbol(pool.tokenAddress)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Raised</span>
-                          <span className="font-medium">
-                            {pool.currentAmount}{" "}
-                            {getTokenSymbol(pool.tokenAddress)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Beneficiary</span>
-                          <span className="font-medium">{formatAddress(pool.beneficiary)}</span>
+                          <span className="font-medium font-numeric">{formatAddress(pool.beneficiary)}</span>
                         </div>
                       </>
                     )}
@@ -599,7 +631,7 @@ export default function PoolsPage() {
                         <span className="text-muted-foreground">
                           {isContriboost ? "Your Status" : "Your Contribution"}
                         </span>
-                        <span className="font-medium">
+                        <span className="font-medium font-numeric">
                           {isContriboost
                             ? pool.userStatus.hasReceivedFunds
                               ? "Received Funds"

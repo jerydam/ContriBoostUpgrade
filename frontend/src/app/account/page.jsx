@@ -10,7 +10,10 @@ import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlusCircle, AlertCircle, CheckCircle, Tag, X } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { BalanceCard } from "@/components/dashboard/balance-card";
+import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
+import { Loader2, PlusCircle, AlertCircle, CheckCircle, Tag, X, Layers, Target, Zap } from "lucide-react";
 import { useSelfVerification } from "@/hooks/use-self";
 import SelfVerificationFlow from "@/components/verify";
 // Import Farcaster SDK
@@ -212,7 +215,7 @@ export default function AccountPage() {
     return (
       <div className="container mx-auto px-4 py-12 max-w-2xl">
         <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
           <h1 className="text-2xl font-bold mb-4">Error</h1>
           <p className="text-muted-foreground mb-6 text-sm md:text-base">{error}</p>
           <Button variant="outline" onClick={fetchUserData}>
@@ -230,32 +233,18 @@ export default function AccountPage() {
         Manage your pools, funds, and contributions
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Wallet Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">Wallet Overview</CardTitle>
-            <CardDescription className="text-sm">Your account details and balance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Address</h3>
-                  <p className="font-mono text-xs sm:text-sm break-all">{formatAddress(account)}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Balance</h3>
-                  <p className="text-lg md:text-xl font-bold">{parseFloat(balance).toFixed(4)} CELO</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-2">
+      <BalanceCard
+        className="mb-6"
+        label="Wallet Balance"
+        value={parseFloat(balance).toFixed(4)}
+        valueSuffix="CELO"
+        subtext={formatAddress(account)}
+        actions={
+          <>
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              className="w-full sm:w-auto"
+              className="rounded-full"
               onClick={() => handleCreateNavigation("/create/contribution")}
               disabled={isConnecting}
             >
@@ -264,12 +253,12 @@ export default function AccountPage() {
               ) : (
                 <PlusCircle className="mr-2 h-4 w-4" />
               )}
-              Create Contriboost Pool
+              Create Pool
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="w-full sm:w-auto"
+              className="rounded-full"
               onClick={() => handleCreateNavigation("/create/goalfund")}
               disabled={isConnecting}
             >
@@ -280,36 +269,49 @@ export default function AccountPage() {
               )}
               Create GoalFund
             </Button>
-          </CardFooter>
-        </Card>
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link href="/pools">Explore Pools</Link>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Verification Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">Identity Verification</CardTitle>
-            <CardDescription className="text-sm">Verify your identity to join Contriboost pools</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center py-6">
-            {isVerified ? (
-              <div className="text-center">
-                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <p className="text-lg font-semibold">Verified</p>
-                <p className="text-sm text-muted-foreground">You can now join Contriboost pools.</p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
-                <p className="text-lg font-semibold">Not Verified</p>
-                <p className="text-sm text-muted-foreground mb-4">Please verify your identity to participate.</p>
-                <Button onClick={startVerification} disabled={isAppLoading}>
-                  {isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Verify Identity
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <StatTileRow className="mb-8">
+        <StatTile icon={Layers} label="Your Pools" value={userPools.length} />
+        <StatTile icon={Target} label="Your Goal Funds" value={userFunds.length} />
+        <StatTile
+          icon={Zap}
+          label="Active"
+          value={userPools.filter((p) => p.currentParticipants < p.expectedNumber).length}
+        />
+      </StatTileRow>
+
+      {/* Verification Status */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="text-lg md:text-xl">Identity Verification</CardTitle>
+          <CardDescription className="text-sm">Verify your identity to join Contriboost pools</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-6">
+          {isVerified ? (
+            <div className="text-center">
+              <CheckCircle className="h-16 w-16 text-primary mx-auto mb-4" />
+              <p className="text-lg font-semibold">Verified</p>
+              <p className="text-sm text-muted-foreground">You can now join Contriboost pools.</p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+              <p className="text-lg font-semibold">Not Verified</p>
+              <p className="text-sm text-muted-foreground mb-4">Please verify your identity to participate.</p>
+              <Button onClick={startVerification} disabled={isAppLoading}>
+                {isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Verify Identity
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Verification Flow Modal */}
       {isFlowOpen && (
@@ -362,22 +364,26 @@ export default function AccountPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
+                      <Progress
+                        value={(pool.currentParticipants / pool.expectedNumber) * 100}
+                        className="h-1.5 mb-3"
+                      />
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Contribution</span>
-                          <span className="font-medium">
+                          <span className="font-medium font-numeric">
                             {parseFloat(pool.contributionAmount).toFixed(4)} {getTokenSymbol(pool.tokenAddress)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Participants</span>
-                          <span className="font-medium">
+                          <span className="font-medium font-numeric">
                             {pool.currentParticipants}/{pool.expectedNumber}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Host Fee</span>
-                          <span className="font-medium">{pool.hostFeePercentage / 100}%</span>
+                          <span className="font-medium font-numeric">{pool.hostFeePercentage / 100}%</span>
                         </div>
                       </div>
                     </CardContent>
@@ -424,16 +430,23 @@ export default function AccountPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
+                    <Progress
+                      value={Math.min(
+                        (Number(fund.currentAmount) / Number(fund.targetAmount)) * 100,
+                        100
+                      )}
+                      className="h-1.5 mb-3"
+                    />
                     <div className="space-y-2 text-xs sm:text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Target</span>
-                        <span className="font-medium">
+                        <span className="font-medium font-numeric">
                           {parseFloat(fund.targetAmount).toFixed(4)} {getTokenSymbol(fund.tokenAddress)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">
+                        <span className="font-medium font-numeric">
                           {parseFloat(fund.currentAmount).toFixed(4)} {getTokenSymbol(fund.tokenAddress)}
                         </span>
                       </div>
@@ -442,17 +455,6 @@ export default function AccountPage() {
                         <span className="font-medium">
                           {fund.fundType === 0 ? "Grouped" : "Personal"}
                         </span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2.5 mt-2">
-                        <div
-                          className="bg-primary h-2.5 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              (Number(fund.currentAmount) / Number(fund.targetAmount)) * 100,
-                              100
-                            )}%`,
-                          }}
-                        />
                       </div>
                     </div>
                   </CardContent>

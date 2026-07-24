@@ -1,20 +1,33 @@
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
+import BottomNav from "@/components/bottom-nav";
 import { Web3Provider } from "@/components/providers/web3-provider";
 import {MiniAppProvider} from "@/components/providers/miniapp-provider";
 import { ThemeScript } from "./theme-script";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 // Define the Mini App metadata
 const miniAppMetadata = JSON.stringify({
   version: "1",
-  imageUrl: "https://www.contriboost.xyz/icon.jpg", 
+  imageUrl: "https://www.contriboost.xyz/icon.jpg",
   button: {
     title: "Launch Contriboost",
     action: {
@@ -22,7 +35,7 @@ const miniAppMetadata = JSON.stringify({
       name: "Contriboost",
       url: "https://www.contriboost.xyz",
       splashImageUrl: "https://www.contriboost.xyz/favicon.png",
-      splashBackgroundColor: "#101b31",
+      splashBackgroundColor: "#000000",
     },
   },
 });
@@ -46,22 +59,25 @@ export default function RootLayout({ children }) {
       <head>
         <ThemeScript />
       </head>
-      <body className={inter.className}>
+      <body
+        className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+      >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <MiniAppProvider>
             <Web3Provider>
               <div className="flex min-h-screen flex-col">
                 <Header />
-                <main className="flex-1">{children}</main>
-                <Footer />
+                <main className="flex-1 pb-20 md:pb-0">{children}</main>
+                <Footer className="hidden md:block" />
+                <BottomNav />
                 <ToastContainer
                   position="top-right"
                   autoClose={3000}
-                  theme="light"
+                  theme="dark"
                   toastStyle={{
-                    backgroundColor: "#101b31",
-                    color: "#ffffff",
-                    border: "1px solid #1e2a44",
+                    backgroundColor: "#03221a",
+                    color: "#f2f7f5",
+                    border: "1px solid #12352a",
                   }}
                 />
               </div>

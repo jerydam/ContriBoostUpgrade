@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ethers } from "ethers";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,9 +12,62 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowRight, ChevronRight, Coins, Wallet } from "lucide-react";
+import { BalanceCard } from "@/components/dashboard/balance-card";
+import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
+import { ArrowRight, ChevronRight, Coins, Wallet, Layers, Target, Users } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { useMiniApp } from "@/components/providers/miniapp-provider";
+import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
+
+const FORNO_RPC = "https://forno.celo.org";
+const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
+const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
+const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+
+function getTokenSymbol(tokenAddress) {
+  if (!tokenAddress) return "Token";
+  if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
+  if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
+  return "Token";
+}
+
+function GetStartedButton({
+  isMiniApp,
+  account,
+  isConnecting,
+  onMainCta,
+  isConnectDialogOpen,
+  setIsConnectDialogOpen,
+  onConnect,
+  ResponsiveDialogContent,
+}) {
+  if (isMiniApp) {
+    return (
+      <Button variant="default" className="w-full" disabled={isConnecting} onClick={onMainCta}>
+        {isConnecting ? "Connecting..." : account ? "Create New" : "Connect Wallet"}
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" className="w-full" disabled={isConnecting}>
+          {isConnecting ? "Connecting..." : "Get Started"}
+        </Button>
+      </DialogTrigger>
+
+      <ResponsiveDialogContent title="Connect Wallet">
+        <div className="grid gap-4">
+          <Button onClick={() => onConnect("injected")} variant="outline" className="h-12 justify-start">
+            MetaMask / Injected
+          </Button>
+        </div>
+      </ResponsiveDialogContent>
+    </Dialog>
+  );
+}
 
 export default function LandingPage() {
   const { account, connect, isConnecting } = useWeb3();
@@ -23,7 +77,69 @@ export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
+  const [liveStatsState, setLiveStatsState] = useState("loading"); // loading | ready | error
+  const [liveStats, setLiveStats] = useState(null);
   const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchLiveStats() {
+      try {
+        const readProvider = new ethers.JsonRpcProvider(FORNO_RPC);
+        const contriboostFactory = new ethers.Contract(
+          CONTRIBOOST_FACTORY_ADDRESS,
+          ContriboostFactoryAbi,
+          readProvider
+        );
+        const goalFundFactory = new ethers.Contract(
+          GOALFUND_FACTORY_ADDRESS,
+          GoalFundFactoryAbi,
+          readProvider
+        );
+
+        const [contriboostDetailsRaw, goalFundDetailsRaw] = await Promise.all([
+          contriboostFactory.getAllContriboostsDetails(),
+          goalFundFactory.getAllGoalFundsDetails(),
+        ]);
+
+        const groupedGoalFunds = goalFundDetailsRaw.filter((f) => Number(f.fundType) === 0);
+        const totalSeats = contriboostDetailsRaw.reduce(
+          (sum, p) => sum + Number(p.expectedNumber || 0),
+          0
+        );
+        const avgGroupSize =
+          contriboostDetailsRaw.length > 0
+            ? Math.round(totalSeats / contriboostDetailsRaw.length)
+            : 0;
+        const previewPools = contriboostDetailsRaw.slice(0, 3).map((p) => ({
+          name: p.name || "Unnamed Pool",
+          contributionAmount: ethers.formatEther(p.contributionAmount || 0n),
+          tokenAddress: p.tokenAddress,
+          dayRange: Number(p.dayRange || 0),
+        }));
+
+        if (!cancelled) {
+          setLiveStats({
+            contriboostCount: contriboostDetailsRaw.length,
+            goalFundCount: groupedGoalFunds.length,
+            totalSeats,
+            avgGroupSize,
+            previewPools,
+          });
+          setLiveStatsState("ready");
+        }
+      } catch (err) {
+        console.error("Failed to fetch live platform stats:", err);
+        if (!cancelled) setLiveStatsState("error");
+      }
+    }
+
+    fetchLiveStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreateNavigation = (path) => {
     setIsCreateDialogOpen(false);
@@ -112,9 +228,9 @@ export default function LandingPage() {
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                   <DialogTrigger asChild>
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="lg"
-                      className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                      className="w-full sm:w-auto"
                       disabled={isConnecting}
                     >
                       Create New <span className="ml-1">+</span>
@@ -167,81 +283,136 @@ export default function LandingPage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                    className="w-full sm:w-auto"
                     disabled={isConnecting}
                   >
                     Explore Contribution Pools <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
+
+                {/* PAY BILLS */}
+                <Link href="/bills">
+                  <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                    Pay Bills
+                  </Button>
+                </Link>
               </div>
 
               {account && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground font-numeric">
                   Connected: {account.slice(0, 6)}...{account.slice(-4)}
-                  {isMiniApp && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Farcaster</span>}
+                  {isMiniApp && <span className="ml-2 font-sans text-xs bg-accent text-accent-foreground px-2 py-0.5 rounded-full">Farcaster</span>}
                 </p>
               )}
             </div>
 
-            {/* RIGHT: How It Works Card */}
+            {/* RIGHT: Live Dashboard Preview */}
             <div className="flex items-center justify-center">
-              <div className="relative w-full max-w-md">
-                <div className="absolute -top-10 -right-10 h-72 w-72 bg-primary/20 rounded-full blur-3xl" />
-                <div className="relative z-10 bg-card border rounded-xl shadow-lg p-6 md:p-10">
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-bold">How it works</h3>
-                    <ul className="space-y-4">
-                      {[
-                        "Join a pool or create your own with predefined contribution amounts",
-                        "Make regular contributions to the pool in cycles",
-                        "Each cycle, one participant receives the whole pool amount",
-                        "Earn trust and build community through transparent, secure savings",
-                      ].map((text, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <div className="rounded-full bg-primary/10 p-1 mt-1">
-                            <span className="block h-4 w-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground text-center leading-4">
-                              {i + 1}
-                            </span>
-                          </div>
-                          <p className="text-sm">{text}</p>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {/* GET STARTED BUTTON */}
-                    {isMiniApp ? (
-                      <Button
-                        variant="outline"
-                        className="w-full hover:bg-[#1e2a44] hover:text-amber-50"
-                        disabled={isConnecting}
-                        onClick={handleMainCta}
-                      >
-                        {isConnecting ? "Connecting..." : account ? "Create New" : "Connect Wallet"}
-                      </Button>
-                    ) : (
-                      <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full hover:bg-[#1e2a44] hover:text-amber-50"
-                            disabled={isConnecting}
-                          >
-                            {isConnecting ? "Connecting..." : "Get Started"}
-                          </Button>
-                        </DialogTrigger>
-
-                        <ResponsiveDialogContent title="Connect Wallet">
-                          <div className="grid gap-4">
-                            <Button onClick={() => handleConnect("injected")} variant="outline" className="h-12 justify-start">
-                              MetaMask / Injected
-                            </Button>
-                          </div>
-                        </ResponsiveDialogContent>
-                      </Dialog>
-                    )}
+              {liveStatsState === "error" ? (
+                <div className="relative w-full max-w-md">
+                  <div className="absolute -top-10 -right-10 h-72 w-72 bg-primary/20 rounded-full blur-3xl" />
+                  <div className="relative z-10 bg-card border rounded-xl shadow-lg p-6 md:p-10">
+                    <div className="space-y-4">
+                      <h3 className="text-xl font-bold">How it works</h3>
+                      <ul className="space-y-4">
+                        {[
+                          "Join a pool or create your own with predefined contribution amounts",
+                          "Make regular contributions to the pool in cycles",
+                          "Each cycle, one participant receives the whole pool amount",
+                          "Earn trust and build community through transparent, secure savings",
+                        ].map((text, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <div className="rounded-full bg-primary/10 p-1 mt-1">
+                              <span className="block h-4 w-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground text-center leading-4">
+                                {i + 1}
+                              </span>
+                            </div>
+                            <p className="text-sm">{text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                      <GetStartedButton
+                        isMiniApp={isMiniApp}
+                        account={account}
+                        isConnecting={isConnecting}
+                        onMainCta={handleMainCta}
+                        isConnectDialogOpen={isConnectDialogOpen}
+                        setIsConnectDialogOpen={setIsConnectDialogOpen}
+                        onConnect={handleConnect}
+                        ResponsiveDialogContent={ResponsiveDialogContent}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="w-full max-w-md space-y-4">
+                  <BalanceCard
+                    label="Community Seats"
+                    value={liveStatsState === "ready" ? liveStats.totalSeats : "···"}
+                    subtext="Open spots across every active Contriboost pool"
+                  />
+
+                  <StatTileRow>
+                    <StatTile
+                      icon={Layers}
+                      label="Pools"
+                      value={liveStatsState === "ready" ? liveStats.contriboostCount : "···"}
+                    />
+                    <StatTile
+                      icon={Target}
+                      label="Goal Funds"
+                      value={liveStatsState === "ready" ? liveStats.goalFundCount : "···"}
+                    />
+                    <StatTile
+                      icon={Users}
+                      label="Avg. Group"
+                      value={liveStatsState === "ready" ? liveStats.avgGroupSize : "···"}
+                    />
+                  </StatTileRow>
+
+                  <div className="rounded-xl border bg-card p-4">
+                    <p className="text-sm font-semibold mb-3">Live Pools</p>
+                    {liveStatsState === "loading" && (
+                      <div className="space-y-3">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-10 rounded-md bg-muted animate-pulse" />
+                        ))}
+                      </div>
+                    )}
+                    {liveStatsState === "ready" && liveStats.previewPools.length > 0 && (
+                      <ul className="space-y-3">
+                        {liveStats.previewPools.map((pool) => (
+                          <li key={pool.name} className="flex items-center justify-between text-sm gap-3">
+                            <span className="flex items-center gap-2 font-medium min-w-0">
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                              <span className="truncate">{pool.name}</span>
+                            </span>
+                            <span className="font-numeric text-muted-foreground whitespace-nowrap">
+                              {parseFloat(pool.contributionAmount).toFixed(2)} {getTokenSymbol(pool.tokenAddress)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {liveStatsState === "ready" && liveStats.previewPools.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        No pools yet — be the first to create one.
+                      </p>
+                    )}
+                  </div>
+
+                  <GetStartedButton
+                    isMiniApp={isMiniApp}
+                    account={account}
+                    isConnecting={isConnecting}
+                    onMainCta={handleMainCta}
+                    isConnectDialogOpen={isConnectDialogOpen}
+                    setIsConnectDialogOpen={setIsConnectDialogOpen}
+                    onConnect={handleConnect}
+                    ResponsiveDialogContent={ResponsiveDialogContent}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -299,8 +470,8 @@ export default function LandingPage() {
 
               <div className="flex flex-col sm:flex-row gap-2 min-[400px]:gap-4">
                 <Button
-                  variant="outline"
-                  className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                  variant="default"
+                  className="w-full sm:w-auto"
                   disabled={isConnecting}
                   onClick={() => handleCreateNavigation("/create/contribution")}
                 >
@@ -310,7 +481,7 @@ export default function LandingPage() {
                 <Link href="/pools">
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                    className="w-full sm:w-auto"
                     disabled={isConnecting}
                   >
                     Explore Pools
@@ -337,16 +508,19 @@ export default function LandingPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 />
                 <Button
-                  variant="outline"
+                  variant="default"
                   type="submit"
-                  className="w-full sm:w-auto hover:bg-[#1e2a44] hover:text-amber-50"
+                  className="w-full sm:w-auto"
                 >
                   Subscribe
                 </Button>
               </form>
 
               {subscriptionStatus && (
-                <p className={`text-sm ${subscriptionStatus === "success" ? "text-green-600" : "text-red-600"}`}>
+                <p
+                  role="status"
+                  className={`text-sm ${subscriptionStatus === "success" ? "text-primary" : "text-destructive"}`}
+                >
                   {subscriptionMessage}
                 </p>
               )}

@@ -35,7 +35,7 @@ console.log(`   Mode: ${SELF_CONFIG.mode}`);
 console.log(`   Minimum Age: ${SELF_CONFIG.minimumAge}`);
 
 const BUTTON_STYLE_CLASSES =
-  "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
+  "transition-all hover:scale-[1.02] active:scale-[0.98]";
 
 // ============================================================================
 // CUSTOM HOOK: DETECT MOBILE
@@ -319,7 +319,7 @@ export default function SelfVerificationFlow({
 
   if (isAppLoading) {
     return (
-      <Card className="p-6 mt-4 max-w-sm mx-auto flex justify-center items-center h-48 fixed inset-0 z-50 m-auto bg-white">
+      <Card className="p-6 mt-4 max-w-sm mx-auto flex justify-center items-center h-48 fixed inset-0 z-50 m-auto">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="ml-2">Initializing Verification...</span>
       </Card>
@@ -335,15 +335,12 @@ export default function SelfVerificationFlow({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <Card className="p-8 max-w-sm mx-auto w-full">
           <div className="flex flex-col items-center text-center">
-            <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
+            <CheckCircle className="h-16 w-16 text-primary mb-4" />
             <CardTitle className="text-2xl mb-2">Verified!</CardTitle>
             <CardDescription className="mb-6">
               Your identity has been verified successfully.
             </CardDescription>
-            <Button
-              onClick={onCancel}
-              className="w-full bg-green-600 hover:bg-green-700 text-white"
-            >
+            <Button onClick={onCancel} variant="default" className="w-full">
               Continue
             </Button>
           </div>
@@ -361,7 +358,7 @@ export default function SelfVerificationFlow({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <Card className="p-6 max-w-sm mx-auto w-full">
           <div className="flex flex-col items-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mb-3" />
+            <AlertCircle className="h-12 w-12 text-destructive mb-3" />
             <CardTitle className="mb-3">Verification Failed</CardTitle>
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -373,13 +370,14 @@ export default function SelfVerificationFlow({
                   setVerificationStatus("pending");
                   setErrorMessage("");
                 }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                variant="default"
+                className="flex-1"
               >
                 Retry
               </Button>
               <Button
                 onClick={onCancel}
-                variant="destructive"
+                variant="outline"
                 className="flex-1"
               >
                 Cancel
@@ -426,7 +424,7 @@ export default function SelfVerificationFlow({
             </p>
             
             {selfApp ? (
-              <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="border-2 border-border rounded-lg p-4 bg-white">
                 <SelfQRcodeWrapper
                   selfApp={selfApp}
                   onSuccess={handleVerificationSuccess}
@@ -466,7 +464,7 @@ export default function SelfVerificationFlow({
         {/* Close Button */}
         <button
           onClick={onCancel}
-          className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 z-10 p-2 rounded-full hover:bg-gray-100 transition-colors"
+          className="absolute top-2 right-2 text-muted-foreground hover:text-foreground z-10 p-2 rounded-full hover:bg-accent transition-colors"
           aria-label="Close verification"
         >
           <X className="h-6 w-6" />

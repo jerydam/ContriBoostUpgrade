@@ -18,6 +18,8 @@ import { Loader2, AlertCircle, DollarSign, Calendar, Users, Tag, X } from "lucid
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { BalanceCard } from "@/components/dashboard/balance-card";
+import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
 import { toast } from "react-toastify";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +48,7 @@ const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 
 // Base styling classes for consistency across all action buttons
-const BUTTON_STYLE_CLASSES = "border-2 border-amber-50 transition-all hover:scale-[1.02] active:scale-[0.98]";
+const BUTTON_STYLE_CLASSES = "transition-all hover:scale-[1.02] active:scale-[0.98]";
 
 export default function PoolDetailsPage() {
   const { contractAddress } = useParams();
@@ -1172,12 +1174,12 @@ export default function PoolDetailsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           {poolDetails.name}
-          <span className="text-xs bg-purple-100 text-purple-800 py-0.5 px-1.5 rounded-full flex items-center">
+          <span className="text-xs bg-accent text-accent-foreground py-0.5 px-1.5 rounded-full flex items-center">
             <Tag className="h-3 w-3 mr-1" />
             {poolType}
           </span>
           {!isContriboost && (
-            <span className="text-xs bg-blue-100 text-blue-800 py-0.5 px-1.5 rounded-full flex items-center">
+            <span className="text-xs bg-secondary text-secondary-foreground py-0.5 px-1.5 rounded-full flex items-center">
               <Tag className="h-3 w-3 mr-1" />
               {poolDetails.fundType === 0 ? "Grouped" : "Personal"}
             </span>
@@ -1186,87 +1188,57 @@ export default function PoolDetailsPage() {
         <p className="text-muted-foreground wrap-break-words max-w-2xl">{poolDetails.description}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Participants" : "Contributors"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost
-                  ? `${poolDetails.currentParticipants}/${poolDetails.expectedNumber}`
-                  : poolDetails.contributors}
-              </span>
-            </div>
-            {isContriboost ? (
-              <Progress
-                value={(poolDetails.currentParticipants / poolDetails.expectedNumber) * 100}
-                className="h-2 mt-2"
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1">
-                Your contribution: {poolDetails.userContribution} {tokenSymbol}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Current Cycle" : "Deadline"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost ? poolDetails.currentSegment : formatDate(poolDetails.deadline)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isContriboost
-                ? `Started on ${formatDate(poolDetails.startTimestamp)}`
-                : `Status: ${poolDetails.status}`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {isContriboost ? "Contribution Amount" : "Funding Progress"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {isContriboost
-                  ? `${poolDetails.contributionAmount} ${tokenSymbol}`
-                  : `${poolDetails.currentAmount}/${poolDetails.targetAmount} ${tokenSymbol}`}
-              </span>
-            </div>
-            {isContriboost ? (
-              <p className="text-xs text-muted-foreground mt-1">
-                Host fee: {poolDetails.hostFeePercentage / 100}% | Platform fee:{" "}
-                {poolDetails.platformFeePercentage / 100}%
-              </p>
-            ) : (
-              <Progress
-                value={
-                  (Number.parseFloat(poolDetails.currentAmount) /
+      <BalanceCard
+        className="mb-6"
+        label={isContriboost ? "Contribution Amount" : "Funding Progress"}
+        value={isContriboost ? poolDetails.contributionAmount : poolDetails.currentAmount}
+        valueSuffix={
+          isContriboost ? `${tokenSymbol} / cycle` : `of ${poolDetails.targetAmount} ${tokenSymbol}`
+        }
+        subtext={
+          isContriboost
+            ? `Started ${formatDate(poolDetails.startTimestamp)}`
+            : `Your contribution: ${poolDetails.userContribution} ${tokenSymbol}`
+        }
+        progress={
+          <Progress
+            value={
+              isContriboost
+                ? (poolDetails.currentParticipants / poolDetails.expectedNumber) * 100
+                : (Number.parseFloat(poolDetails.currentAmount) /
                     Number.parseFloat(poolDetails.targetAmount)) *
                   100
-                }
-                className="h-2 mt-2"
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            }
+            className="h-2 mt-4"
+          />
+        }
+      />
+
+      <StatTileRow className="mb-8">
+        <StatTile
+          icon={Users}
+          label={isContriboost ? "Participants" : "Contributors"}
+          value={
+            isContriboost
+              ? `${poolDetails.currentParticipants}/${poolDetails.expectedNumber}`
+              : poolDetails.contributors
+          }
+        />
+        <StatTile
+          icon={Calendar}
+          label={isContriboost ? "Current Cycle" : "Deadline"}
+          value={isContriboost ? poolDetails.currentSegment : formatDate(poolDetails.deadline)}
+        />
+        <StatTile
+          icon={DollarSign}
+          label={isContriboost ? "Host Fee" : "Platform Fee"}
+          value={
+            isContriboost
+              ? `${poolDetails.hostFeePercentage / 100}%`
+              : `${poolDetails.platformFeePercentage / 100}%`
+          }
+        />
+      </StatTileRow>
 
       <div className="mb-8 space-y-4">
         
@@ -1282,7 +1254,7 @@ export default function PoolDetailsPage() {
             >
                 {isProcessing || isAppLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 {isVerified ? "Join Pool" : "Verify Identity to Join"}
-                {isVerified && <Tag className="h-4 w-4 ml-1 text-green-500" />}
+                {isVerified && <Tag className="h-4 w-4 ml-1 text-primary" />}
             </Button>
           </div>
         )}
@@ -1533,7 +1505,7 @@ export default function PoolDetailsPage() {
                       {participant.active ? "Active" : "Inactive"}
                       {/* Highlight if participant received funds */}
                       {participant.receivedFunds && (
-                        <span className="ml-1 text-xs bg-green-100 text-green-800 py-0.5 px-1.5 rounded-full">
+                        <span className="ml-1 text-xs bg-primary/15 text-primary py-0.5 px-1.5 rounded-full">
                           Received Payout
                         </span>
                       )}

@@ -1,64 +1,123 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
+}
 
 :root {
-  /* Light mode - Clean and professional */
-  --background: #ffffff; /* Pure white background */
-  --foreground: #000000; /* Dark slate for text */
+  /* Light mode - clean, brand foreground doubles as the deep forest tone */
+  --background: #ffffff;
+  --foreground: #03221a;
 
-  /* Essential shadcn variables */
-  --card: rgba(255, 255, 255, 0.95); /* White cards (95% opaque) */
-  --popover: rgba(255, 255, 255, 0.95); /* White popover (95% opaque) */ /* White cards */
-  --card-foreground: #1e2a44; /* Dark text on cards */
-   /* White popover */
-  --popover-foreground: #1e2a44; /* Dark text on popover */
-  --primary: #3b82f6; /* Vibrant blue for primary actions */
-  --primary-foreground: #ffffff; /* White text on primary */
-  --secondary: #f1f5f9; /* Light gray for secondary elements */
-  --secondary-foreground: #1e2a44; /* Dark text on secondary */
-  --muted: #f8fafc; /* Very light gray for muted backgrounds */
-  --muted-foreground: #64748b; /* Medium gray for muted text */
-  --accent: #eff6ff; /* Light blue accent */
-  --accent-foreground: #1e40af; /* Dark blue text on accent */
-  --destructive: #ef4444; /* Bright red for destructive actions */
-  --destructive-foreground: #ffffff; /* White text on destructive */
-  --border: #e2e8f0; /* Light gray borders */
-  --input: #ffffff; /* White input background */
-  --ring: #3b82f6; /* Blue focus ring */
-  --radius: 0.5rem;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --card-foreground: #03221a;
+  --popover-foreground: #03221a;
+
+  --primary: #129f7a;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eaf6f1;
+  --secondary-foreground: #0b6b52;
+
+  --muted: #f2f7f5;
+  --muted-foreground: #4b6b61;
+
+  --accent: #eaf6f1;
+  --accent-foreground: #0b6b52;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #dceee7;
+  --input: #ffffff;
+  --ring: #129f7a;
+
+  --radius: 0.75rem;
 }
 
 .dark {
-  /* Background with a gradient to mimic Contriboost */
-  --background: linear-gradient(135deg, #0a1121 0%, #1a2b4b 100%);
-  --foreground: #ffffff; /* White for primary text like headings */
+  --background: #000000;
+  --foreground: #f2f7f5;
 
-  /* Dark mode shadcn variables */
-  --card: rgba(30, 42, 68, 0.9); /* Darker shade (90% opaque) */
-  --popover: rgba(30, 42, 68, 0.9); /* Same as card (90% opaque) */
-  --card-foreground: #e2e8f0; /* Light gray for text on cards */
-  --popover-foreground: #e2e8f0; /* Light gray for popover text */
-  --primary: #3b82f6; /* Vibrant blue for buttons and accents */
-  --primary-foreground: #ffffff; /* White text on primary buttons */
-  --secondary: #2a3b5b; /* Slightly lighter than card for secondary elements */
-  --secondary-foreground: #e2e8f0; /* Light text on secondary */
-  --muted: #1e293b; /* Muted backgrounds for less emphasis */
-  --muted-foreground: #94a3b8; /* Gray for muted text */
-  --accent: #3b82f6; /* Same as primary for consistency in accents */
-  --accent-foreground: #ffffff; /* White text on accents */
-  --destructive: #dc2626; /* Bright red for destructive actions */
-  --destructive-foreground: #ffffff; /* White text on destructive */
-  --border: #334155; /* Subtle dark border */
-  --input: #1e293b; /* Dark input background */
-  --ring: #60a5fa; /* Lighter blue for focus rings */
+  --card: #03221a;
+  --popover: #03221a;
+  --card-foreground: #f2f7f5;
+  --popover-foreground: #f2f7f5;
+
+  --primary: #129f7a;
+  --primary-foreground: #03120d;
+
+  --secondary: #0f3527;
+  --secondary-foreground: #f2f7f5;
+
+  --muted: #0c2a1f;
+  --muted-foreground: #7fa69b;
+
+  --accent: #0f3527;
+  --accent-foreground: #4ee0ac;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --border: #16392c;
+  --input: #0c2a1f;
+  --ring: #129f7a;
 }
 
 /* Apply base styles */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+}
+
+/* Tabular figures for balances, prices, addresses, countdowns */
+.font-numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Fix container alignment */
@@ -110,4 +169,15 @@ html,
 body {
   overflow-x: hidden;
   width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

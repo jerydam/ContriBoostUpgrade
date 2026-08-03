@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { useMiniApp } from "@/components/providers/miniapp-provider"; // Add this import
-import { ContriboostFactoryAbi, ContriboostAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
+import { NestoraFactoryAbi, NestoraAbi, SavingsFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,10 +18,12 @@ import { Loader2, PlusCircle, AlertCircle, Layers, Target, Zap } from "lucide-re
 import { sdk } from "@farcaster/miniapp-sdk";
 
 // Contract addresses
-const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
-const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438"; // CELO token (ERC20)
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a"; // cUSD token
+import {
+  NESTORA_FACTORY_ADDRESS as Nestora_FACTORY_ADDRESS,
+  SAVINGS_FACTORY_ADDRESS as SAVING_FACTORY_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
+  getTokenSymbol,
+} from "@/lib/chain-config";
 
 export default function AccountPage() {
   const { provider, account, connect, isConnecting } = useWeb3();
@@ -57,28 +59,28 @@ export default function AccountPage() {
       const accountBalance = await provider.getBalance(account);
       setBalance(ethers.formatEther(accountBalance));
 
-      // Fetch user's Contriboost pools
-      const contriboostFactory = new ethers.Contract(
-        CONTRIBOOST_FACTORY_ADDRESS,
-        ContriboostFactoryAbi,
+      // Fetch user's Nestora pools
+      const NestoraFactory = new ethers.Contract(
+        Nestora_FACTORY_ADDRESS,
+        NestoraFactoryAbi,
         provider
       );
-      const userContriboostAddresses = await contriboostFactory.getUserContriboosts(account);
-      const contriboostDetails = await Promise.all(
-        userContriboostAddresses.map(async (address) => {
+      const userNestoraAddresses = await NestoraFactory.getUserNestoras(account);
+      const NestoraDetails = await Promise.all(
+        userNestoraAddresses.map(async (address) => {
           try {
-            const detailsArray = await contriboostFactory.getContriboostDetails(address, false);
+            const detailsArray = await NestoraFactory.getNestoraDetails(address, false);
             if (!detailsArray || !detailsArray[0]) {
-              console.warn(`No details returned for Contriboost at ${address}`);
+              console.warn(`No details returned for Nestora at ${address}`);
               return null;
             }
             const details = detailsArray[0];
 
-            // Fetch current participants from the Contriboost contract
-            const contriboostContract = new ethers.Contract(address, ContriboostAbi, provider);
+            // Fetch current participants from the Nestora contract
+            const NestoraContract = new ethers.Contract(address, NestoraAbi, provider);
             let currentParticipants = 0;
             try {
-              const activeParticipants = await contriboostContract.getActiveParticipants();
+              const activeParticipants = await NestoraContract.getActiveParticipants();
               currentParticipants = activeParticipants.length;
             } catch (err) {
               console.warn(`Failed to fetch active participants for ${address}:`, err);
@@ -95,24 +97,24 @@ export default function AccountPage() {
               tokenAddress: details.tokenAddress,
             };
           } catch (err) {
-            console.error(`Error processing Contriboost at ${address}:`, err);
+            console.error(`Error processing Nestora at ${address}:`, err);
             return null;
           }
         })
       );
-      setUserPools(contriboostDetails.filter((pool) => pool !== null));
+      setUserPools(NestoraDetails.filter((pool) => pool !== null));
 
       // Fetch user's GoalFunds
       const goalFundFactory = new ethers.Contract(
-        GOALFUND_FACTORY_ADDRESS,
-        GoalFundFactoryAbi,
+        SAVING_FACTORY_ADDRESS,
+        SavingsFactoryAbi,
         provider
       );
       const userGoalFundAddresses = await goalFundFactory.getUserGoalFunds(account);
       const goalFundDetails = await Promise.all(
         userGoalFundAddresses.map(async (address) => {
           try {
-            const detailsArray = await goalFundFactory.getGoalFundDetails(address, false);
+            const detailsArray = await goalFundFactory.getSavingsDetails(address, false);
             if (!detailsArray || !detailsArray[0]) {
               console.warn(`No details returned for GoalFund at ${address}`);
               return null;
@@ -124,8 +126,8 @@ export default function AccountPage() {
               targetAmount: ethers.formatEther(details.targetAmount || 0n),
               currentAmount: ethers.formatEther(details.currentAmount || 0n),
               deadline: Number(details.deadline || 0),
-              beneficiary: details.beneficiary || CELO_ADDRESS,
-              tokenAddress: details.tokenAddress || CELO_ADDRESS,
+              beneficiary: details.beneficiary || NATIVE_TOKEN_ADDRESS,
+              tokenAddress: details.tokenAddress || NATIVE_TOKEN_ADDRESS,
               fundType: Number(details.fundType || 0),
               platformFeePercentage: Number(details.platformFeePercentage || 0),
             };
@@ -158,13 +160,6 @@ export default function AccountPage() {
 
   function formatAddress(address) {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  }
-
-  function getTokenSymbol(tokenAddress) {
-    if (!tokenAddress) return "Token";
-    if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
-    if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
-    return "Token";
   }
 
   if (!account) {
@@ -278,7 +273,7 @@ export default function AccountPage() {
       <Tabs defaultValue="pools" className="w-full">
         <TabsList className="w-full mb-6 grid grid-cols-2">
           <TabsTrigger value="pools" className="text-xs sm:text-sm">
-            Contriboost Pools
+            Nestora Pools
           </TabsTrigger>
           <TabsTrigger value="funds" className="text-xs sm:text-sm">
             GoalFunds
@@ -338,9 +333,9 @@ export default function AccountPage() {
             </div>
           ) : (
             <div className="text-center py-12 border rounded-lg bg-muted/50">
-              <p className="text-base sm:text-lg mb-2">No Contriboost pools found</p>
+              <p className="text-base sm:text-lg mb-2">No Nestora pools found</p>
               <p className="text-muted-foreground mb-4 text-sm">
-                You haven't created or joined any Contriboost pools yet
+                You haven't created or joined any Nestora pools yet
               </p>
               <Button variant="outline" asChild className="text-xs sm:text-sm">
                 <Link href="/pools">Browse Pools</Link>

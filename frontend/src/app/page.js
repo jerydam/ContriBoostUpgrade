@@ -17,20 +17,14 @@ import { StatTile, StatTileRow } from "@/components/dashboard/stat-tile";
 import { ArrowRight, ChevronRight, Coins, Wallet, Layers, Target, Users } from "lucide-react";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import { useMiniApp } from "@/components/providers/miniapp-provider";
-import { ContriboostFactoryAbi, GoalFundFactoryAbi } from "@/lib/contractabi";
+import { NestoraFactoryAbi, SavingsFactoryAbi } from "@/lib/contractabi";
 
-const FORNO_RPC = "https://forno.celo.org";
-const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
-const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
-
-function getTokenSymbol(tokenAddress) {
-  if (!tokenAddress) return "Token";
-  if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
-  if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
-  return "Token";
-}
+import {
+  RPC_URL,
+  NESTORA_FACTORY_ADDRESS as Nestora_FACTORY_ADDRESS,
+  SAVINGS_FACTORY_ADDRESS as SAVING_FACTORY_ADDRESS,
+  getTokenSymbol,
+} from "@/lib/chain-config";
 
 function GetStartedButton({
   isMiniApp,
@@ -86,33 +80,33 @@ export default function LandingPage() {
 
     async function fetchLiveStats() {
       try {
-        const readProvider = new ethers.JsonRpcProvider(FORNO_RPC);
-        const contriboostFactory = new ethers.Contract(
-          CONTRIBOOST_FACTORY_ADDRESS,
-          ContriboostFactoryAbi,
+        const readProvider = new ethers.JsonRpcProvider(RPC_URL);
+        const NestoraFactory = new ethers.Contract(
+          Nestora_FACTORY_ADDRESS,
+          NestoraFactoryAbi,
           readProvider
         );
         const goalFundFactory = new ethers.Contract(
-          GOALFUND_FACTORY_ADDRESS,
-          GoalFundFactoryAbi,
+          SAVING_FACTORY_ADDRESS,
+          SavingsFactoryAbi,
           readProvider
         );
 
-        const [contriboostDetailsRaw, goalFundDetailsRaw] = await Promise.all([
-          contriboostFactory.getAllContriboostsDetails(),
-          goalFundFactory.getAllGoalFundsDetails(),
+        const [NestoraDetailsRaw, goalFundDetailsRaw] = await Promise.all([
+          NestoraFactory.getAllNestorasDetails(),
+          goalFundFactory.getAllSavingsDetails(),
         ]);
 
         const groupedGoalFunds = goalFundDetailsRaw.filter((f) => Number(f.fundType) === 0);
-        const totalSeats = contriboostDetailsRaw.reduce(
+        const totalSeats = NestoraDetailsRaw.reduce(
           (sum, p) => sum + Number(p.expectedNumber || 0),
           0
         );
         const avgGroupSize =
-          contriboostDetailsRaw.length > 0
-            ? Math.round(totalSeats / contriboostDetailsRaw.length)
+          NestoraDetailsRaw.length > 0
+            ? Math.round(totalSeats / NestoraDetailsRaw.length)
             : 0;
-        const previewPools = contriboostDetailsRaw.slice(0, 3).map((p) => ({
+        const previewPools = NestoraDetailsRaw.slice(0, 3).map((p) => ({
           name: p.name || "Unnamed Pool",
           contributionAmount: ethers.formatEther(p.contributionAmount || 0n),
           tokenAddress: p.tokenAddress,
@@ -121,7 +115,7 @@ export default function LandingPage() {
 
         if (!cancelled) {
           setLiveStats({
-            contriboostCount: contriboostDetailsRaw.length,
+            NestoraCount: NestoraDetailsRaw.length,
             goalFundCount: groupedGoalFunds.length,
             totalSeats,
             avgGroupSize,
@@ -219,7 +213,7 @@ export default function LandingPage() {
                 Save Together, <br className="hidden sm:inline" /> Achieve Together
               </h1>
               <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Create or join rotating savings pools with Contriboost, or fund your goals with GoalFund. A
+                Create or join rotating savings pools with Nestora, or fund your goals with GoalFund. A
                 decentralized ecosystem for community savings.
               </p>
 
@@ -349,14 +343,14 @@ export default function LandingPage() {
                   <BalanceCard
                     label="Community Seats"
                     value={liveStatsState === "ready" ? liveStats.totalSeats : "···"}
-                    subtext="Open spots across every active Contriboost pool"
+                    subtext="Open spots across every active Nestora pool"
                   />
 
                   <StatTileRow>
                     <StatTile
                       icon={Layers}
                       label="Pools"
-                      value={liveStatsState === "ready" ? liveStats.contriboostCount : "···"}
+                      value={liveStatsState === "ready" ? liveStats.NestoraCount : "···"}
                     />
                     <StatTile
                       icon={Target}
@@ -430,7 +424,7 @@ export default function LandingPage() {
                 Empowering Communities Through Decentralized Finance
               </h2>
               <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Contriboost combines traditional community savings practices with blockchain technology,
+                Nestora combines traditional community savings practices with blockchain technology,
                 providing transparency, security, and accessibility for all participants.
               </p>
             </div>
@@ -464,7 +458,7 @@ export default function LandingPage() {
                   Ready to start your savings journey?
                 </h2>
                 <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                  Join Contriboost today and experience the power of community-driven savings and funding.
+                  Join Nestora today and experience the power of community-driven savings and funding.
                 </p>
               </div>
 

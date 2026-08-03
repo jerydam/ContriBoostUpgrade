@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { ethers } from "ethers";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useMiniApp } from "./miniapp-provider"; // Assuming relative path; adjust as needed
+import { CHAIN_ID, CHAIN_ID_HEX, CHAIN_CONFIG } from "@/lib/chain-config";
 
 const Web3Context = createContext({
   provider: null,
@@ -23,16 +24,6 @@ export function Web3Provider({ children }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasAutoConnected, setHasAutoConnected] = useState(false); // Flag to prevent race conditions
   const { isMiniApp: isMiniAppFromContext } = useMiniApp(); // Use context for consistency
-
-  // Constants
-  const CELO_MAINNET_ID = 42220;
-
-  const CELO_MAINNET_CONFIG = {
-    chainName: "Celo Mainnet",
-    nativeCurrency: { name: "Celo", symbol: "CELO", decimals: 18 },
-    rpcUrls: ["https://forno.celo.org"],
-    blockExplorerUrls: ["https://celoscan.io"],
-  };
 
   const connect = useCallback(async () => {
     if (isConnecting) return; // Prevent multiple connects
@@ -79,12 +70,12 @@ export function Web3Provider({ children }) {
 
       // 3. NETWORK SWITCHING LOGIC (Temporarily optional for testing)
       let switched = false;
-      if (currentChainId !== CELO_MAINNET_ID) {
+      if (currentChainId !== CHAIN_ID) {
         try {
-          console.log('Attempting chain switch to Celo...'); // Debug log
+          console.log(`Attempting chain switch to ${CHAIN_CONFIG.chainName}...`); // Debug log
           await ethProvider.request({
             method: "wallet_switchEthereumChain",
-            params: [{ chainId: `0x${CELO_MAINNET_ID.toString(16)}` }],
+            params: [{ chainId: CHAIN_ID_HEX }],
           });
           switched = true;
           console.log('Chain switch successful'); // Debug log
@@ -97,8 +88,8 @@ export function Web3Provider({ children }) {
                 method: "wallet_addEthereumChain",
                 params: [
                     {
-                    chainId: `0x${CELO_MAINNET_ID.toString(16)}`,
-                    ...CELO_MAINNET_CONFIG,
+                    chainId: CHAIN_ID_HEX,
+                    ...CHAIN_CONFIG,
                     },
                 ],
                 });
@@ -106,10 +97,10 @@ export function Web3Provider({ children }) {
                 switched = true;
             } catch (addError) {
                 console.error("Failed to add chain:", addError);
-                // If the wallet (like Warpcast internal) refuses to add Celo, we must stop here
+                // If the wallet (like Warpcast internal) refuses to add the chain, we must stop here
                 // For now, allow connection on current chain for testing; alert user
                 if (isMiniApp) {
-                  alert("Celo not supported automatically. Please add/switch to Celo manually in Warpcast Wallet settings.");
+                  alert(`${CHAIN_CONFIG.chainName} not supported automatically. Please add/switch to it manually in your wallet settings.`);
                 }
                 // Continue with current chain for demo/testing
                 console.log('Continuing on current chain for now'); // Debug log
@@ -213,7 +204,7 @@ export function Web3Provider({ children }) {
 
     const handleChainChanged = (chainIdHex) => {
       const newChainId = parseInt(chainIdHex, 16);
-      if (newChainId !== CELO_MAINNET_ID) {
+      if (newChainId !== CHAIN_ID) {
         window.location.reload(); 
       } else {
         setChainId(newChainId);

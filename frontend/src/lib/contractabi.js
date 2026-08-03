@@ -1,2197 +1,2896 @@
-export const ContriboostFactoryAbi =[
-	{
-	  "inputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "constructor"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "owner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnableInvalidOwner",
-	  "type": "error"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "account",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnableUnauthorizedAccount",
-	  "type": "error"
-	},
-	{
-	  "anonymous": false,
-	  "inputs": [
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "host",
-		  "type": "address"
-		},
-		{
-		  "indexed": false,
-		  "internalType": "address",
-		  "name": "contriboostAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "ContriboostCreated",
-	  "type": "event"
-	},
-	{
-	  "anonymous": false,
-	  "inputs": [
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "previousOwner",
-		  "type": "address"
-		},
-		{
-		  "indexed": true,
-		  "internalType": "address",
-		  "name": "newOwner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "OwnershipTransferred",
-	  "type": "event"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "name": "allContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "components": [
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "startTimestamp",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "enum Contriboost.PaymentMethod",
-			  "name": "paymentMethod",
-			  "type": "uint8"
-			}
-		  ],
-		  "internalType": "struct Contriboost.Config",
-		  "name": "_config",
-		  "type": "tuple"
-		},
-		{
-		  "internalType": "string",
-		  "name": "_name",
-		  "type": "string"
-		},
-		{
-		  "internalType": "string",
-		  "name": "_description",
-		  "type": "string"
-		},
-		{
-		  "internalType": "address",
-		  "name": "_tokenAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "createContriboost",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_tokenAddress",
-		  "type": "address"
-		}
-	  ],
-	  "name": "emergencyWithdraw",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "getAllContriboostsDetails",
-	  "outputs": [
-		{
-		  "components": [
-			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
-			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails[]",
-		  "name": "",
-		  "type": "tuple[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_contriboost",
-		  "type": "address"
-		},
-		{
-		  "internalType": "bool",
-		  "name": "all",
-		  "type": "bool"
-		}
-	  ],
-	  "name": "getContriboostDetails",
-	  "outputs": [
-		{
-		  "components": [
-			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
-			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails[]",
-		  "name": "",
-		  "type": "tuple[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "getContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address[]",
-		  "name": "",
-		  "type": "address[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_contriboost",
-		  "type": "address"
-		}
-	  ],
-	  "name": "getSingleContriboostDetails",
-	  "outputs": [
-		{
-		  "components": [
-			{
-			  "internalType": "address",
-			  "name": "contractAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "string",
-			  "name": "name",
-			  "type": "string"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "dayRange",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "expectedNumber",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "contributionAmount",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "address",
-			  "name": "tokenAddress",
-			  "type": "address"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "hostFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "platformFeePercentage",
-			  "type": "uint256"
-			},
-			{
-			  "internalType": "uint256",
-			  "name": "maxMissedDeposits",
-			  "type": "uint256"
-			}
-		  ],
-		  "internalType": "struct ContriboostFactory.ContriboostDetails",
-		  "name": "",
-		  "type": "tuple"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "_user",
-		  "type": "address"
-		}
-	  ],
-	  "name": "getUserContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address[]",
-		  "name": "",
-		  "type": "address[]"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "owner",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "platformFeePercentage",
-	  "outputs": [
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "platformOwner",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "inputs": [],
-	  "name": "renounceOwnership",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "newOwner",
-		  "type": "address"
-		}
-	  ],
-	  "name": "transferOwnership",
-	  "outputs": [],
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "inputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		},
-		{
-		  "internalType": "uint256",
-		  "name": "",
-		  "type": "uint256"
-		}
-	  ],
-	  "name": "userContriboosts",
-	  "outputs": [
-		{
-		  "internalType": "address",
-		  "name": "",
-		  "type": "address"
-		}
-	  ],
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "stateMutability": "payable",
-	  "type": "receive"
-	}
-  ]
+// Generated from smartcontract/out/*.json - do not edit by hand.
+// Regenerate with: forge build && node/py script, or copy the `abi` field of each artifact.
 
-export const ContriboostAbi =[
-	{
-		"inputs": [
-			{
-				"components": [
-					{
-						"internalType": "uint256",
-						"name": "dayRange",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "expectedNumber",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "contributionAmount",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "hostFeePercentage",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "platformFeePercentage",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "maxMissedDeposits",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "startTimestamp",
-						"type": "uint256"
-					},
-					{
-						"internalType": "enum Contriboost.PaymentMethod",
-						"name": "paymentMethod",
-						"type": "uint8"
-					}
-				],
-				"internalType": "struct Contriboost.Config",
-				"name": "_config",
-				"type": "tuple"
-			},
-			{
-				"internalType": "string",
-				"name": "_name",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "_description",
-				"type": "string"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_platformOwner",
-				"type": "address"
-			}
-		],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "owner",
-				"type": "address"
-			}
-		],
-		"name": "OwnableInvalidOwner",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
-			}
-		],
-		"name": "OwnableUnauthorizedAccount",
-		"type": "error"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "participant",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "segment",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "enum Contriboost.PaymentMethod",
-				"name": "paymentMethod",
-				"type": "uint8"
-			}
-		],
-		"name": "Deposit",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "from",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "to",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "FundsTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "previousOwner",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "OwnershipTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "participant",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "id",
-				"type": "uint256"
-			}
-		],
-		"name": "ParticipantAddedByOwner",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "participant",
-				"type": "address"
-			}
-		],
-		"name": "ParticipantInactive",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "participant",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "id",
-				"type": "uint256"
-			}
-		],
-		"name": "ParticipantJoined",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "participant",
-				"type": "address"
-			}
-		],
-		"name": "ParticipantReactivated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "platformOwner",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "PlatformFeeTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "segmentNumber",
-				"type": "uint256"
-			}
-		],
-		"name": "SegmentEnd",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "oldToken",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newToken",
-				"type": "address"
-			}
-		],
-		"name": "TokenAddressUpdated",
-		"type": "event"
-	},
-	{
-		"inputs": [],
-		"name": "PERCENTAGE_BASE",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_participant",
-				"type": "address"
-			}
-		],
-		"name": "addParticipant",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "checkMissedDeposits",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "contributionAmount",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "currentSegment",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "dayRange",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "deposit",
-		"outputs": [],
-		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "description",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "",
-				"type": "string"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "distributeFunds",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenAddress",
-				"type": "address"
-			}
-		],
-		"name": "emergencyWithdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "expectedNumber",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getActiveParticipants",
-		"outputs": [
-			{
-				"internalType": "address[]",
-				"name": "",
-				"type": "address[]"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getAllParticipants",
-		"outputs": [
-			{
-				"internalType": "address[]",
-				"name": "",
-				"type": "address[]"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_participant",
-				"type": "address"
-			}
-		],
-		"name": "getParticipantStatus",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "id",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "depositAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "lastDepositTime",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "exists",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "receivedFunds",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "active",
-				"type": "bool"
-			},
-			{
-				"internalType": "uint256",
-				"name": "missedDeposits",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "host",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "hostFeePercentage",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "join",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "maxMissedDeposits",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "name",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "",
-				"type": "string"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "owner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "participantList",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "participants",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "id",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "depositAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "lastDepositTime",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "exists",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "receivedFunds",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "active",
-				"type": "bool"
-			},
-			{
-				"internalType": "uint256",
-				"name": "missedDeposits",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "paymentMethod",
-		"outputs": [
-			{
-				"internalType": "enum Contriboost.PaymentMethod",
-				"name": "",
-				"type": "uint8"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "platformFeePercentage",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "platformOwner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "reactivateParticipant",
-		"outputs": [],
-		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "segmentParticipation",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "_newDescription",
-				"type": "string"
-			}
-		],
-		"name": "setDescription",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_newFeePercentage",
-				"type": "uint256"
-			}
-		],
-		"name": "setHostFeePercentage",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_newTokenAddress",
-				"type": "address"
-			}
-		],
-		"name": "setTokenAddress",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "startTimestamp",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "token",
-		"outputs": [
-			{
-				"internalType": "contract IERC20",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
-	}
-]
-
-export const GoalFundAbi =[
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "contribute",
-		"outputs": [],
-		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "emergencyWithdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "_name",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "_description",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_targetAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_deadline",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address payable",
-				"name": "_beneficiary",
-				"type": "address"
-			},
-			{
-				"internalType": "enum GoalFund.PaymentMethod",
-				"name": "_paymentMethod",
-				"type": "uint8"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "enum GoalFund.FundType",
-				"name": "_fundType",
-				"type": "uint8"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_platformFeePercentage",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "_platformOwner",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_host",
-				"type": "address"
-			}
-		],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "owner",
-				"type": "address"
-			}
-		],
-		"name": "OwnableInvalidOwner",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
-			}
-		],
-		"name": "OwnableUnauthorizedAccount",
-		"type": "error"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "contributor",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "Contribution",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "beneficiary",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "FundsWithdrawn",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "totalAmount",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "timestamp",
-				"type": "uint256"
-			}
-		],
-		"name": "GoalAchieved",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "previousOwner",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "OwnershipTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "platformOwner",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "PlatformFeeTransferred",
-		"type": "event"
-	},
-	{
-		"inputs": [],
-		"name": "refundContributors",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "contributor",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "RefundIssued",
-		"type": "event"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "withdrawFunds",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "contributions",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "contributors",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "fundType",
-		"outputs": [
-			{
-				"internalType": "enum GoalFund.FundType",
-				"name": "",
-				"type": "uint8"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getBalance",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getContributorCount",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "goal",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "name",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "description",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "targetAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "currentAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "deadline",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "achieved",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "fundsWithdrawn",
-				"type": "bool"
-			},
-			{
-				"internalType": "address payable",
-				"name": "beneficiary",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "owner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "paymentMethod",
-		"outputs": [
-			{
-				"internalType": "enum GoalFund.PaymentMethod",
-				"name": "",
-				"type": "uint8"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "PERCENTAGE_BASE",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "platformFeePercentage",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "platformOwner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "token",
-		"outputs": [
-			{
-				"internalType": "contract IERC20",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	}
-]
-
-export const GoalFundFactoryAbi =[
+export const NestoraFactoryAbi = [
   {
+    "type": "constructor",
     "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "stateMutability": "nonpayable"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      }
-    ],
-    "name": "OwnableInvalidOwner",
-    "type": "error"
+    "type": "receive",
+    "stateMutability": "payable"
   },
   {
+    "type": "function",
+    "name": "allNestoras",
     "inputs": [
       {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "OwnableUnauthorizedAccount",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "host",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "goalFundAddress",
-        "type": "address"
-      }
-    ],
-    "name": "GoalFundCreated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previousOwner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "OwnershipTransferred",
-    "type": "event"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
         "name": "",
-        "type": "uint256"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
-    "name": "allGoalFunds",
     "outputs": [
       {
-        "internalType": "address",
         "name": "",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "createNestora",
     "inputs": [
       {
-        "internalType": "string",
+        "name": "_config",
+        "type": "tuple",
+        "internalType": "struct Nestora.Config",
+        "components": [
+          {
+            "name": "dayRange",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expectedNumber",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "contributionAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "hostFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxMissedDeposits",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "startTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "paymentMethod",
+            "type": "uint8",
+            "internalType": "enum Nestora.PaymentMethod"
+          }
+        ]
+      },
+      {
         "name": "_name",
-        "type": "string"
+        "type": "string",
+        "internalType": "string"
       },
       {
-        "internalType": "string",
         "name": "_description",
-        "type": "string"
+        "type": "string",
+        "internalType": "string"
       },
       {
-        "internalType": "uint256",
-        "name": "_targetAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_deadline",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address payable",
-        "name": "_beneficiary",
-        "type": "address"
-      },
-      {
-        "internalType": "enum GoalFundFactory.PaymentMethod",
-        "name": "_paymentMethod",
-        "type": "uint8"
-      },
-      {
-        "internalType": "address",
         "name": "_tokenAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "enum GoalFund.FundType",
-        "name": "_fundType",
-        "type": "uint8"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "name": "createGoalFund",
     "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "stateMutability": "nonpayable"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_tokenAddress",
-        "type": "address"
-      }
-    ],
+    "type": "function",
     "name": "emergencyWithdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getAllGoalFundsDetails",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "contractAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "targetAmount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "currentAmount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "beneficiary",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "enum GoalFund.FundType",
-            "name": "fundType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "platformFeePercentage",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct GoalFundFactory.GoalFundDetails[]",
-        "name": "",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_goalFund",
-        "type": "address"
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAllNestorasDetails",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct NestoraFactory.NestoraDetails[]",
+        "components": [
+          {
+            "name": "contractAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "dayRange",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expectedNumber",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "contributionAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "tokenAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "hostFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxMissedDeposits",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getNestoraDetails",
+    "inputs": [
+      {
+        "name": "_Nestora",
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "internalType": "bool",
         "name": "all",
-        "type": "bool"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
-    "name": "getGoalFundDetails",
     "outputs": [
       {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct NestoraFactory.NestoraDetails[]",
         "components": [
           {
-            "internalType": "address",
             "name": "contractAddress",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "string",
             "name": "name",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "uint256",
-            "name": "targetAmount",
-            "type": "uint256"
+            "name": "dayRange",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "currentAmount",
-            "type": "uint256"
+            "name": "expectedNumber",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
+            "name": "contributionAmount",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "address",
-            "name": "beneficiary",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "tokenAddress",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "enum GoalFund.FundType",
-            "name": "fundType",
-            "type": "uint8"
+            "name": "hostFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
             "name": "platformFeePercentage",
-            "type": "uint256"
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxMissedDeposits",
+            "type": "uint256",
+            "internalType": "uint256"
           }
-        ],
-        "internalType": "struct GoalFundFactory.GoalFundDetails[]",
-        "name": "",
-        "type": "tuple[]"
+        ]
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "getNestoras",
     "inputs": [],
-    "name": "getGoalFunds",
     "outputs": [
       {
-        "internalType": "address[]",
         "name": "",
-        "type": "address[]"
+        "type": "address[]",
+        "internalType": "address[]"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "getSingleNestoraDetails",
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_goalFund",
-        "type": "address"
+        "name": "_Nestora",
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "name": "getSingleGoalFundDetails",
     "outputs": [
       {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct NestoraFactory.NestoraDetails",
         "components": [
           {
-            "internalType": "address",
             "name": "contractAddress",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "string",
             "name": "name",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "uint256",
-            "name": "targetAmount",
-            "type": "uint256"
+            "name": "dayRange",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "currentAmount",
-            "type": "uint256"
+            "name": "expectedNumber",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
+            "name": "contributionAmount",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "address",
-            "name": "beneficiary",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "tokenAddress",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "enum GoalFund.FundType",
-            "name": "fundType",
-            "type": "uint8"
+            "name": "hostFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "uint256",
             "name": "platformFeePercentage",
-            "type": "uint256"
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxMissedDeposits",
+            "type": "uint256",
+            "internalType": "uint256"
           }
-        ],
-        "internalType": "struct GoalFundFactory.GoalFundDetails",
-        "name": "",
-        "type": "tuple"
+        ]
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "getUserNestoras",
     "inputs": [
       {
-        "internalType": "address",
         "name": "_user",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "name": "getUserGoalFunds",
     "outputs": [
       {
-        "internalType": "address[]",
         "name": "",
-        "type": "address[]"
+        "type": "address[]",
+        "internalType": "address[]"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [],
+    "type": "function",
     "name": "owner",
+    "inputs": [],
     "outputs": [
       {
-        "internalType": "address",
         "name": "",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [],
+    "type": "function",
     "name": "platformFeePercentage",
+    "inputs": [],
     "outputs": [
       {
-        "internalType": "uint256",
         "name": "",
-        "type": "uint256"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [],
+    "type": "function",
     "name": "platformOwner",
+    "inputs": [],
     "outputs": [
       {
-        "internalType": "address",
         "name": "",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [],
+    "type": "function",
     "name": "renounceOwnership",
+    "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "transferOwnership",
     "inputs": [
       {
-        "internalType": "address",
         "name": "newOwner",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "name": "transferOwnership",
     "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "userNestoras",
     "inputs": [
       {
-        "internalType": "address",
         "name": "",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "internalType": "uint256",
         "name": "",
-        "type": "uint256"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
-    "name": "userGoalFunds",
     "outputs": [
       {
-        "internalType": "address",
         "name": "",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "stateMutability": "payable",
-    "type": "receive"
+    "type": "event",
+    "name": "NestoraCreated",
+    "inputs": [
+      {
+        "name": "host",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "NestoraAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
   }
-]
+];
+
+export const NestoraAbi = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_config",
+        "type": "tuple",
+        "internalType": "struct Nestora.Config",
+        "components": [
+          {
+            "name": "dayRange",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expectedNumber",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "contributionAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "hostFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxMissedDeposits",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "startTimestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "paymentMethod",
+            "type": "uint8",
+            "internalType": "enum Nestora.PaymentMethod"
+          }
+        ]
+      },
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_platformOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_host",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "PERCENTAGE_BASE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "addParticipant",
+    "inputs": [
+      {
+        "name": "_participant",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "checkMissedDeposits",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "contributionAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "currentSegment",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "dayRange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "description",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "distributeFunds",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyWithdraw",
+    "inputs": [
+      {
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "expectedNumber",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getActiveParticipants",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAllParticipants",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getParticipantStatus",
+    "inputs": [
+      {
+        "name": "_participant",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastDepositTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "receivedFunds",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "missedDeposits",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "host",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hostFeePercentage",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "join",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "maxMissedDeposits",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "name",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "participantList",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "participants",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lastDepositTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "receivedFunds",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "missedDeposits",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paymentMethod",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum Nestora.PaymentMethod"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformFeePercentage",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "reactivateParticipant",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "segmentParticipation",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setDescription",
+    "inputs": [
+      {
+        "name": "_newDescription",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setHostFeePercentage",
+    "inputs": [
+      {
+        "name": "_newFeePercentage",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTokenAddress",
+    "inputs": [
+      {
+        "name": "_newTokenAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "startTimestamp",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "token",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Deposit",
+    "inputs": [
+      {
+        "name": "participant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "segment",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "paymentMethod",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum Nestora.PaymentMethod"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FundsTransferred",
+    "inputs": [
+      {
+        "name": "from",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ParticipantAddedByOwner",
+    "inputs": [
+      {
+        "name": "participant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ParticipantInactive",
+    "inputs": [
+      {
+        "name": "participant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ParticipantJoined",
+    "inputs": [
+      {
+        "name": "participant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ParticipantReactivated",
+    "inputs": [
+      {
+        "name": "participant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlatformFeeTransferred",
+    "inputs": [
+      {
+        "name": "platformOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SegmentEnd",
+    "inputs": [
+      {
+        "name": "segmentNumber",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenAddressUpdated",
+    "inputs": [
+      {
+        "name": "oldToken",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newToken",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  }
+];
+
+export const SavingsAbi = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_targetAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_beneficiary",
+        "type": "address",
+        "internalType": "address payable"
+      },
+      {
+        "name": "_paymentMethod",
+        "type": "uint8",
+        "internalType": "enum Savings.PaymentMethod"
+      },
+      {
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_fundType",
+        "type": "uint8",
+        "internalType": "enum Savings.FundType"
+      },
+      {
+        "name": "_platformFeePercentage",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_platformOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_host",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "PERCENTAGE_BASE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "contribute",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "contributions",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "contributors",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "emergencyWithdraw",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fundType",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum Savings.FundType"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getContributorCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "goal",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "targetAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currentAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "achieved",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "fundsWithdrawn",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address payable"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paymentMethod",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum Savings.PaymentMethod"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformFeePercentage",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "refundContributors",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "token",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawFunds",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Contribution",
+    "inputs": [
+      {
+        "name": "contributor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FundsWithdrawn",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GoalAchieved",
+    "inputs": [
+      {
+        "name": "totalAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlatformFeeTransferred",
+    "inputs": [
+      {
+        "name": "platformOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RefundIssued",
+    "inputs": [
+      {
+        "name": "contributor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  }
+];
+
+export const SavingsFactoryAbi = [
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "allSavings",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createSavings",
+    "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_description",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_targetAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_beneficiary",
+        "type": "address",
+        "internalType": "address payable"
+      },
+      {
+        "name": "_paymentMethod",
+        "type": "uint8",
+        "internalType": "enum SavingsFactory.PaymentMethod"
+      },
+      {
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_fundType",
+        "type": "uint8",
+        "internalType": "enum Savings.FundType"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyWithdraw",
+    "inputs": [
+      {
+        "name": "_tokenAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAllSavingsDetails",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct SavingsFactory.SavingsDetails[]",
+        "components": [
+          {
+            "name": "contractAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "targetAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "beneficiary",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "fundType",
+            "type": "uint8",
+            "internalType": "enum Savings.FundType"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getGoalFunds",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSavingsDetails",
+    "inputs": [
+      {
+        "name": "_savings",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct SavingsFactory.SavingsDetails[]",
+        "components": [
+          {
+            "name": "contractAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "targetAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "beneficiary",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "fundType",
+            "type": "uint8",
+            "internalType": "enum Savings.FundType"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSingleSavingsDetails",
+    "inputs": [
+      {
+        "name": "_savings",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct SavingsFactory.SavingsDetails",
+        "components": [
+          {
+            "name": "contractAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "targetAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currentAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "beneficiary",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "fundType",
+            "type": "uint8",
+            "internalType": "enum Savings.FundType"
+          },
+          {
+            "name": "platformFeePercentage",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserGoalFunds",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformFeePercentage",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "platformOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "userSavings",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SavingsCreated",
+    "inputs": [
+      {
+        "name": "host",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "savingsAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  }
+];
+
+export const BillPaymentAbi = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_admin",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "DEFAULT_ADMIN_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "FULFILLER_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bills",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "payer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "category",
+        "type": "uint8",
+        "internalType": "enum BillPayment.Category"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum BillPayment.Status"
+      },
+      {
+        "name": "paidAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "externalRef",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "claimTimeoutRefund",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "failBill",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fulfillBill",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getBill",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct BillPayment.Bill",
+        "components": [
+          {
+            "name": "payer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "category",
+            "type": "uint8",
+            "internalType": "enum BillPayment.Category"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum BillPayment.Status"
+          },
+          {
+            "name": "paidAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "externalRef",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRoleAdmin",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "grantRole",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "hasRole",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "paused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "payBill",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "category",
+        "type": "uint8",
+        "internalType": "enum BillPayment.Category"
+      },
+      {
+        "name": "externalRef",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "recoverExcessToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "refundTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceRole",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revokeRole",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRefundTimeout",
+    "inputs": [
+      {
+        "name": "_timeout",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setSupportedToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "supported",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTreasury",
+    "inputs": [
+      {
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "supportedTokens",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "supportsInterface",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalEscrowed",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "treasury",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "unpause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "BillFailed",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BillFulfilled",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BillPaid",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "payer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "category",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum BillPayment.Category"
+      },
+      {
+        "name": "externalRef",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BillRefunded",
+    "inputs": [
+      {
+        "name": "billId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "payer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExcessRecovered",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Paused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RefundTimeoutUpdated",
+    "inputs": [
+      {
+        "name": "oldTimeout",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newTimeout",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoleAdminChanged",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "previousAdminRole",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "newAdminRole",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoleGranted",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoleRevoked",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokenSupportUpdated",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "supported",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TreasuryUpdated",
+    "inputs": [
+      {
+        "name": "oldTreasury",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newTreasury",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Unpaused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  }
+];

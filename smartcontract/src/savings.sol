@@ -6,7 +6,7 @@ import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol"
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract GoalFund is ReentrancyGuard, Ownable() {
+contract Savings is ReentrancyGuard, Ownable() {
     using SafeERC20 for IERC20;
 
     enum PaymentMethod {

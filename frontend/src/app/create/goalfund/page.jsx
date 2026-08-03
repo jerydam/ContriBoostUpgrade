@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
-import { ContriboostFactoryAbi } from "@/lib/contractabi";
+import { NestoraFactoryAbi } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,9 +21,19 @@ import { toast } from "react-toastify";
 import { appendDivviTag, submitDivviReferral } from "@/lib/divvi-utils";
 import { sdk } from "@farcaster/miniapp-sdk";
 
-const FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+import {
+  NESTORA_FACTORY_ADDRESS as FACTORY_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
+  NATIVE_SYMBOL,
+  ERC20_TOKENS,
+  paymentMethodFor,
+} from "@/lib/chain-config";
+
+// Native BOT first, then any ERC20s configured for the chain.
+const PAYMENT_TOKENS = [
+  { address: NATIVE_TOKEN_ADDRESS, symbol: NATIVE_SYMBOL },
+  ...ERC20_TOKENS,
+];
 
 const getFutureDateTimeLocal = (days = 1) => {
   const now = new Date(Date.now() + 60000);
@@ -40,7 +50,7 @@ const getFutureDateTimeLocal = (days = 1) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const formSchemaContriboost = z.object({
+const formSchemaNestora = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   dayRange: z.coerce.number().int().min(1, { message: "Must be at least 1 day" }),
@@ -55,7 +65,7 @@ const formSchemaContriboost = z.object({
     },
     { message: "Must be a valid amount greater than 0" }
   ),
-  tokenType: z.enum(["CELO", "cUSD"]),
+  tokenType: z.enum(PAYMENT_TOKENS.map((t) => t.symbol)),
   hostFeePercentage: z.coerce.number().min(0).max(5, { message: "Fee must be between 0% and 5%" }),
   maxMissedDeposits: z.coerce.number().int().min(0, { message: "Must be 0 or more" }),
   startTimestamp: z.string().refine(
@@ -67,7 +77,7 @@ const formSchemaContriboost = z.object({
   ),
 });
 
-export default function CreateContriboostPage() {
+export default function CreateNestoraPage() {
   const router = useRouter();
   const { signer, account, chainId, connect, isConnecting } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
@@ -83,14 +93,14 @@ export default function CreateContriboostPage() {
   }, []);
 
   const form = useForm({
-    resolver: zodResolver(formSchemaContriboost),
+    resolver: zodResolver(formSchemaNestora),
     defaultValues: {
       name: "",
       description: "",
       dayRange: 7,
       expectedNumber: 10,
       contributionAmount: "0.1",
-      tokenType: "CELO",
+      tokenType: NATIVE_SYMBOL,
       hostFeePercentage: 2,
       maxMissedDeposits: 2,
       startTimestamp: getFutureDateTimeLocal(),
@@ -112,11 +122,13 @@ export default function CreateContriboostPage() {
     setIsCreating(true);
 
     try {
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, ContriboostFactoryAbi, signer);
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, NestoraFactoryAbi, signer);
       
-      const paymentMethod = 1;
-      const tokenAddress = values.tokenType === "cUSD" ? CUSD_ADDRESS : CELO_ADDRESS;
-      
+      const selectedToken =
+        PAYMENT_TOKENS.find((t) => t.symbol === values.tokenType) ?? PAYMENT_TOKENS[0];
+      const tokenAddress = selectedToken.address;
+      const paymentMethod = paymentMethodFor(tokenAddress);
+
       const config = {
         dayRange: values.dayRange,
         expectedNumber: values.expectedNumber,
@@ -128,9 +140,9 @@ export default function CreateContriboostPage() {
         paymentMethod: paymentMethod,
       };
 
-      console.log("Creating Contriboost with config:", config, "Token address:", tokenAddress);
+      console.log("Creating Nestora with config:", config, "Token address:", tokenAddress);
 
-      const populatedTx = await factoryContract.createContriboost.populateTransaction(
+      const populatedTx = await factoryContract.createNestora.populateTransaction(
         config,
         values.name,
         values.description,
@@ -158,34 +170,34 @@ export default function CreateContriboostPage() {
 
       await submitDivviReferral(receipt.hash || tx.hash, chainId);
 
-      const contriboostCreatedEvent = receipt.logs.find(
+      const NestoraCreatedEvent = receipt.logs.find(
         (log) => {
           try {
             const parsedLog = factoryContract.interface.parseLog(log);
-            return parsedLog?.name === "ContriboostCreated";
+            return parsedLog?.name === "NestoraCreated";
           } catch {
             return false;
           }
         }
       );
 
-      if (!contriboostCreatedEvent) {
-        throw new Error("Could not find ContriboostCreated event in transaction receipt");
+      if (!NestoraCreatedEvent) {
+        throw new Error("Could not find NestoraCreated event in transaction receipt");
       }
 
-      const parsedLog = factoryContract.interface.parseLog(contriboostCreatedEvent);
-      const newContractAddress = parsedLog.args.contriboostAddress;
+      const parsedLog = factoryContract.interface.parseLog(NestoraCreatedEvent);
+      const newContractAddress = parsedLog.args.NestoraAddress;
 
       if (!ethers.isAddress(newContractAddress)) {
-        throw new Error("Invalid contract address received from ContriboostCreated event");
+        throw new Error("Invalid contract address received from NestoraCreated event");
       }
 
-      toast.success("Contriboost pool created successfully!");
+      toast.success("Nestora pool created successfully!");
       setTimeout(() => {
         router.push(`/pools/details/${newContractAddress}`);
       }, 500);
     } catch (error) {
-      console.error("Error creating Contriboost:", error);
+      console.error("Error creating Nestora:", error);
       let message = "Transaction failed. Please try again.";
       if (error.code === 4001) {
         message = "Transaction rejected by wallet";
@@ -195,7 +207,7 @@ export default function CreateContriboostPage() {
         message = "Insufficient funds for gas or contract error";
       } else if (error.reason) {
         message = error.reason;
-      } else if (error.message.includes("ContriboostCreated event")) {
+      } else if (error.message.includes("NestoraCreated event")) {
         message = "Failed to parse contract creation event";
       }
       setError(`Error: ${message}`);
@@ -209,7 +221,7 @@ export default function CreateContriboostPage() {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
-        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Contriboost pool</p>
+        <p className="mb-6 text-muted-foreground">Please connect your wallet to create a Nestora pool</p>
         <Button
             variant="default"
             onClick={() => connect()}
@@ -230,7 +242,7 @@ export default function CreateContriboostPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-2">Create Contriboost Pool</h1>
+      <h1 className="text-3xl font-bold mb-2">Create Nestora Pool</h1>
       <p className="text-muted-foreground mb-8">Deploy a new rotating savings pool for your community</p>
 
       {error && (
@@ -243,7 +255,7 @@ export default function CreateContriboostPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pool Details</CardTitle>
-          <CardDescription>Configure your new Contriboost rotating savings pool</CardDescription>
+          <CardDescription>Configure your new Nestora rotating savings pool</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -257,7 +269,7 @@ export default function CreateContriboostPage() {
                     <FormControl>
                       <Input placeholder="Friends Savings Pool" {...field} />
                     </FormControl>
-                    <FormDescription>A descriptive name for your Contriboost pool</FormDescription>
+                    <FormDescription>A descriptive name for your Nestora pool</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -335,18 +347,17 @@ export default function CreateContriboostPage() {
                           defaultValue={field.value}
                           className="flex flex-col space-y-1"
                         >
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="CELO" />
-                            </FormControl>
-                            <FormLabel className="font-normal">CELO</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-3 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="cUSD" />
-                            </FormControl>
-                            <FormLabel className="font-normal">cUSD</FormLabel>
-                          </FormItem>
+                          {PAYMENT_TOKENS.map((token) => (
+                            <FormItem
+                              key={token.address}
+                              className="flex items-center space-x-3 space-y-0"
+                            >
+                              <FormControl>
+                                <RadioGroupItem value={token.symbol} />
+                              </FormControl>
+                              <FormLabel className="font-normal">{token.symbol}</FormLabel>
+                            </FormItem>
+                          ))}
                         </RadioGroup>
                       </FormControl>
                       <FormDescription>Choose the token for contributions</FormDescription>

@@ -5,22 +5,22 @@ import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./goalFund.sol";
+import "./savings.sol";
 
 
-contract GoalFundFactory is ReentrancyGuard, Ownable {
+contract SavingsFactory is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
-    address[] public allGoalFunds;
-    mapping(address => address[]) public userGoalFunds;
+    address[] public allSavings;
+    mapping(address => address[]) public userSavings;
     uint public platformFeePercentage = 200; // Fixed at 2%
     address public platformOwner;
 
-    event GoalFundCreated(address indexed host, address goalFundAddress);
+    event SavingsCreated(address indexed host, address savingsAddress);
 
     enum PaymentMethod { Ether, ERC20 }
 
-    struct GoalFundDetails {
+    struct SavingsDetails {
         address contractAddress;
         string name;
         uint targetAmount;
@@ -28,7 +28,7 @@ contract GoalFundFactory is ReentrancyGuard, Ownable {
         uint deadline;
         address beneficiary;
         address tokenAddress;
-        GoalFund.FundType fundType;
+        Savings.FundType fundType;
         uint platformFeePercentage;
     }
 
@@ -36,7 +36,7 @@ contract GoalFundFactory is ReentrancyGuard, Ownable {
         platformOwner = msg.sender;
     }
 
-    function createGoalFund(
+    function createSavings(
         string memory _name,
         string memory _description,
         uint _targetAmount,
@@ -44,116 +44,116 @@ contract GoalFundFactory is ReentrancyGuard, Ownable {
         address payable _beneficiary,
         PaymentMethod _paymentMethod,
         address _tokenAddress,
-        GoalFund.FundType _fundType
+        Savings.FundType _fundType
     ) external {
         require(_deadline > block.timestamp, "Deadline must be in future");
 
-        GoalFund newGoalFund = new GoalFund(
+        Savings newSavings = new Savings(
             _name,
             _description,
             _targetAmount,
             _deadline,
             _beneficiary,
-            GoalFund.PaymentMethod(uint(_paymentMethod)),
+            Savings .PaymentMethod(uint(_paymentMethod)),
             _tokenAddress,
             _fundType,
             platformFeePercentage,
             platformOwner,
             msg.sender
         );
-        allGoalFunds.push(address(newGoalFund));
-        userGoalFunds[msg.sender].push(address(newGoalFund));
-        emit GoalFundCreated(msg.sender, address(newGoalFund));
+        allSavings.push(address(newSavings));
+        userSavings[msg.sender].push(address(newSavings));
+        emit SavingsCreated(msg.sender, address(newSavings));
     }
 
     function getGoalFunds() external view returns (address[] memory) {
-        return allGoalFunds;
+        return allSavings;
     }
 
     function getUserGoalFunds(address _user) external view returns (address[] memory) {
-        return userGoalFunds[_user];
+        return userSavings[_user];
     }
 
-    function getAllGoalFundsDetails() external view returns (GoalFundDetails[] memory) {
-    GoalFundDetails[] memory details = new GoalFundDetails[](allGoalFunds.length);
+    function getAllSavingsDetails() external view returns (SavingsDetails[] memory) {
+    SavingsDetails[] memory details = new SavingsDetails[](allSavings.length);
     
-    for (uint i = 0; i < allGoalFunds.length; i++) {
-        GoalFund gf = GoalFund(payable(allGoalFunds[i]));
-        (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = gf.goal();
+    for (uint i = 0; i < allSavings.length; i++) {
+        Savings s = Savings(payable(allSavings[i]));
+        (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = s.goal();
         
-        details[i] = GoalFundDetails(
-            allGoalFunds[i],
+        details[i] = SavingsDetails(
+            allSavings[i],
             name,
             targetAmount,
             currentAmount,
             deadline,
             beneficiary,
-            address(gf.token()),
-            gf.fundType(),
-            gf.platformFeePercentage()
+            address(s.token()),
+            s.fundType(),
+            s.platformFeePercentage()
         );
     }
     
     return details;
 }
 
-    function getGoalFundDetails(address _goalFund, bool all)
-        external view returns (GoalFundDetails[] memory) {
+    function getSavingsDetails(address _savings, bool all)
+        external view returns (SavingsDetails[] memory) {
         if (all) {
-            GoalFundDetails[] memory details = new GoalFundDetails[](allGoalFunds.length);
-            for (uint i = 0; i < allGoalFunds.length; i++) {
-                GoalFund gf = GoalFund(payable(allGoalFunds[i]));
-                (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = gf.goal();
-                details[i] = GoalFundDetails(
-                    allGoalFunds[i],
+            SavingsDetails[] memory details = new SavingsDetails[](allSavings.length);
+            for (uint i = 0; i < allSavings.length; i++) {
+                Savings s = Savings(payable(allSavings[i]));
+                (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = s.goal();
+                details[i] = SavingsDetails(
+                    allSavings[i],
                     name,
                     targetAmount,
                     currentAmount,
                     deadline,
                     beneficiary,
-                    address(gf.token()),
-                    gf.fundType(),
-                    gf.platformFeePercentage()
+                    address(s.token()),
+                    s.fundType(),
+                    s.platformFeePercentage()
                 );
             }
             return details;
         } else {
-            GoalFund gf = GoalFund(payable(_goalFund));
-            (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = gf.goal();
-            GoalFundDetails[] memory details = new GoalFundDetails[](1);
-            details[0] = GoalFundDetails(
-                _goalFund,
+            Savings s = Savings(payable(_savings));
+            (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = s.goal();
+            SavingsDetails[] memory details = new SavingsDetails[](1);
+            details[0] = SavingsDetails(
+                _savings,
                 name,
                 targetAmount,
                 currentAmount,
                 deadline,
                 beneficiary,
-                address(gf.token()),
-                gf.fundType(),
-                gf.platformFeePercentage()
+                address(s.token()),
+                s.fundType(),
+                s.platformFeePercentage()
             );
             return details;
         }
     }
 
     // New function to get details of a single GoalFund by address
-    function getSingleGoalFundDetails(address _goalFund)
-        external view returns (GoalFundDetails memory) {
-        require(_goalFund != address(0), "Invalid GoalFund address");
+    function getSingleSavingsDetails(address _savings)
+        external view returns (SavingsDetails memory) {
+        require(_savings != address(0), "Invalid Savings address");
 
-        GoalFund gf = GoalFund(payable(_goalFund));
-        (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = gf.goal();
+        Savings s = Savings(payable(_savings));
+        (string memory name, , uint targetAmount, uint currentAmount, uint deadline, , , address payable beneficiary) = s.goal();
 
-        return GoalFundDetails(
-            _goalFund,
+        return SavingsDetails(
+            _savings,
             name,
             targetAmount,
             currentAmount,
             deadline,
             beneficiary,
-            address(gf.token()),
-            gf.fundType(),
-            gf.platformFeePercentage()
+            address(s.token()),
+            s.fundType(),
+            s.platformFeePercentage()
         );
     }
 

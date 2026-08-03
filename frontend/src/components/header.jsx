@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { useWeb3 } from "./providers/web3-provider";
 import { Loader2, LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CHAIN_ID, CHAIN_CONFIG } from "@/lib/chain-config";
 
 export default function Header() {
   const { connect, disconnect, account, chainId, isConnecting } = useWeb3();
   const pathname = usePathname();
 
   const navLinks = [
-    { name: "Contriboost Pools", href: "/pools" },
+    { name: "Nestora Pools", href: "/pools" },
     { name: "Bills", href: "/bills" },
     { name: "My Account", href: "/account" },
   ];
@@ -26,8 +27,8 @@ export default function Header() {
   };
 
   const getChainName = (chainId) => {
-    if (chainId === 42220) {
-      return "Celo Mainnet";
+    if (chainId === CHAIN_ID) {
+      return CHAIN_CONFIG.chainName;
     }
     // Since we force switch in provider, this shouldn't happen often,
     // but good to handle the 'loading' or 'wrong network' state visually
@@ -41,7 +42,7 @@ export default function Header() {
           <Link href="/" className="text-xl font-bold">
             <Image
               src="/contrib.png"
-              alt="ContriBoost Logo"
+              alt="Nestora Logo"
               width={150}
               height={150}
               className="inline-block mr-2"

@@ -6,13 +6,13 @@
   },
   "miniapp": {
     "version": "1",
-    "name": "Contriboost",
-    "iconUrl": "https://www.contriboost.xyz/favicon.png",
-    "homeUrl": "https://www.contriboost.xyz",
-    "imageUrl": "https://www.contriboost.xyz/icon.jpg",
+    "name": "Nestora",
+    "iconUrl": "https://www.Nestora.xyz/favicon.png",
+    "homeUrl": "https://www.Nestora.xyz",
+    "imageUrl": "https://www.Nestora.xyz/icon.jpg",
     "buttonTitle": "Start Saving",
-    "splashImageUrl": "https://www.contriboost.xyz/splash.png",
+    "splashImageUrl": "https://www.Nestora.xyz/splash.png",
     "splashBackgroundColor": "#101b31",
-    "webhookUrl": "https://www.contriboost.xyz/api/webhook"
+    "webhookUrl": "https://www.Nestora.xyz/api/webhook"
   }
 }

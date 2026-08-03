@@ -1,4 +1,4 @@
-const STORAGE_KEY = "contriboost_bill_payments";
+const STORAGE_KEY = "Nestora_bill_payments";
 
 export function getBillPayments() {
   if (typeof window === "undefined") return [];

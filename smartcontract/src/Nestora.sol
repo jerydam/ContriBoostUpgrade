@@ -6,7 +6,7 @@ import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol"
 import "../lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract Contriboost is ReentrancyGuard, Ownable {
+contract Nestora is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     enum PaymentMethod {
@@ -105,8 +105,8 @@ contract Contriboost is ReentrancyGuard, Ownable {
         }
 
         // Ownable() defaults the owner to msg.sender, which is the Factory contract
-        // when this constructor runs via `new Contriboost(...)` inside
-        // ContriboostFactory.createContriboost. Transfer ownership to the actual
+        // when this constructor runs via `new Nestora(...)` inside
+        // NestoraFactory.createNestora. Transfer ownership to the actual
         // host so onlyOwner functions (setTokenAddress, emergencyWithdraw, ...)
         // remain callable.
         _transferOwnership(_host);

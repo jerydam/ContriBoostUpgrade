@@ -7,10 +7,10 @@ import { useParams, useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWeb3 } from "@/components/providers/web3-provider";
 import {
-  ContriboostFactoryAbi,
-  ContriboostAbi,
-  GoalFundFactoryAbi,
-  GoalFundAbi,
+  NestoraFactoryAbi,
+  NestoraAbi,
+  SavingsFactoryAbi,
+  SavingsAbi,
 } from "@/lib/contractabi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,10 +37,12 @@ const IERC20Abi = [
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
-const CONTRIBOOST_FACTORY_ADDRESS = "0x9A22564FfeB76a022b5174838660AD2c6900f291";
-const GOALFUND_FACTORY_ADDRESS = "0x41A678AA87755Be471A4021521CeDaCB0F529D7c";
-const CELO_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
-const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+import {
+  NESTORA_FACTORY_ADDRESS as Nestora_FACTORY_ADDRESS,
+  SAVINGS_FACTORY_ADDRESS as SAVING_FACTORY_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
+  getTokenSymbol,
+} from "@/lib/chain-config";
 
 // Base styling classes for consistency across all action buttons
 const BUTTON_STYLE_CLASSES = "transition-all hover:scale-[1.02] active:scale-[0.98]";
@@ -96,7 +98,7 @@ export default function PoolDetailsPage() {
   // --------------------------------
   
   // Define the core join function ahead of the hook initialization
-  const joinContriboost = useCallback(async () => {
+  const joinNestora = useCallback(async () => {
     if (!signer || !account) {
         await connect();
         if (!account) {
@@ -112,7 +114,7 @@ export default function PoolDetailsPage() {
 
     setIsProcessing(true);
     try {
-        const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+        const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
         
         // 🔵 DIVVI STEP 1: Get populated transaction
         const populatedTx = await contract.join.populateTransaction();
@@ -133,9 +135,9 @@ export default function PoolDetailsPage() {
         await submitDivviReferral(receipt.hash || tx.hash, chainId);
         
         await fetchPoolDetails();
-        toast.success("Successfully joined the Contriboost pool!");
+        toast.success("Successfully joined the Nestora pool!");
     } catch (error) {
-        console.error("Error joining Contriboost:", error);
+        console.error("Error joining Nestora:", error);
         let message = error.reason || error.message || "Failed to join";
         if (error.code === "CALL_EXCEPTION") {
             message = "Contract call failed: Check pool status or participant limit";
@@ -175,17 +177,17 @@ export default function PoolDetailsPage() {
     setError(null);
 
     try {
-      const contriboostFactory = new ethers.Contract(
-        CONTRIBOOST_FACTORY_ADDRESS,
-        ContriboostFactoryAbi,
+      const NestoraFactory = new ethers.Contract(
+        Nestora_FACTORY_ADDRESS,
+        NestoraFactoryAbi,
         provider
       );
       try {
-        console.log("Attempting to fetch Contriboost details...");
-        const contriboostDetails = await contriboostFactory.getSingleContriboostDetails(
+        console.log("Attempting to fetch Nestora details...");
+        const NestoraDetails = await NestoraFactory.getSingleNestoraDetails(
           contractAddress
         );
-        const contract = new ethers.Contract(contractAddress, ContriboostAbi, provider);
+        const contract = new ethers.Contract(contractAddress, NestoraAbi, provider);
         const [
           description,
           currentSegment,
@@ -223,24 +225,24 @@ export default function PoolDetailsPage() {
         const status =
           Math.floor(Date.now() / 1000) < startTimestamp
             ? "not-started"
-            : activeParticipants.length >= Number(contriboostDetails.expectedNumber)
+            : activeParticipants.length >= Number(NestoraDetails.expectedNumber)
             ? "full"
             : Number(currentSegment) > 0
             ? "active"
             : "not-started";
 
-        setPoolType("Contriboost");
+        setPoolType("Nestora");
         setPoolDetails({
-          contractAddress: contriboostDetails.contractAddress,
-          name: contriboostDetails.name,
+          contractAddress: NestoraDetails.contractAddress,
+          name: NestoraDetails.name,
           description: description || "No description provided",
-          dayRange: Number(contriboostDetails.dayRange),
-          expectedNumber: Number(contriboostDetails.expectedNumber),
-          contributionAmount: ethers.formatEther(contriboostDetails.contributionAmount),
-          tokenAddress: contriboostDetails.tokenAddress,
-          hostFeePercentage: Number(contriboostDetails.hostFeePercentage),
-          platformFeePercentage: Number(contriboostDetails.platformFeePercentage),
-          maxMissedDeposits: Number(contriboostDetails.maxMissedDeposits),
+          dayRange: Number(NestoraDetails.dayRange),
+          expectedNumber: Number(NestoraDetails.expectedNumber),
+          contributionAmount: ethers.formatEther(NestoraDetails.contributionAmount),
+          tokenAddress: NestoraDetails.tokenAddress,
+          hostFeePercentage: Number(NestoraDetails.hostFeePercentage),
+          platformFeePercentage: Number(NestoraDetails.platformFeePercentage),
+          maxMissedDeposits: Number(NestoraDetails.maxMissedDeposits),
           currentSegment: Number(currentSegment),
           startTimestamp: Number(startTimestamp),
           host,
@@ -262,18 +264,18 @@ export default function PoolDetailsPage() {
         setIsLoading(false);
         return;
       } catch (e) {
-        console.log("Not a Contriboost:", e.message);
+        console.log("Not a Nestora:", e.message);
       }
 
       const goalFundFactory = new ethers.Contract(
-        GOALFUND_FACTORY_ADDRESS,
-        GoalFundFactoryAbi,
+        SAVING_FACTORY_ADDRESS,
+        SavingsFactoryAbi,
         provider
       );
       try {
         console.log("Attempting to fetch GoalFund details...");
-        const goalFundDetails = await goalFundFactory.getSingleGoalFundDetails(contractAddress);
-        const contract = new ethers.Contract(contractAddress, GoalFundAbi, provider);
+        const goalFundDetails = await goalFundFactory.getSingleSavingsDetails(contractAddress);
+        const contract = new ethers.Contract(contractAddress, SavingsAbi, provider);
         const [balance, contributorCount, userContribution, goal, owner] = await Promise.all([
           contract.getBalance(),
           contract.getContributorCount(),
@@ -330,8 +332,8 @@ export default function PoolDetailsPage() {
     }
   }
 
-  // 🔵 DIVVI INTEGRATION: Updated depositContriboost with Divvi tracking
-  async function depositContriboost() {
+  // 🔵 DIVVI INTEGRATION: Updated depositNestora with Divvi tracking
+  async function depositNestora() {
     if (!signer || !account) {
       await connect();
       if (!account) {
@@ -351,15 +353,15 @@ export default function PoolDetailsPage() {
     }
     // --- END UPDATED VALIDATION
 
-    // NOTE: For Contriboost, the contract's deposit() function does not take an amount
+    // NOTE: For Nestora, the contract's deposit() function does not take an amount
     // It relies on the pre-configured contributionAmount.
     const amount = ethers.parseEther(poolDetails.contributionAmount);
 
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
 
-      console.log("Depositing to Contriboost:", {
+      console.log("Depositing to Nestora:", {
         contractAddress,
         amount: poolDetails.contributionAmount,
         tokenAddress: poolDetails.tokenAddress,
@@ -370,7 +372,7 @@ export default function PoolDetailsPage() {
       const tokenBalance = await tokenContract.balanceOf(account);
       
       if (tokenBalance < amount) {
-        const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
+        const tokenSymbol = getTokenSymbol(poolDetails.tokenAddress);
         throw new Error(
           `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
         );
@@ -415,7 +417,7 @@ export default function PoolDetailsPage() {
       await fetchPoolDetails();
       toast.success("Deposit successful!");
     } catch (error) {
-      console.error("Error depositing to Contriboost:", error);
+      console.error("Error depositing to Nestora:", error);
       let message = "Failed to deposit";
       if (error.message.includes("insufficient funds")) {
         message = "Insufficient funds for deposit and gas fees";
@@ -443,7 +445,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.checkMissedDeposits.populateTransaction();
@@ -491,14 +493,14 @@ export default function PoolDetailsPage() {
     try {
       const contract = new ethers.Contract(
         contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+        poolType === "Nestora" ? NestoraAbi : SavingsAbi,
         signer
       );
       
       // 🔵 DIVVI STEP 1 & 2: Get populated transaction and append tag
       let populatedTx, dataWithTag;
-      if (poolType === "Contriboost") {
-        populatedTx = await contract.emergencyWithdraw.populateTransaction(tokenAddress || CELO_ADDRESS);
+      if (poolType === "Nestora") {
+        populatedTx = await contract.emergencyWithdraw.populateTransaction(tokenAddress || NATIVE_TOKEN_ADDRESS);
       } else {
         populatedTx = await contract.emergencyWithdraw.populateTransaction();
       }
@@ -546,7 +548,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.setDescription.populateTransaction(newDescription);
@@ -597,7 +599,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.setHostFeePercentage.populateTransaction(
@@ -650,7 +652,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.setTokenAddress.populateTransaction(newTokenAddress);
@@ -682,8 +684,8 @@ export default function PoolDetailsPage() {
     }
   }
 
-  // 🔵 DIVVI INTEGRATION: Updated reactivateContriboost with Divvi tracking
-  async function reactivateContriboost(participantAddress) {
+  // 🔵 DIVVI INTEGRATION: Updated reactivateNestora with Divvi tracking
+  async function reactivateNestora(participantAddress) {
     if (!signer || !account) {
       await connect();
       if (!account) {
@@ -697,7 +699,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       const amount = ethers.parseEther(poolDetails.contributionAmount);
       
       const tokenContract = new ethers.Contract(poolDetails.tokenAddress, IERC20Abi, signer);
@@ -740,7 +742,7 @@ export default function PoolDetailsPage() {
       await fetchPoolDetails();
       toast.success(`Successfully reactivated participant ${formatAddress(participantAddress)}!`);
     } catch (error) {
-      console.error("Error reactivating in Contriboost:", error);
+      console.error("Error reactivating in Nestora:", error);
       let message = error.reason || error.message || "Failed to reactivate";
       if (error.code === "CALL_EXCEPTION") {
         message = "Contract call failed: Check missed deposits or pool state";
@@ -750,8 +752,8 @@ export default function PoolDetailsPage() {
       setIsProcessing(false);
     }
   }
-  // 🔵 DIVVI INTEGRATION: Updated distributeContriboostFunds with Divvi tracking
-  async function distributeContriboostFunds() {
+  // 🔵 DIVVI INTEGRATION: Updated distributeNestoraFunds with Divvi tracking
+  async function distributeNestoraFunds() {
     if (!signer || !account) {
       await connect();
       if (!account) {
@@ -765,7 +767,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, ContriboostAbi, signer);
+      const contract = new ethers.Contract(contractAddress, NestoraAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.distributeFunds.populateTransaction();
@@ -820,7 +822,7 @@ export default function PoolDetailsPage() {
     try {
       const contract = new ethers.Contract(
         contractAddress,
-        poolType === "Contriboost" ? ContriboostAbi : GoalFundAbi,
+        poolType === "Nestora" ? NestoraAbi : SavingsAbi,
         signer
       );
       
@@ -874,7 +876,7 @@ export default function PoolDetailsPage() {
 
   setIsProcessing(true);
   try {
-    const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+    const contract = new ethers.Contract(contractAddress, SavingsAbi, signer);
     const amount = ethers.parseEther(contributeAmount);
 
     console.log("Contributing to GoalFund:", {
@@ -888,7 +890,7 @@ export default function PoolDetailsPage() {
     const tokenBalance = await tokenContract.balanceOf(account);
     
     if (tokenBalance < amount) {
-      const tokenSymbol = poolDetails.tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase() ? "cUSD" : "CELO";
+      const tokenSymbol = getTokenSymbol(poolDetails.tokenAddress);
       throw new Error(
         `Insufficient ${tokenSymbol} balance: ${ethers.formatEther(tokenBalance)} ${tokenSymbol} available`
       );
@@ -967,7 +969,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+      const contract = new ethers.Contract(contractAddress, SavingsAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.withdrawFunds.populateTransaction();
@@ -1016,7 +1018,7 @@ export default function PoolDetailsPage() {
     }
     setIsProcessing(true);
     try {
-      const contract = new ethers.Contract(contractAddress, GoalFundAbi, signer);
+      const contract = new ethers.Contract(contractAddress, SavingsAbi, signer);
       
       // 🔵 DIVVI STEP 1: Get populated transaction
       const populatedTx = await contract.refundContributors.populateTransaction();
@@ -1058,13 +1060,6 @@ export default function PoolDetailsPage() {
     return new Date(timestamp * 1000).toLocaleDateString();
   }
 
-  function getTokenSymbol(tokenAddress) {
-    if (!tokenAddress) return "Token";
-    if (tokenAddress.toLowerCase() === CUSD_ADDRESS.toLowerCase()) return "cUSD";
-    if (tokenAddress.toLowerCase() === CELO_ADDRESS.toLowerCase()) return "CELO";
-    return "Token";
-  }
-
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center items-center">
@@ -1088,32 +1083,32 @@ export default function PoolDetailsPage() {
     );
   }
 
-  const isContriboost = poolType === "Contriboost";
+  const isNestora = poolType === "Nestora";
   const tokenSymbol = getTokenSymbol(poolDetails.tokenAddress);
   
   // Joining condition checks if the user is a non-participant and enrollment is open
-  const canJoinContriboost =
-    isContriboost &&
+  const canJoinNestora =
+    isNestora &&
     userStatus &&
     !userStatus.isParticipant &&
     poolDetails.status !== "full" &&
     poolDetails.currentParticipants < poolDetails.expectedNumber;
 
-  const canDepositContriboost =
-    isContriboost &&
+  const canDepositNestora =
+    isNestora &&
     userStatus &&
     userStatus.isParticipant &&
     userStatus.isActive &&
     (poolDetails.status === "active" || poolDetails.status === "full");
     
   const canCheckMissedDeposits =
-    isContriboost &&
+    isNestora &&
     userStatus &&
     userStatus.isHost &&
     poolDetails.status === "active";
 
-  const canDistributeContriboost =
-    isContriboost &&
+  const canDistributeNestora =
+    isNestora &&
     userStatus &&
     userStatus.isHost &&
     (poolDetails.status === "active" || poolDetails.status === "full");
@@ -1122,30 +1117,30 @@ export default function PoolDetailsPage() {
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
   const canSetDescription =
-    isContriboost &&
+    isNestora &&
     userStatus &&
     userStatus.isHost;
   const canSetHostFee =
-    isContriboost &&
+    isNestora &&
     userStatus &&
     userStatus.isHost;
   const canSetTokenAddress =
-    isContriboost &&
+    isNestora &&
     userStatus &&
     userStatus.isHost;
   const canTransferOwnership =
     userStatus &&
     (userStatus.isHost || userStatus.isOwner);
   const canContributeGoalFund =
-    !isContriboost && poolDetails.status === "active" && !poolDetails.achieved;
+    !isNestora && poolDetails.status === "active" && !poolDetails.achieved;
   const canWithdrawGoalFund =
-    !isContriboost &&
+    !isNestora &&
     userStatus &&
     (userStatus.isBeneficiary || userStatus.isOwner) &&
     poolDetails.achieved &&
     !poolDetails.fundsWithdrawn;
   const canRefundGoalFund =
-    !isContriboost &&
+    !isNestora &&
     userStatus &&
     userStatus.isOwner &&
     poolDetails.status === "expired" &&
@@ -1160,7 +1155,7 @@ export default function PoolDetailsPage() {
             <Tag className="h-3 w-3 mr-1" />
             {poolType}
           </span>
-          {!isContriboost && (
+          {!isNestora && (
             <span className="text-xs bg-secondary text-secondary-foreground py-0.5 px-1.5 rounded-full flex items-center">
               <Tag className="h-3 w-3 mr-1" />
               {poolDetails.fundType === 0 ? "Grouped" : "Personal"}
@@ -1172,20 +1167,20 @@ export default function PoolDetailsPage() {
 
       <BalanceCard
         className="mb-6"
-        label={isContriboost ? "Contribution Amount" : "Funding Progress"}
-        value={isContriboost ? poolDetails.contributionAmount : poolDetails.currentAmount}
+        label={isNestora ? "Contribution Amount" : "Funding Progress"}
+        value={isNestora ? poolDetails.contributionAmount : poolDetails.currentAmount}
         valueSuffix={
-          isContriboost ? `${tokenSymbol} / cycle` : `of ${poolDetails.targetAmount} ${tokenSymbol}`
+          isNestora ? `${tokenSymbol} / cycle` : `of ${poolDetails.targetAmount} ${tokenSymbol}`
         }
         subtext={
-          isContriboost
+          isNestora
             ? `Started ${formatDate(poolDetails.startTimestamp)}`
             : `Your contribution: ${poolDetails.userContribution} ${tokenSymbol}`
         }
         progress={
           <Progress
             value={
-              isContriboost
+              isNestora
                 ? (poolDetails.currentParticipants / poolDetails.expectedNumber) * 100
                 : (Number.parseFloat(poolDetails.currentAmount) /
                     Number.parseFloat(poolDetails.targetAmount)) *
@@ -1199,23 +1194,23 @@ export default function PoolDetailsPage() {
       <StatTileRow className="mb-8">
         <StatTile
           icon={Users}
-          label={isContriboost ? "Participants" : "Contributors"}
+          label={isNestora ? "Participants" : "Contributors"}
           value={
-            isContriboost
+            isNestora
               ? `${poolDetails.currentParticipants}/${poolDetails.expectedNumber}`
               : poolDetails.contributors
           }
         />
         <StatTile
           icon={Calendar}
-          label={isContriboost ? "Current Cycle" : "Deadline"}
-          value={isContriboost ? poolDetails.currentSegment : formatDate(poolDetails.deadline)}
+          label={isNestora ? "Current Cycle" : "Deadline"}
+          value={isNestora ? poolDetails.currentSegment : formatDate(poolDetails.deadline)}
         />
         <StatTile
           icon={DollarSign}
-          label={isContriboost ? "Host Fee" : "Platform Fee"}
+          label={isNestora ? "Host Fee" : "Platform Fee"}
           value={
-            isContriboost
+            isNestora
               ? `${poolDetails.hostFeePercentage / 100}%`
               : `${poolDetails.platformFeePercentage / 100}%`
           }
@@ -1224,10 +1219,10 @@ export default function PoolDetailsPage() {
 
       <div className="mb-8 space-y-4">
         
-        {isContriboost && canJoinContriboost && (
+        {isNestora && canJoinNestora && (
           <div className="flex flex-wrap gap-2">
             <Button
-                onClick={joinContriboost}
+                onClick={joinNestora}
                 disabled={isProcessing || isConnecting}
                 className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
@@ -1238,7 +1233,7 @@ export default function PoolDetailsPage() {
         )}
 
         
-        {canDepositContriboost && (
+        {canDepositNestora && (
           <div className="flex flex-wrap gap-2 items-end">
             <div className="space-y-2">
               <Label>
@@ -1251,7 +1246,7 @@ export default function PoolDetailsPage() {
             <Button
               variant="default" // Use the primary/default color
               className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
-              onClick={depositContriboost}
+              onClick={depositNestora}
               disabled={isProcessing || isConnecting}
             >
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -1304,9 +1299,9 @@ export default function PoolDetailsPage() {
                Withdraw
             </Button>
           )}
-          {canDistributeContriboost && (
+          {canDistributeNestora && (
             <Button
-              onClick={distributeContriboostFunds}
+              onClick={distributeNestoraFunds}
               disabled={isProcessing || isConnecting}
               className={`min-w-[120px] ${BUTTON_STYLE_CLASSES}`}
             >
@@ -1426,7 +1421,7 @@ export default function PoolDetailsPage() {
         )}
       </div>
 
-      {isContriboost && (
+      {isNestora && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Participants</CardTitle>
@@ -1473,7 +1468,7 @@ export default function PoolDetailsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => reactivateContriboost(participant.address)}
+                              onClick={() => reactivateNestora(participant.address)}
                               disabled={isProcessing}
                               className={BUTTON_STYLE_CLASSES}
                             >
@@ -1513,7 +1508,7 @@ export default function PoolDetailsPage() {
                 <TableCell className="font-medium">Token</TableCell>
                 <TableCell>{tokenSymbol}</TableCell>
               </TableRow>
-              {isContriboost ? (
+              {isNestora ? (
                 <>
                   <TableRow>
                     <TableCell className="font-medium">Day Range</TableCell>
@@ -1564,7 +1559,7 @@ export default function PoolDetailsPage() {
                 <TableCell className="font-medium">Platform Fee</TableCell>
                 <TableCell>{poolDetails.platformFeePercentage / 100}%</TableCell>
               </TableRow>
-              {isContriboost && (
+              {isNestora && (
                 <TableRow>
                   <TableCell className="font-medium">Host Fee</TableCell>
                   <TableCell>{poolDetails.hostFeePercentage / 100}%</TableCell>

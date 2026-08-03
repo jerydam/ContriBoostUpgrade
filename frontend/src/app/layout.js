@@ -27,22 +27,22 @@ const jetbrainsMono = JetBrains_Mono({
 // Define the Mini App metadata
 const miniAppMetadata = JSON.stringify({
   version: "1",
-  imageUrl: "https://www.contriboost.xyz/icon.jpg",
+  imageUrl: "https://www.Nestora.xyz/icon.jpg",
   button: {
-    title: "Launch Contriboost",
+    title: "Launch Nestora",
     action: {
       type: "launch_frame",
-      name: "Contriboost",
-      url: "https://www.contriboost.xyz",
-      splashImageUrl: "https://www.contriboost.xyz/favicon.png",
+      name: "Nestora",
+      url: "https://www.Nestora.xyz",
+      splashImageUrl: "https://www.Nestora.xyz/favicon.png",
       splashBackgroundColor: "#000000",
     },
   },
 });
 
 export const metadata = {
-  title: "Contriboost | Save Together, Achieve Together",
-  description: "Create or join rotating savings pools with Contriboost.",
+  title: "Nestora | Save Together, Achieve Together",
+  description: "Create or join rotating savings pools with Nestora.",
   icons: {
     icon: "/favicon.png",
   },

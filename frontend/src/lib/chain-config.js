@@ -1,10 +1,10 @@
 // Single source of truth for the network and deployed contract addresses.
 // Deployment: smartcontract/deployments/968.json
 
-export const CHAIN_ID = 968;
+export const CHAIN_ID = 677;
 
-export const RPC_URL = "https://rpc.bohr.life";
-export const EXPLORER_URL = "https://scan.bohr.life";
+export const RPC_URL = "https://rpc.botchain.ai";
+export const EXPLORER_URL = "https://scan.botchain.ai";
 
 /** Payload for wallet_addEthereumChain / wallet_switchEthereumChain. */
 export const CHAIN_CONFIG = {
@@ -18,9 +18,9 @@ export const CHAIN_ID_HEX = `0x${CHAIN_ID.toString(16)}`;
 
 // --- Deployed contracts (chain 968) ---------------------------------------
 
-export const NESTORA_FACTORY_ADDRESS = "0x0E5D148163693A582A7e30b060471CB7AB96A37D";
-export const SAVINGS_FACTORY_ADDRESS = "0xf2B774eE4d570163431fce0417d4f3A0C233270c";
-export const BILL_PAYMENT_ADDRESS = "0xD5Da4972c7b3Ed8bCfe53328Ef200254431DE124";
+export const NESTORA_FACTORY_ADDRESS = "0x1b021caa0d4c981f4695C2cD7c5c45e8A76c34cC";
+export const SAVINGS_FACTORY_ADDRESS = "0xD15De4c3ec402c2Eb412d9173153f4451228434c";
+export const BILL_PAYMENT_ADDRESS = "0xdA4B884765483CfA5a48d121cBd6EC774c92Bd74";
 
 // --- Payment tokens --------------------------------------------------------
 
